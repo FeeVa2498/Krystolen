@@ -210,7 +210,8 @@ th { color: var(--muted); font-family: var(--display); font-weight: 400; }
         <li><b>Gold</b> flies straight to your purse and is shared by the whole team. Two linked <b>teleporter rooms</b> (◎) connect far corners of the map.</li>
         <li><b>The Wildfire</b> ignites twice per Act: it closes once, holds, then closes again on a <b>Gatekeeper</b>. Act II repeats the map with stronger monsters.</li>
         <li>After Gatekeeper II a <b>portal</b> opens: when everyone steps in you reach <b>The Bazaar</b> (last shops and level-ups). Its northern portal leads to the <b>Everfield</b>; walk forward and your <b>Dungeon Master</b> rises, in real time.</li>
-        <li><b>The Castle.</b> Every map hides a triangular castle: three towers with Gatekeepers and a Keep with a Dungeon Master. It is optional and very hard; find it early, raid it late.</li>
+        <li><b>The Labyrinth.</b> Three towers (Gatekeepers, Lv 10) and a Keep (a Dungeon Master, Lv 13). After Gatekeeper II the Wildfire dies down and the portal waits up to 15 minutes: raid the Labyrinth then. Its downs can be revived. Clearing it is how you reach Lv 15.</li>
+        <li><b>Recommended level.</b> Bosses and Labyrinth monsters have a recommended level (Gatekeeper I: 5, Gatekeeper II: 10, Dungeon Master: 15). Every level you are below it, you deal 8% less damage and take 12% more. Cleared rooms slowly refill with monsters to farm.</li>
       </ol>
       <p><b>Elements and weaknesses:</b> Fire, Frost, Bleed, Poison, Shock, Shadow. Bosses list their weakness: matching hits deal +50%, matching damage over time deals double. A frozen boss is freeze-immune for 12s.</p>
       <p><b>Dying while exploring</b> is not revivable: you respawn after a few seconds, drop one level, and leave that level's gold where you fell.</p>
@@ -2292,12 +2293,15 @@ const BOSS_LORE = {
   emberdrake: 'A young dragon, already a furnace.',
   bonecolossus: 'Built from every Krystalker who failed before you.',
 };
-// ===== The Castle: a fixed triangular fortress (3 corner towers + central keep) at a random spot each run =====
+// ===== The Labyrinth: a fixed triangular fortress (3 corner towers + central keep) at a random spot each run =====
 const TIER_REC = [0, 1, 3, 5, 8];
 const TIER_HP = [1, 0.8, 1, 1.3, 1.65], TIER_DMG = [1, 0.85, 1, 1.15, 1.3];
 const TIER_NAME = ['', 'Easy', 'Normal', 'Hard', 'Deadly'];
+// the Labyrinth: its halls hold the strongest monsters in the realm
+const LAB_HP = 1.4, LAB_DMG = 1.25, LAB_GOLD = 1.2;
+const LAB_BOSS_HP = 3, LAB_BOSS_DMG = 1.35, KEEP_HP = 2.6, KEEP_DMG = 1.35;
 const TIER_COL = ['', '#7ae07a', '#ffe06a', '#ff9a4a', '#ff5a6a'];
-const CASTLE_TPL = { id: 'castle', name: 'The Castle', floor: 'castle', elem: null, mobs: { bonewalker: 3, shardling: 2, brute: 1, hushling: 2, frostling: 1, emberling: 1, shade: 1, boar: 1 }, boss: null };
+const CASTLE_TPL = { id: 'castle', name: 'The Labyrinth', floor: 'castle', elem: null, mobs: { bonewalker: 3, shardling: 2, brute: 1, hushling: 2, frostling: 1, emberling: 1, shade: 1, boar: 1 }, boss: null };
 // west half + centre; the east half is mirrored (x' = 89 - x - w, point x' = 88 - x)
 const CASTLE_ROOMS = [
   ['north', 38, 2, 13, 11, 'tower', 'North Tower'], ['keep', 35, 17, 19, 13, 'keep', 'The Keep'], ['hall', 39, 38, 11, 7, 'hall', 'Gate Hall'],
@@ -2327,7 +2331,7 @@ function buildCastle(cg) {
   G.castle = { x0: ox, y0: oy, rooms: [] };
   for (const [id, x, y, w, h, sub, name] of defs) {
     const r = makeRoom(null, null, 'castle', { x: ox + x, y: oy + y, w, h, th: sub === 'chamber' || sub === 'hall' ? TH.castlehall : TH.castle, tpl: CASTLE_TPL });
-    Object.assign(r, { castle: true, sub, key: id, cname: name, danger: 4, rec: sub === 'keep' ? 13 : sub === 'tower' ? 11 : 9, cleared: false, hasBoss: false });
+    Object.assign(r, { castle: true, sub, key: id, cname: name, danger: 4, rec: sub === 'keep' ? 13 : 10, cleared: false, hasBoss: false });
     G.castle.rooms.push(r); G.castle[id] = r;
   }
   const paths = [];
@@ -2355,13 +2359,13 @@ function spawnCastleBosses() {
   if (!G.castle) return;
   const used = [G.night1, G.night2];
   const gk = shuffle([...NIGHT1_POOL, ...NIGHT2_POOL].filter(k => !used.includes(k))).slice(0, 3);
-  G.castle.towers.forEach((r, i) => { const e = castleBoss(gk[i], r, NIGHT1_POOL.includes(gk[i]) ? 1.7 : 1.15, NIGHT1_POOL.includes(gk[i]) ? 1.5 : 1.05); r.bossType = gk[i]; r.hasBoss = true; });
+  G.castle.towers.forEach((r, i) => { const e = castleBoss(gk[i], r, (NIGHT1_POOL.includes(gk[i]) ? 1.7 : 1.15) * LAB_BOSS_HP, (NIGHT1_POOL.includes(gk[i]) ? 1.5 : 1.05) * LAB_BOSS_DMG); r.bossType = gk[i]; r.hasBoss = true; });
   const dms = DM_IDS.filter(k => k !== G.lord && k !== 'sovereign');
-  const k = pick(dms); castleBoss(k, G.castle.keep, 0.75, 1); G.castle.keep.bossType = k; G.castle.keep.hasBoss = true;
+  const k = pick(dms); castleBoss(k, G.castle.keep, 0.75 * KEEP_HP, KEEP_DMG); G.castle.keep.bossType = k; G.castle.keep.hasBoss = true;
 }
 function castleBoss(type, room, hpMul, dmgMul) {
   const e = spawnEnemy(type, room.px, room.py, { hpMul });
-  e.dmgM *= dmgMul; e.castle = true; e.home = room; e.aggro = false; e.hx = room.px; e.hy = room.py; e.reset = 0; room.boss = e;
+  e.dmgM *= dmgMul; e.rec = room.rec; e.castle = true; e.home = room; e.aggro = false; e.hx = room.px; e.hy = room.py; e.reset = 0; room.boss = e;
   return e;
 }
 // ===== Effects =====
@@ -2389,6 +2393,7 @@ function damage(target, amt, src, o = {}) {
   if (target.team === 'player') {
     if (target.state !== 'up' || target.invulnT > 0 || target.escaped) return 0;
     if (src && src.team === 'enemy') amt *= 1 - stAmt(src, 'wither');
+    if (src && src.rec && target.level < src.rec) amt *= 1 + LV_TAKEN * (src.rec - target.level); // under-leveled: hits land harder
     amt *= (1 - target.st.armor) * (target.dr || 1) * (1 + stAmt(target, 'sunder')) * (target.groundT > 0 ? 0.8 : 1);
     if (target.auraArmT > G.time) amt *= 1 - target.auraArm;
     if (target.guardT > 0 && src && Math.abs(angDiff(target.guardA, Math.atan2(src.y - target.y, src.x - target.x))) < 1.25) { amt *= 0.15; target.guardHit = true; burst(target.x + Math.cos(target.guardA) * 8, target.y - 8 + Math.sin(target.guardA) * 8, '#ffe8c0', 6, 60, 0.25, { shape: 'spark' }); }
@@ -2408,6 +2413,7 @@ function damage(target, amt, src, o = {}) {
   if (!target.aggro) aggroRoom(target);
   let crit = false;
   if (src && src.team === 'player') { const r = playerHitMods(src, target, amt, o); amt = r.amt; crit = r.crit; }
+  if (target.rec && src && src.level && src.level < target.rec) amt *= Math.max(0.3, 1 - LV_DEALT * (target.rec - src.level));
   if (target.armorFn) amt *= target.armorFn(target, src);
   if (target.charged > 0 && o.elec) amt *= 1.2;
   if (target.vulnT > 0) amt *= 1.5;
@@ -2526,6 +2532,8 @@ function updateZones(dt) {
 function enemiesIn(x, y, r) { return G.enemies.filter(e => !e.dead && d2(e.x, e.y, x, y) < (r + e.r) ** 2); }
 
 // ===== Gold (shared by the whole team) =====
+// recommended level: each level below it costs damage dealt and adds damage taken
+const LV_DEALT = 0.08, LV_TAKEN = 0.12;
 const TEAM_GOLD = 0.13; // every coin is credited to every player, so drops are scaled down
 function dropGold(x, y, amount) {
   const v = Math.round(amount); if (v <= 0) return;
@@ -3566,14 +3574,15 @@ function updatePlayer(p, c, dt) {
   if (canAtk && def.alt && c.altD && p.altCd <= 0) { if (def.alt.use(p, c) !== false) p.altCd = def.alt.cd / Math.max(0.5, p.st.rate); }
   handleCast(p, c, 'skill'); handleCast(p, c, 'ult'); handleCast(p, c, 'super');
   if (c.itemP) useActive(p, c);
-  if (c.intP && !downedNear(p)) { const d = nearestDrop(p); if (d) takeDrop(p, d); else { const it = nearestInter(p); if (it) useInter(it, p); } }
+  if (c.intP && !downedNear(p)) { const want = c.intIt && !c.intIt.used && d2(p.x, p.y, c.intIt.x, c.intIt.y) < 34 * 34 ? c.intIt : null; const d = want ? null : nearestDrop(p); if (d) takeDrop(p, d); else { const it = want || nearestInter(p); if (it) useInter(it, p); } }
 }
 function downedNear(p) { return G.players.find(q => q !== p && q.state === 'downed' && d2(q.x, q.y, p.x, p.y) < 24 * 24); }
 function downPlayer(p) {
   sfx('down', p.x, p.y, p.isBot ? 0.6 : 1);
   if (p.st.phoenix && !p.phoenixUsed) { p.phoenixUsed = true; p.hp = p.maxHp * 0.4; p.invulnT = 2; clearStatus(p); floatText(p.x, p.y - 30, 'PHOENIX!', '#ff8a2a', 1.2, 1.3); burst(p.x, p.y - 8, '#ff8a2a', 30, 110, 0.7, { glow: true }); pillar(p.x, p.y, '#ff8a2a', 60, 14, 0.6); return; }
-  if (!G.bossFight) { p.hp = 0; clearStatus(p); p.dash = null; p.ball = 0; p.fated = 0; p.barrage = 0; p.dr = 1; p.aiming = null; p.stats.downs++; killPlayer(p); return; }
-  p.state = 'downed'; p.hp = 0; p.downT = 20; p.revive = 0; p.dash = null; p.ball = 0; p.fated = 0; p.barrage = 0; p.dr = 1; p.aiming = null; clearStatus(p);
+  const lab = !G.bossFight && labFight(p);
+  if (!G.bossFight && !lab) { p.hp = 0; clearStatus(p); p.dash = null; p.ball = 0; p.fated = 0; p.barrage = 0; p.dr = 1; p.aiming = null; p.stats.downs++; killPlayer(p); return; }
+  p.state = 'downed'; p.hp = 0; p.downT = lab ? 30 : 20; p.revive = 0; p.dash = null; p.ball = 0; p.fated = 0; p.barrage = 0; p.dr = 1; p.aiming = null; clearStatus(p);
   p.stats.downs++; p.fightDowns = (p.fightDowns || 0) + 1;
   feed(p.isBot ? `${p.name} is down! Hold ${keyName(settings.binds.interact)} next to them to revive.` : (G.bossFight ? 'You are down! Crawl to a teammate. No timer during boss fights.' : 'You are down! Crawl to a teammate before the timer runs out.'), '#ff8a8a');
   burst(p.x, p.y - 6, '#ff6a6a', 14, 70);
@@ -3650,13 +3659,13 @@ const LEGEND_GEMS = [
   Lg('p_after', 'pangolin', 'Aftershock', 'Quake strikes again 0.6s later for 60% damage.', { id: 'pq3', text: 'Foundation: win a run as Pangolin', type: 'win', n: 1 }),
   Lg('r_over', 'reindeer', 'Overcharge', 'Arc Bolt jumps to 2 more enemies.', { id: 'rq1', text: 'Wanderer: discover 10 different biomes as Reindeer', type: 'biome', n: 10 }),
   Lg('r_ram', 'reindeer', "Ram's Fury", 'Antler Charge stuns twice as long and Sunders enemies hit.', { id: 'rq2', text: 'Storm-born: defeat the Thunder Toad as Reindeer', type: 'gk', target: 'thundertoad', n: 1 }),
-  Lg('r_twin', 'reindeer', 'Twin Tablet', 'The tablet lasts 10s and zaps two enemies at once.', { id: 'rq3', text: 'The way home: conquer the Castle Keep as Reindeer', type: 'keep', n: 1 }),
+  Lg('r_twin', 'reindeer', 'Twin Tablet', 'The tablet lasts 10s and zaps two enemies at once.', { id: 'rq3', text: 'The way home: conquer the Labyrinth Keep as Reindeer', type: 'keep', n: 1 }),
   Lg('b_big', 'rabbit', 'Big Flask', 'A wider cloud that stacks poison twice as fast.', { id: 'bq1', text: 'Herbalist: defeat 250 monsters as Rabbit', type: 'kill', n: 250 }),
   Lg('b_spread', 'rabbit', 'Contagion', 'When a poisoned enemy dies, its poison spreads to enemies nearby.', { id: 'bq2', text: 'Antidote: defeat the Sporemother as Rabbit', type: 'gk', target: 'sporemother', n: 1 }),
   Lg('b_life', 'rabbit', 'Lifebloom', 'Bloom heals you 1.5% of max health for every stack it consumes.', { id: 'bq3', text: 'Cure-all: win a run as Rabbit', type: 'win', n: 1 }),
   Lg('w_double', 'wolf', 'Double Bolt', 'The Ballista holds two bolts: fire twice before you reload.', { id: 'wq1', text: 'Steady hands: 30 perfect reloads in a row as Wolf', type: 'streak', n: 30 }),
   Lg('w_volley', 'wolf', 'Fated Volley', 'Fated Shot fires three beams in a fan.', { id: 'wq2', text: 'Apex: reach level 15 in a run as Wolf', type: 'level', n: 15 }),
-  Lg('w_exec', 'wolf', 'Execution', 'Fated Shot deals double damage to enemies below 40% health.', { id: 'wq3', text: 'The strongest: defeat 3 castle bosses in one run as Wolf', type: 'castle3', n: 3 }),
+  Lg('w_exec', 'wolf', 'Execution', 'Fated Shot deals double damage to enemies below 40% health.', { id: 'wq3', text: 'The strongest: defeat 3 Labyrinth bosses in one run as Wolf', type: 'castle3', n: 3 }),
 ];
 const GEM_BY_ID = {}; for (const g of [...GEM_LIST, ...LEGEND_GEMS]) GEM_BY_ID[g.id] = g;
 const GEM_SLOT = { lmb: { name: 'Attack', color: '#ff7a5a' }, sp: { name: 'Utility', color: '#5ad0ff' }, q: { name: 'Skill', color: '#ffc83a' } };
@@ -4270,7 +4279,7 @@ function spawnEnemy(type, x, y, o = {}) {
   if (o.hpMul) hpM *= o.hpMul;
   const e = {
     team: 'enemy', type, def: d, x, y, hx: x, hy: y, r: d.r, hp: d.hp * hpM, maxHp: d.hp * hpM, spd: d.spd, kvx: 0, kvy: 0, dmgM,
-    goldM: (1 + 0.3 * (dg - 1)) * (d2x ? 1.6 : 1), room, sts: {}, hitSt: d.hitSt || null, shotSt: d.shotSt || null,
+    goldM: (1 + 0.3 * (dg - 1)) * (d2x ? 1.9 : 1), room, sts: {}, hitSt: d.hitSt || null, shotSt: d.shotSt || null,
     stunT: 0, poison: null, charged: 0, hitT: 0, cd: rr(0.6, 1.6), state: 'move', st: 0, t: 0, dead: false,
     boss: !!d.boss, champ: !!d.champ, lord: !!d.lord, kbRes: d.kbRes ?? 1, contactCd: 0, face: 1, tgt: null, tgtT: 0, spin: 0, moving: false, walkT: rr(0, 3),
     aggro: !!(d.boss || o.aggro), invT: 0, busy: 0, extra: !!o.extra, sprite: d.sprite || type, scale: d.scale || 1, tint: !!d.tint,
@@ -4390,7 +4399,7 @@ function updateEnemy(e, dt) {
   const slow = 1 - stAmt(e, 'mire');
   if (!e.aggro) {
     const p = nearestUp(e, gloomed ? 60 : e.champ ? 170 : 140);
-    if (e.castle) { if (G.players.some(q => q.state === 'up' && inRoom(e.home, q.x, q.y, -10))) { e.aggro = true; if (G.players.some(q => !q.isBot && inRoom(e.home, q.x, q.y, 0))) setBanner(e.def.name, `Castle boss · Recommended Lv ${e.home.rec}`, 2.6, '#ffd44a'); } return; }
+    if (e.castle) { if (G.players.some(q => q.state === 'up' && inRoom(e.home, q.x, q.y, -10))) { e.aggro = true; if (G.players.some(q => !q.isBot && inRoom(e.home, q.x, q.y, 0))) setBanner(e.def.name, `Labyrinth boss · Recommended Lv ${e.home.rec}`, 2.6, '#ffd44a'); } return; }
     if (p && (!e.champ || inRoom(e.room, p.x, p.y)) && losClear(e.x, e.y, p.x, p.y)) aggroRoom(e);
     else { if (e.t % 3 < dt) e.wander = R() * Math.PI * 2; if (e.wander != null && e.t % 3 < 0.8 && !e.def.objective) { moveEnt(e, Math.cos(e.wander) * 12 * dt, Math.sin(e.wander) * 12 * dt); e.moving = true; e.face = Math.cos(e.wander) >= 0 ? 1 : -1; } return; }
   }
@@ -4650,9 +4659,9 @@ function castleLeash(e, dt) {
 function castleBossDead(e) {
   const room = e.home; room.bossDone = 99; room.cleared = true;
   feed(`${e.def.name} of the ${room.cname} is defeated!`, '#ffd44a');
-  setBanner(`${room.cname} conquered`, e.def.lord ? 'The Keep falls! Legendary rewards await.' : 'A castle boss falls.', 3, '#ffd44a');
+  setBanner(`${room.cname} conquered`, e.def.lord ? 'The Keep falls! Legendary rewards await.' : 'A Labyrinth boss falls.', 3, '#ffd44a');
   spawnRewardOrbs(e.x, e.y, room.sub === 'keep' ? ODDS.keep : ODDS.night, e.def.name);
-  dropGold(e.x, e.y, room.sub === 'keep' ? 600 : 300);
+  dropGold(e.x, e.y, room.sub === 'keep' ? 1500 : 900);
   spawnShrine(room); const sh = G.inter.find(i => i.kind === 'shrine' && i.room === room); if (sh) sh.day = 9;
   for (const o of G.enemies) if (o.room === room || ((o.type === 'pylon' || o.decoy) && inRoom(room, o.x, o.y))) o.dead = true;
   if (G.beams) G.beams = G.beams.filter(b => b.owner !== e); if (G.walls) G.walls = G.walls.filter(w => w.owner !== e);
@@ -4873,7 +4882,7 @@ function updateFakeout(dt) {
     revealRoom(V);
     G.players.forEach((p, i) => { if (p.state === 'dead') p.state = 'up'; if (p.state === 'up') p.hp = Math.max(p.hp, p.maxHp * 0.5); p.x = V.px + (i - 1.5) * 30; p.y = (V.y + V.h - 5) * TILE; p.dash = null; p.ball = 0; p.invulnT = 2; burst(p.x, p.y - 8, '#d8a0ff', 18, 90, 0.6, { glow: true }); });
     G.cam.init = false;
-    G.boss = spawnEnemy('sovereign2', V.bossX, V.bossY); shock(V.bossX, V.bossY, 200, '#ff5ad0', 1); burst(V.bossX, V.bossY - 20, '#ff5ad0', 80, 260, 1, { glow: true });
+    G.boss = spawnEnemy('sovereign2', V.bossX, V.bossY); G.boss.rec = FINAL_REC; tuneBoss(G.boss, FINAL_HP * 0.6, FINAL_DMG); shock(V.bossX, V.bossY, 200, '#ff5ad0', 1); burst(V.bossX, V.bossY - 20, '#ff5ad0', 80, 260, 1, { glow: true });
     setBanner('SOVEREIGN UNBOUND', '', 4, '#ff5ad0'); sfx('roar');
   }
 }
@@ -4960,6 +4969,7 @@ function botSay(p, kind, other) {
   if (!p.ai) return;
   if (G.time - (p.ai.saidT || -99) < 5 && kind !== 'down') return;
   p.ai.saidT = G.time;
+  if (!BOT_LINES[kind]) return;
   const line = pick(BOT_LINES[kind]).replace('{n}', other ? (other.isBot ? other.name : 'buddy') : '');
   feed(`${p.name}: ${line}`, CHARS[p.char].color);
   p.sticker = { text: line, t: 2.5 };
@@ -5069,8 +5079,20 @@ function botControl(p, dt) {
   else if (m === 'goto' && !A.goal) A.think = Math.min(A.think || 0, 0.1);
   else if (m === 'goto' && A.goal) {
     const g = A.goal; const dd = Math.hypot(p.x - g.x, p.y - g.y);
-    if (dd > (g.near || 10)) { goTo(p, A, g.x, g.y, c, dt); A.wantMove = true; }
-    else if (g.use) { c.intP = true; A.goal = null; A.think = 0; }
+    const atIt = g.use && g.it && d2(p.x, p.y, g.it.x, g.it.y) < 26 * 26;
+    if (atIt || (dd <= (g.near || 10) && g.use)) { c.intP = true; c.intIt = g.it || null; A.goal = null; A.think = 0; }
+    else if (dd > (g.near || 10)) {
+      goTo(p, A, g.x, g.y, c, dt); A.wantMove = true;
+      // no progress for a while: the spot is unreachable (wall, crowd, prop). Pull loot to us, drop other goals.
+      if (!A.stuckG || Math.abs(A.stuckG.x - g.x) > 40 || Math.abs(A.stuckG.y - g.y) > 40) { A.stuckG = { x: g.x, y: g.y }; A.stuckD = dd; A.stuckT = 0; }
+      if (dd < A.stuckD - 10) { A.stuckD = dd; A.stuckT = 0; } else if ((A.stuckT += dt) > 3.5) {
+        const orb = G.orbs.find(o => o.owner === p && Math.abs(o.x - g.x) < 2 && Math.abs(o.y - g.y) < 2), pile = G.piles.find(P => P.owner === p && Math.abs(P.x - g.x) < 2 && Math.abs(P.y - g.y) < 2);
+        if (orb) { orb.x = p.x; orb.y = p.y; } else if (pile) { pile.x = p.x; pile.y = p.y; }
+        else if (g.it && g.use && dd < 60) { c.intP = true; c.intIt = g.it; }
+        else { A.badGoal = { x: g.x, y: g.y, until: G.time + 15 }; for (const k of G.coins) if (d2(k.x, k.y, g.x, g.y) < 9) k.botSkip = G.time + 30; }
+        A.goal = null; A.think = 0; A.stuckG = null;
+      }
+    }
   }
   if (A.jitter > 0) { A.jitter -= dt; c.mx = Math.cos(A.jitA); c.my = Math.sin(A.jitA); }
   // ---- aim & shoot whatever is around ----
@@ -5094,8 +5116,13 @@ function botControl(p, dt) {
   if ((far && p.stam > 0.45) || (p.hp < p.maxHp * 0.3 && A.nVis && p.stam > 0.2) || (G.everWait && p.stam > 0.3)) c.run = true;
   return c;
 }
-function nextCircleR() { return predictR(14); }
-function safeAt(x, y, margin = 30) { const c = G.circle; if (!c) return true; return Math.hypot(x - c.x, y - c.y) < nextCircleR() - margin; }
+function nextCircleR(ahead = 6) { return predictR(ahead); }
+// a spot is safe if the fire will not have reached it in `ahead` seconds
+function safeAt(x, y, margin = 30, ahead = 6) { const c = G.circle; if (!c || G.phase !== 'day') return true; return Math.hypot(x - c.x, y - c.y) < nextCircleR(ahead) - margin; }
+// worth walking to: still safe by the time we get there and have fought a while
+function campSafe(p, x, y, margin = 40, stay = 14) { const t = Math.hypot(x - p.x, y - p.y) / 85; return safeAt(x, y, margin, Math.min(40, t + stay)); }
+// nearest point the fire will not reach soon: step inward along the line to the centre, not all the way
+function safePoint(p) { const c = G.circle, R0 = nextCircleR(12) - 110; const d = Math.hypot(p.x - c.x, p.y - c.y) || 1; if (R0 <= 40) return { x: c.x, y: c.y }; const k = Math.min(1, R0 / d); let x = c.x + (p.x - c.x) * k, y = c.y + (p.y - c.y) * k; if (hitsWall(x, y, 6)) { let best = null, bd = 1e12; for (const r of G.rooms) { if (Math.hypot(r.px - c.x, r.py - c.y) > R0) continue; const dd = d2(r.px, r.py, p.x, p.y); if (dd < bd) { bd = dd; best = r; } } if (best) { x = best.px; y = best.py; } else { x = c.x; y = c.y; } } return { x, y }; }
 function decideMode(p, A, vis) {
   const H = human();
   // Rimehorn's Glacial Roar: break line of sight behind an ice pillar (skill-dependent)
@@ -5109,7 +5136,7 @@ function decideMode(p, A, vis) {
   // revive
   let ally = null, bd = 1e12;
   for (const q of G.players) if (q !== p && q.state === 'downed') { const dd = d2(q.x, q.y, p.x, p.y); if (dd < bd) { bd = dd; ally = q; } }
-  if (ally && (G.bossFight || (bd < 500 * 500 && (clusterAt(ally.x, ally.y, 60) < A.P.reviveRisk || ally.downT < 9)))) { A.ally = ally; return 'revive'; }
+  if (ally && (G.bossFight || (labFight(ally) && bd < 400 * 400) || (bd < 500 * 500 && (clusterAt(ally.x, ally.y, 60) < A.P.reviveRisk || ally.downT < 9)))) { A.ally = ally; return 'revive'; }
   if (G.bossFight) return 'boss';
   const orb = G.orbs.find(o => o.owner === p);
   if (orb) { A.goal = { x: orb.x, y: orb.y, near: 4 }; return 'goto'; }
@@ -5124,48 +5151,54 @@ function decideMode(p, A, vis) {
   }
   if (G.phase === 'prep') {
     const sh = nearestShrine(p, true);
-    if (sh && levelCost(p) != null && p.gold >= levelCost(p)) { A.goal = { x: sh.x, y: sh.y + 10, near: 12, use: true, it: sh }; return 'goto'; }
+    if (sh && levelCost(p) != null && p.gold >= levelCost(p)) { A.goal = { x: sh.x, y: sh.y, near: 18, use: true, it: sh }; return 'goto'; }
     const buy = bestPurchase(p); if (buy) { A.goal = { x: buy.x, y: buy.y + 6, near: 10, use: true, it: buy }; return 'goto'; }
     if (portal && !portal.ready.has(p)) { A.goal = { x: portal.x, y: portal.y + 8, near: 14, use: true, it: portal }; return 'goto'; }
     if (portal) { A.goal = { x: portal.x + rr(-40, 40), y: portal.y + 34, near: 24 }; return 'goto'; }
     return 'idle';
   }
-  if (G.phase !== 'day') return 'idle';
+  if (G.phase !== 'day' && G.phase !== 'embers') return 'idle';
   const pile = G.piles.find(P => P.owner === p);
   if (pile && (!vis.length || vis[0].d > 120) && safeAt(pile.x, pile.y, 20)) { A.goal = { x: pile.x, y: pile.y, near: 4 }; return 'goto'; }
   const inLock = G.rooms.find(r => r.locked && inRoom(r, p.x, p.y, 4));
   if (inLock) { if (vis.length) return 'fight'; A.goal = { x: inLock.px + rr(-30, 30), y: inLock.py + rr(-20, 20), near: 20 }; return 'goto'; }
   // the Tide: get inside before it closes
   const c = G.circle;
-  if (c && !safeAt(p.x, p.y, -40)) { A.goal = { x: c.x + rr(-40, 40), y: c.y + rr(-30, 30), near: 40 }; return 'goto'; }
+  if (c && !safeAt(p.x, p.y, 0, 4)) { const sp = safePoint(p); A.goal = { x: sp.x + rr(-20, 20), y: sp.y + rr(-20, 20), near: 40 }; A.camp = null; return 'goto'; }
   // under-leveled bots back out of a room boss's lair
   const champ = G.enemies.find(e => e.champ && e.aggro && e.room && inRoom(e.room, p.x, p.y, -4));
   if (champ && !botCanFight(p, champ.room) && p.hp < p.maxHp * 0.7) { const ex = exitPoint(champ.room, p); A.goal = { x: ex.x, y: ex.y, near: 14 }; return 'goto'; }
+  // badly hurt in a room fight: walk out of the room (room monsters stay in their lair) and heal
+  const hereR = roomAt(p.x, p.y);
+  if (p.hp < p.maxHp * 0.28 && vis.length && vis[0].d < 170 && hereR && (hereR.type === 'themed' || hereR.type === 'castle') && !labFight(p) && !(p.char === 'serpent' && p.cd.ult <= 0)) { const ex = exitPoint(hereR, p); A.goal = { x: ex.x, y: ex.y, near: 14 }; A.fleeing = G.time + 3; return 'goto'; }
+  if (A.fleeing > G.time && A.goal) return 'goto';
   if (A.pingEnemy && !A.pingEnemy.dead) { const pe = A.pingEnemy; if (d2(pe.x, pe.y, p.x, p.y) < 160 * 160 && losClear(p.x, p.y, pe.x, pe.y)) { A.target = pe; return 'fight'; } A.goal = { x: pe.x, y: pe.y, near: 60 }; return 'goto'; }
   if (vis.length && vis[0].d < 200 && (vis[0].e.aggro || vis[0].d < 150) && (!(vis[0].e.champ || vis[0].e.castle) || botCanFight(p, vis[0].e.room || vis[0].e.home))) return 'fight';
   if (A.helpT > 0 && H && H.state === 'up') { A.goal = { x: H.x, y: H.y, near: 40 }; return 'goto'; }
   // coins
   let coin = null; bd = 120 * 120;
-  for (const k of G.coins) { const dd = d2(k.x, k.y, p.x, p.y); if (dd < bd && losClear(p.x, p.y, k.x, k.y)) { bd = dd; coin = k; } }
+  for (const k of G.coins) { if (k.botSkip > G.time) continue; const dd = d2(k.x, k.y, p.x, p.y); if (dd < bd && losClear(p.x, p.y, k.x, k.y)) { bd = dd; coin = k; } }
   if (coin) { A.goal = { x: coin.x, y: coin.y, near: 4 }; return 'goto'; }
   // level up whenever it is affordable
   const lc = levelCost(p);
   if (lc != null && p.gold >= lc) {
-    const sh = nearestShrineNow(p); if (sh && (G.stageT > 45 || d2(sh.x, sh.y, p.x, p.y) < 500 * 500 || safeAt(sh.x, sh.y, 40))) { A.goal = { x: sh.x, y: sh.y + 10, near: 12, use: true, it: sh }; return 'goto'; }
+    const sh = nearestShrineNow(p); if (sh && (G.stageT > 45 || d2(sh.x, sh.y, p.x, p.y) < 500 * 500 || safeAt(sh.x, sh.y, 40))) { A.goal = { x: sh.x, y: sh.y, near: 18, use: true, it: sh }; return 'goto'; }
   }
   // wounded and nothing around: rest at a shrine before the next room (the next pull will hurt)
   if (p.hp < p.maxHp * (A.P === PERSONAS.Aggressive ? 0.4 : 0.6) && !vis.length) { const sh = nearestShrineNow(p); if (sh && d2(sh.x, sh.y, p.x, p.y) < 900 * 900 && safeAt(sh.x, sh.y, 40)) { A.goal = { x: sh.x + rr(-14, 14), y: sh.y + 22, near: 18 }; return 'goto'; } }
   const buy = bestPurchase(p); if (buy) { A.goal = { x: buy.x, y: buy.y + 6, near: 10, use: true, it: buy }; return 'goto'; }
   if (A.followT > 0 && H && H.state === 'up') { if (d2(H.x, H.y, p.x, p.y) > 50 * 50) { A.goal = { x: H.x, y: H.y, near: 40 }; return 'goto'; } return 'idle'; }
   if (H && H.state === 'up' && A.P === PERSONAS.Careful && d2(H.x, H.y, p.x, p.y) > 520 * 520) { A.goal = { x: H.x, y: H.y, near: 60 }; return 'goto'; }
+  if (G.phase === 'embers') { const m = embersPlan(p, A); if (m) return m; }
   // no shrine to level at: the team hunts a room boss together
   const hunt = huntRoom(p);
   if (hunt) { A.goal = { x: hunt.px + rr(-20, 20), y: hunt.py + rr(-20, 20), near: 30 }; A.camp = hunt; return 'goto'; }
   // pick a camp to raid
   const camp = pickCamp(p) || pickCamp(p, true);
+  if (camp && inRoom(camp, p.x, p.y, -6) && (!vis.length || vis[0].d > 200)) { let best = null, bd2 = 1e12; for (const e of G.enemies) if (!e.dead && e.room === camp && !e.extra) { const dd = d2(e.x, e.y, p.x, p.y); if (dd < bd2) { bd2 = dd; best = e; } } if (best) { A.camp = camp; A.goal = { x: best.x, y: best.y, near: 40 }; return 'goto'; } }
   if (camp) { if (A.camp !== camp) A.campCommit = G.time + 30; A.goal = { x: camp.px + rr(-20, 20), y: camp.py + rr(-20, 20), near: 30 }; A.camp = camp; return 'goto'; }
   // nothing this bot dares alone: tag along with a teammate who is heading somewhere
-  const mate = G.players.find(q => q !== p && q.state === 'up' && q.ai && q.ai.camp && !q.ai.camp.cleared && q.ai.mode !== 'idle' && roomRec(q.ai.camp) <= p.level + 1 && safeAt(q.ai.camp.px, q.ai.camp.py, 140));
+  const mate = G.players.find(q => q !== p && q.state === 'up' && q.ai && q.ai.camp && !q.ai.camp.cleared && q.ai.mode !== 'idle' && roomRec(q.ai.camp) <= p.level + 1 && campSafe(p, q.ai.camp.px, q.ai.camp.py, 60));
   if (mate) { A.camp = mate.ai.camp; A.campCommit = G.time + 30; const mc = mate.ai.camp; A.goal = { x: mc.px + rr(-20, 20), y: mc.py + rr(-20, 20), near: 30 }; return 'goto'; }
   // nothing left: drift to the night arena
   if (c) { A.goal = { x: c.x + rr(-60, 60), y: c.y + rr(-50, 50), near: 50 }; return 'goto'; }
@@ -5183,7 +5216,8 @@ function botCanFight(p, room) {
   const A = p.ai; if (!A.riskT || G.time > A.riskT) { const [a, b] = RISK[A.pers] || [0, 1]; A.risk = rr(a, b); A.riskT = G.time + 20; }
   const rec = roomRec(room);
   const team = G.players.filter(q => q.state === 'up' && (d2(q.x, q.y, p.x, p.y) < 700 * 700 || d2(q.x, q.y, room.px, room.py) < 500 * 500 || (q.ai && q.ai.camp === room))).length;
-  const power = p.level + relicCount(p) * 0.3 - (4 - team) * 1.0;
+  if (room.castle) return p.level >= rec - 1 && team >= 3; // the Labyrinth punishes anyone under-leveled or alone
+  const power = p.level + relicCount(p) * 0.12 - (4 - team) * 1.0;
   if (rec <= p.level && team >= 2) return true;
   return power + A.risk >= rec;
 }
@@ -5196,15 +5230,18 @@ function pickCamp(p, relaxed) {
   const others = G.players.filter(q => q !== p && q.ai && q.ai.camp).map(q => q.ai.camp);
   let best = null, bs = 1e12;
   for (const r of G.rooms) {
-    if (!(r.type === 'themed' || r.type === 'castle') || r.cleared || r.spawnedDay !== G.day) continue;
+    if (!(r.type === 'themed' || r.type === 'castle') || r.spawnedDay !== G.day) continue;
+    if (r.cleared && r.alive < 3) continue; // cleared rooms refill with stragglers: still worth a visit
+    if (r.castle && (r.sub === 'tower' || r.sub === 'keep')) continue; // Labyrinth bosses are raided as a planned team (embersPlan)
     const bossAlive = r.type === 'castle' ? (r.hasBoss && !r.bossDone) : (r.hasBoss && !r.bossKilled && r.bossDone !== G.day);
     if (r.alive <= 0 && !bossAlive) continue;
-    if (!safeAt(r.px, r.py, 90)) continue;
+    if (!campSafe(p, r.px, r.py, 60)) continue;
     const ok = botCanFight(p, r) || (p.ai.camp === r && G.time < (p.ai.campCommit || 0) && p.hp > p.maxHp * 0.45);
     if (!ok && (!relaxed || bossAlive || roomRec(r) > p.level + 2)) continue;
     let s = Math.hypot(r.px - p.x, r.py - p.y);
     if (others.includes(r)) s += 220;
     if (p.ai.camp === r) s -= 120;
+    if (r.cleared) s += 140 - r.alive * 12;
     if (bossAlive && ok) s -= 150;
     if (s < bs) { bs = s; best = r; }
   }
@@ -5310,7 +5347,7 @@ function botKitExtras(p, A, tgt, c, dd, n, big, los) {
   if (def.alt && p.altCd <= 0 && dd < 26 + (tgt.r || 5) && !p.running) { c.altD = true; if (p.char === 'pangolin' && !(tgt.boss || n >= 3)) c.altD = false; }
   if (p.char === 'pangolin' && def.alt && p.altCd <= 0 && G.bullets.some(b => b.team === 'enemy' && d2(b.x, b.y, p.x, p.y) < 50 * 50)) { c.altD = true; c.ax = tgt.x; c.ay = tgt.y; }
   if (def.super && p.level >= ULT_LEVEL && p.cd.super <= 0 && !busy(p) && los) {
-    const worth = tgt.boss ? tgt.hp > tgt.maxHp * 0.15 : (tgt.champ || tgt.castle) ? tgt.hp > tgt.maxHp * 0.4 : n >= 5;
+    const worth = (tgt.boss || tgt.castle) ? tgt.hp > tgt.maxHp * 0.12 : tgt.champ ? tgt.hp > tgt.maxHp * 0.4 : tgt.rec ? n >= 3 : n >= 5;
     const close = { hedgehog: 110, crow: 170, pangolin: 140, reindeer: 120, rabbit: 70, wolf: 300, goat: 70, lizard: 70, beaver: 200, owl: 200, monkey: 130 }[p.char] ?? 120;
     if (worth && dd < close && p.char !== 'serpent') { c.supP = true; c.ax = tgt.x; c.ay = tgt.y; }
   }
@@ -5394,13 +5431,60 @@ function huntRoom(p) {
   const wants = lc != null && (!shrines.length || p.gold >= lc * 1.5) && (shrines.length < 2 || p.gold >= lc * 2);
   if (!wants) return null;
   let R0 = G.huntRoom;
-  if (!R0 || R0.bossDone === G.day || R0.bossKilled || !R0.hasBoss || R0.spawnedDay !== G.day || !safeAt(R0.px, R0.py, 60)) {
+  if (!R0 || R0.bossDone === G.day || R0.bossKilled || !R0.hasBoss || R0.spawnedDay !== G.day || !campSafe(p, R0.px, R0.py, 60)) {
     const alive = G.players.filter(q => q.state === 'up'); const cx = alive.reduce((a, q) => a + q.x, 0) / Math.max(1, alive.length), cy = alive.reduce((a, q) => a + q.y, 0) / Math.max(1, alive.length);
     let best = null, bs = 1e12;
-    for (const r of G.rooms) { if (r.type !== 'themed' || !r.hasBoss || r.bossKilled || r.bossDone === G.day || r.spawnedDay !== G.day || !safeAt(r.px, r.py, 60)) continue; const sc = Math.hypot(r.px - cx, r.py - cy) + r.danger * 260; if (sc < bs) { bs = sc; best = r; } }
+    for (const r of G.rooms) { if (r.type !== 'themed' || !r.hasBoss || r.bossKilled || r.bossDone === G.day || r.spawnedDay !== G.day || !campSafe(p, r.px, r.py, 60)) continue; const sc = Math.hypot(r.px - cx, r.py - cy) + r.danger * 260; if (sc < bs) { bs = sc; best = r; } }
     G.huntRoom = R0 = best;
   }
   return R0;
+}
+
+// ---- after Gatekeeper II: raid the Labyrinth as a team, then take the portal ----
+function teamStats() { const t = G.players; const lv = t.map(q => q.level); return { min: Math.min(...lv), avg: lv.reduce((a, b) => a + b, 0) / lv.length }; }
+function labTarget() {
+  if (!G.castle) return null;
+  const T = teamStats(), rooms = G.castle.rooms;
+  const bossUp = r => r.hasBoss && r.bossDone !== 99 && r.boss && !r.boss.dead;
+  let cur = G.labTgt;
+  const ok = r => r && (bossUp(r) ? (r.sub === 'keep' ? T.avg >= 12.5 && T.min >= 11 : T.avg >= 10 && T.min >= 9) : r.alive >= 2 && T.avg >= 9);
+  if (ok(cur)) return cur;
+  const alive = G.players.filter(q => q.state !== 'dead'); const cx = alive.reduce((a, q) => a + q.x, 0) / Math.max(1, alive.length), cy = alive.reduce((a, q) => a + q.y, 0) / Math.max(1, alive.length);
+  let best = null, bs = 1e12;
+  for (const r of rooms) {
+    if (!ok(r)) continue;
+    let sc = Math.hypot(r.px - cx, r.py - cy);
+    if (bossUp(r)) sc -= r.sub === 'keep' ? 200 : 600; // bosses are what we came for; chambers fill the gaps
+    if (sc < bs) { bs = sc; best = r; }
+  }
+  G.labTgt = best;
+  return best;
+}
+function embersPlan(p, A) {
+  const portal = G.inter.find(i => i.kind === 'portal');
+  const late = portal && EMBERS_MAX - (G.time - portal.t0) < 80;
+  const T = teamStats();
+  if (labCleared() || late || T.min >= MAX_LEVEL) {
+    if (portal && !portal.ready.has(p)) { A.goal = { x: portal.x, y: portal.y + 8, near: 14, use: true, it: portal }; return 'goto'; }
+    if (portal) { A.goal = { x: portal.x + rr(-30, 30), y: portal.y + 30, near: 20 }; return 'goto'; }
+    return null;
+  }
+  const H = human();
+  if (H && !G.watch && H.state === 'up' && G.castle) { const hr = G.castle.rooms.find(r => inRoom(r, H.x, H.y, 8)); if (hr) { A.camp = hr; A.goal = { x: H.x + rr(-30, 30), y: H.y + rr(-30, 30), near: 40 }; return 'goto'; } }
+  const R0 = labTarget(); if (!R0) return null;
+  A.camp = R0;
+  const bossUp = R0.boss && !R0.boss.dead && R0.bossDone !== 99;
+  if (bossUp && !R0.boss.aggro) {
+    // gather at the door, then go in together: nobody pulls a Labyrinth boss alone
+    if (!R0.gather || G.time > R0.gatherT) { const alive = G.players.filter(q => q.state === 'up'); const c = { x: alive.reduce((a, q) => a + q.x, 0) / Math.max(1, alive.length), y: alive.reduce((a, q) => a + q.y, 0) / Math.max(1, alive.length) }; R0.gather = exitPoint(R0, c); R0.gatherT = G.time + 20; }
+    const g = R0.gather, ups = G.players.filter(q => q.state === 'up');
+    if (p.hp < p.maxHp * 0.85) { const sh = nearestShrineNow(p); if (sh && d2(sh.x, sh.y, p.x, p.y) < 1400 * 1400) { A.goal = { x: sh.x + rr(-12, 12), y: sh.y + 20, near: 16 }; return 'goto'; } }
+    const ready = G.players.every(q => q.state === 'up') && ups.every(q => d2(q.x, q.y, g.x, g.y) < 150 * 150) && ups.every(q => q.hp > q.maxHp * 0.8);
+    if (!ready) { A.goal = { x: g.x + rr(-24, 24), y: g.y + rr(-24, 24), near: 26 }; A.waitLab = true; return 'goto'; }
+  }
+  A.waitLab = false;
+  A.goal = { x: R0.px + rr(-30, 30), y: R0.py + rr(-30, 30), near: 30 };
+  return 'goto';
 }
 // ===== Run flow: Act I (explore → Wildfire → Gatekeeper) → Act II → portal → The Bazaar → Everfield (Dungeon Master) =====
 const STICKERS = [
@@ -5461,6 +5545,10 @@ function startGame(charKey, watch, lord = 'warden', team = null) {
   updateFlow();
   feed(watch ? `Watching ${roster.length} bot${roster.length > 1 ? 's' : ''}. Tab cycles the camera, 1-3 change speed.` : `Explore and clear the fog. Beat room bosses (☠) to raise Krystal Shrines for leveling. ${keyName(settings.binds.map)}: full map.`, '#fff3e0');
 }
+const GK_REC = [0, 5, 10], FINAL_REC = 15;
+// the later bosses are tuned for the recommended level: Gatekeeper II for Lv 10 with ultimates, the Dungeon Master for Lv 15
+const GK_HP = [0, 1, 1.7], GK_DMG = [0, 1, 1.2], FINAL_HP = 4.5, FINAL_DMG = 1.5;
+function tuneBoss(e, hp, dmg) { e.hp *= hp; e.maxHp *= hp; e.dmgM *= dmg; return e; }
 function setBanner(title, sub, life = 4.5, color) { G.banner = { title, sub, t: 0, life, color }; if (!G.hub) sfx('bell'); }
 function circleFor(room) {
   const mapW = GW * CW * TILE, mapH = GH * CH * TILE;
@@ -5479,13 +5567,15 @@ function populateRooms() {
     if (room.type === 'themed') {
       room.cleared = false; const tpl = room.tpl;
       const n = Math.round(4 + Math.sqrt(room.w * room.h) * 0.45 + room.danger * 1.4 + (G.day - 1) * 2.5);
+      room.n0 = n; room.refillT = 30;
       for (let i = 0; i < n; i++) { const q = randomFloorIn(room, G.players, 70, 1); const e = spawnEnemy(rollMob(tpl), q.x, q.y, { room, hpMul: TIER_HP[room.danger] }); e.dmgM *= TIER_DMG[room.danger]; }
-      if (room.hasBoss && tpl.boss && !room.bossKilled) { const c = spawnEnemy(tpl.boss[G.day - 1], room.px, room.py, { room, hpMul: TIER_HP[room.danger] }); c.dmgM *= TIER_DMG[room.danger]; c.hx = room.px; c.hy = room.py; }
+      if (room.hasBoss && tpl.boss && !room.bossKilled) { const c = spawnEnemy(tpl.boss[G.day - 1], room.px, room.py, { room, hpMul: TIER_HP[room.danger] }); c.dmgM *= TIER_DMG[room.danger]; c.rec = roomRec(room); c.hx = room.px; c.hy = room.py; }
     }
     if (room.type === 'castle' && room.sub !== 'keep') {
       room.cleared = false;
       const n = room.sub === 'tower' ? 3 : Math.round(4 + room.w * room.h / 12 + (G.day - 1) * 2);
-      for (let i = 0; i < n; i++) { const q = randomFloorIn(room, G.players, 30, 1); spawnEnemy(rollMob(room.tpl), q.x, q.y, { room }); }
+      room.n0 = n; room.refillT = 40;
+      for (let i = 0; i < n; i++) { const q = randomFloorIn(room, G.players, 30, 1); const e = spawnEnemy(rollMob(room.tpl), q.x, q.y, { room, hpMul: LAB_HP }); e.dmgM *= LAB_DMG; e.rec = room.rec; e.goldM *= LAB_GOLD; }
     }
     if (room.type === 'shop') {
       addInter({ kind: 'keeper', used: true, x: room.px, y: room.py - 44 });
@@ -5497,6 +5587,34 @@ function populateRooms() {
   for (const r of themed) {
     const n = r.hasBoss ? 0 : 1 + (R() < 0.3 ? 1 : 0) + (r.hall ? 1 : 0);
     for (let i = 0; i < n; i++) { const q = randomFloorIn(r, [], 0, 2); addInter({ kind: 'chest', x: q.x, y: q.y, rare: r.danger >= 3 && R() < 0.35 }); }
+  }
+}
+// rooms slowly refill with stragglers so there is always something to farm
+function updateRefill(dt) {
+  const c = G.circle, fire = c && G.phase === 'day';
+  // keep the per-room monster counts honest (summons, splits and leashes can drift them)
+  if ((G.aliveSyncT = (G.aliveSyncT || 0) - dt) <= 0) {
+    G.aliveSyncT = 2; const cnt = new Map();
+    for (const e of G.enemies) if (!e.dead && e.room && !e.extra && !e.def.objective) cnt.set(e.room, (cnt.get(e.room) || 0) + 1);
+    for (const r of G.rooms) { if (r.spawnedDay !== G.day) continue; const n = cnt.get(r) || 0; if (n !== r.alive) { r.alive = n; if (n <= 0 && !r.cleared && (r.type === 'themed' || (r.type === 'castle' && r.sub !== 'tower' && r.sub !== 'keep'))) roomCleared(r); } }
+  }
+  for (const room of G.rooms) {
+    if (room.spawnedDay !== G.day || !room.n0) continue;
+    if ((room.refillT -= dt) > 0) continue;
+    room.refillT = room.type === 'castle' ? 40 : 24;
+    const cap = room.type === 'castle' ? Math.ceil(room.n0 * 0.6) : Math.max(4, Math.ceil(room.n0 * 0.5));
+    if (room.alive >= cap) continue;
+    if (fire && Math.hypot(room.px - c.x, room.py - c.y) > c.r - 40) continue;
+    if (G.players.some(p => p.state === 'up' && inRoom(room, p.x, p.y, 60))) { room.refillT = 6; continue; }
+    if (room.locked || (G.bossRoom && room === G.bossRoom)) continue;
+    const n = Math.min(cap - room.alive, room.type === 'castle' ? 3 : ri(3, 5));
+    for (let i = 0; i < n; i++) {
+      const q = randomFloorIn(room, G.players, 80, 1);
+      const e = spawnEnemy(rollMob(room.tpl), q.x, q.y, { room, hpMul: room.type === 'castle' ? LAB_HP : TIER_HP[room.danger] });
+      e.dmgM *= room.type === 'castle' ? LAB_DMG : TIER_DMG[room.danger];
+      if (room.type === 'castle') { e.rec = room.rec; e.goldM *= LAB_GOLD; }
+      e.refill = true;
+    }
   }
 }
 function spawnShrine(room) {
@@ -5636,10 +5754,23 @@ function updatePortals(dt) {
     const team = G.players.filter(p => p.state !== 'dead' || p.respawnT > 0);
     for (const p of it.ready) if (p.state === 'up' && d2(p.x, p.y, it.x, it.y) > 90 * 90) it.ready.delete(p);
     if (R() < 0.5) burst(it.x + rr(-14, 14), it.y - rr(0, 34), pick(['#c86aff', '#e0b0ff', '#7ff0ff']), 1, 20, 0.8, { g: -50, glow: true, size: 1.2 });
-    const all = team.length && team.every(p => it.ready.has(p) || p.state !== 'up');
-    if (all || G.time - it.t0 > 150) { G.inter = G.inter.filter(i => i !== it); if (it.to === 'bazaar') goBazaar(); else goEverfield(); return; }
+    const all = team.some(p => it.ready.has(p)) && team.every(p => it.ready.has(p) || p.state === 'dead');
+    const cap = G.phase === 'embers' ? EMBERS_MAX : 150, left = cap - (G.time - it.t0);
+    if (G.phase === 'embers' && left < 60 && !it.warned) { it.warned = true; setBanner('The portal is closing', 'In one minute it pulls everyone through.', 3.5, '#e0b0ff'); }
+    if (all || left <= 0) { G.inter = G.inter.filter(i => i !== it); if (it.to === 'bazaar') goBazaar(); else goEverfield(); return; }
   }
 }
+// after Gatekeeper II the Wildfire dies down: free time to farm and raid the Labyrinth before the portal
+const EMBERS_MAX = 900;
+function startEmbers() {
+  G.portalOpened = true; G.phase = 'embers'; G.embersT = 0; G.circle = null;
+  for (const r of G.rooms) if (r.locked) setRoomLocked(r, false);
+  openPortal(G.bossRoom.px, G.bossRoom.py, 'bazaar');
+  setBanner('The Wildfire dies down', 'The portal waits for you. Raid the Labyrinth to reach full strength before you step through.', 5, '#e0b0ff');
+  feed(`The Labyrinth's monsters are the strongest in the realm: its towers need a full team at Lv ${G.castle ? G.castle.north.rec : 10}+, the Keep Lv ${G.castle ? G.castle.keep.rec : 13}+.`, '#c8c8ff');
+}
+function labCleared() { return !G.castle || G.castle.rooms.every(r => !r.hasBoss || r.bossDone === 99); }
+function labFight(p) { return !!(G.castle && G.castle.rooms.some(r => r.boss && !r.boss.dead && r.boss.aggro && inRoom(r, p.x, p.y, 10))); }
 function placeTeam(x, y) { G.players.forEach((p, i) => { p.state = 'up'; p.hp = p.maxHp; p.dash = null; p.ball = 0; p.barrage = 0; p.fated = 0; clearStatus(p); p.x = x + (i - 1.5) * 26; p.y = y; burst(p.x, p.y, '#c86aff', 14, 70); }); G.cam.init = false; sfx('portal'); }
 function goBazaar() {
   const A = G.bazaar;
@@ -5715,7 +5846,7 @@ function updateIntro(dt) {
   }
   if (t >= I.dur) {
     G.intro = null;
-    G.boss = spawnEnemy(G.lord, x, y); sfx('roar');
+    G.boss = spawnEnemy(G.lord, x, y); G.boss.rec = FINAL_REC; tuneBoss(G.boss, FINAL_HP * (G.lord === 'sovereign' ? 0.6 : 1), FINAL_DMG); sfx('roar');
     const L = NIGHTLORDS.find(n => n.id === G.lord);
     setBanner(ENEMY[G.lord].name, `Dungeon Master · ${L.epithet}`, 3.5, '#7ff0ff');
     const b = G.players.find(q => q.isBot); if (b) botSay(b, 'boss');
@@ -5796,10 +5927,12 @@ function step(dt) {
   if (G.phase === 'night' && G.bossT > 0) {
     G.bossT -= dt;
     if (R() < 0.5) burst(G.bossRoom.px + rr(-30, 30), G.bossRoom.py - 50 + rr(-10, 10), '#ff9ad8', 1, 40, 0.6, { glow: true, g: -60 });
-    if (G.bossT <= 0) { const type = G.day === 1 ? G.night1 : G.night2; G.boss = spawnEnemy(type, G.bossRoom.px, G.bossRoom.py - 50); sfx('roar'); burst(G.boss.x, G.boss.y, '#7ff0ff', 40, 160, 0.7, { glow: true }); pillar(G.boss.x, G.boss.y, '#ff9ad8', 120, 30, 0.8); shock(G.boss.x, G.boss.y, 90, '#ff9ad8', 0.6); shake(8); }
+    if (G.bossT <= 0) { const type = G.day === 1 ? G.night1 : G.night2; G.boss = spawnEnemy(type, G.bossRoom.px, G.bossRoom.py - 50); G.boss.rec = GK_REC[G.day]; tuneBoss(G.boss, GK_HP[G.day], GK_DMG[G.day]); sfx('roar'); burst(G.boss.x, G.boss.y, '#7ff0ff', 40, 160, 0.7, { glow: true }); pillar(G.boss.x, G.boss.y, '#ff9ad8', 120, 30, 0.8); shock(G.boss.x, G.boss.y, 90, '#ff9ad8', 0.6); shake(8); }
   }
-  if (G.phase === 'dawn') { G.dawnT += dt; if ((G.orbs.length === 0 && !G.choice && G.dawnT > 1.5) || G.dawnT > 25) { if (G.orbs.length) for (const o of G.orbs.slice()) { o.owner.x = o.x; o.owner.y = o.y; } if (G.orbs.length === 0) { if (G.day === 1) startDay(2); else if (!G.portalOpened) { G.portalOpened = true; openPortal(G.bossRoom.px, G.bossRoom.py, 'bazaar'); } } } }
+  if (G.phase === 'embers') G.embersT += dt;
+  if (G.phase === 'dawn') { G.dawnT += dt; if ((G.orbs.length === 0 && !G.choice && G.dawnT > 1.5) || G.dawnT > 25) { if (G.orbs.length) for (const o of G.orbs.slice()) { o.owner.x = o.x; o.owner.y = o.y; } if (G.orbs.length === 0) { if (G.day === 1) startDay(2); else if (!G.portalOpened) startEmbers(); } } }
   G.flowT -= dt; if (G.flowT <= 0) { G.flowT = 0.35; updateFlow(); }
+  if (G.phase === 'day' || G.phase === 'dawn' || G.phase === 'embers') updateRefill(dt);
   const H0 = human();
   if (H0 && H0.state === 'dead' && (bindPressed('attack') || bindPressed('skill'))) G.specIdx++;
   if (H0 && !G.watch && bindPressed('ping')) { const w = screenToWorld(Input.mx, Input.my); makePing(H0, w.x, w.y); }
@@ -5823,7 +5956,12 @@ function step(dt) {
     if (rev) { d.revive += dt / need; d.reviver = rev; if (d.revive >= 1) revivePlayer(d, rev); }
     else { d.revive = Math.max(0, d.revive - dt * 0.4); d.reviver = null; }
   }
-  for (const e of G.enemies) if (!e.dead) updateEnemy(e, dt);
+  // idle monsters far from everyone tick at a lower rate (big maps hold hundreds)
+  for (const e of G.enemies) {
+    if (e.dead) continue;
+    if (!e.aggro && !e.boss && !e.poison && e.room && !G.players.some(p => p.state !== 'dead' && d2(p.x, p.y, e.x, e.y) < 640 * 640)) { e.sleepT = (e.sleepT || 0) + dt; if (e.sleepT < 0.25) continue; const d = e.sleepT; e.sleepT = 0; updateEnemy(e, d); continue; }
+    const d = dt + (e.sleepT || 0); e.sleepT = 0; updateEnemy(e, d);
+  }
   if (G.fake) updateFakeout(dt);
   if (G.deathFx) {
     const D = G.deathFx; D.t += dt;
@@ -5846,7 +5984,7 @@ function step(dt) {
   circleDamage(dt);
   if (G.phase !== 'won' && G.phase !== 'lost') {
     const wiped = G.bossFight ? G.players.every(p => p.state !== 'up') : G.players.every(p => p.state === 'downed');
-    if (wiped) { G.wipeT += dt; if (G.wipeT > 1.5) endMatch(false); } else G.wipeT = 0;
+    if (wiped) { G.wipeT += dt; if (G.wipeT > 1.5) { if (G.bossFight) endMatch(false); else { G.wipeT = 0; feed('The whole team fell in the Labyrinth. Everyone respawns at a shrine.', '#ff8a8a'); for (const p of G.players) if (p.state === 'downed') killPlayer(p); } } } else G.wipeT = 0;
   }
   updateFxAll(dt);
 }
@@ -5886,7 +6024,7 @@ function updateFxAll(dt) {
 
 function roomIntro(room) {
   if (G.phase !== 'day' || !room) return;
-  if (room.type === 'castle') { if (room.sub !== 'keep' && room.sub !== 'tower') setBanner(room.cname, `The Castle · Recommended Lv ${room.rec}`, 2.2, '#c8c8e0'); return; }
+  if (room.type === 'castle') { if (room.sub !== 'keep' && room.sub !== 'tower') setBanner(room.cname, `The Labyrinth · Recommended Lv ${room.rec}`, 2.2, '#c8c8e0'); return; }
   if (room.type !== 'themed') return;
   const rec = roomRec(room), H0 = human(), col = H0 && H0.level >= rec ? '#7ae07a' : H0 && H0.level >= rec - 2 ? '#ffe06a' : '#ff6a6a';
   const boss = room.hasBoss && room.bossDone !== G.day && !room.bossKilled;
@@ -6322,7 +6460,7 @@ function drawPlayer(p) {
     ctx.save(); ctx.globalAlpha = 0.9; ctx.translate(p.x, p.y - 3); ctx.rotate(Math.PI / 2 * (p.face > 0 ? -1 : 1)); ctx.drawImage(S.idle.c, -S.idle.ox, -S.idle.oy * 0.55, S.idle.w, S.idle.h); ctx.restore();
     const yb = p.y - 26;
     ctx.lineWidth = 2.4; ctx.strokeStyle = 'rgba(20,10,20,0.7)'; ctx.beginPath(); ctx.arc(p.x, yb, 6, 0, Math.PI * 2); ctx.stroke();
-    if (!G.bossFight) { ctx.strokeStyle = '#ff6a6a'; ctx.beginPath(); ctx.arc(p.x, yb, 6, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * (p.downT / 20)); ctx.stroke(); }
+    if (!G.bossFight) { ctx.strokeStyle = '#ff6a6a'; ctx.beginPath(); ctx.arc(p.x, yb, 6, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * Math.min(1, p.downT / 20)); ctx.stroke(); }
     else { ctx.fillStyle = '#ff6a6a'; ctx.font = `7px ${FONT}`; ctx.textAlign = 'center'; ctx.fillText('!', p.x, yb + 3); }
     if (p.revive > 0) { ctx.strokeStyle = '#7ae07a'; ctx.lineWidth = 2.4; ctx.beginPath(); ctx.arc(p.x, yb, 9, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * p.revive); ctx.stroke(); }
     return;
@@ -7030,6 +7168,7 @@ function timelineText() {
     return ['WILDFIRE', `It closes on the Gatekeeper's lair · ${t}`];
   }
   if (G.phase === 'night') return [`GATEKEEPER ${ROMAN[G.day]}`, ''];
+  if (G.phase === 'embers') { const it = G.inter.find(i => i.kind === 'portal'); const left = it ? Math.max(0, EMBERS_MAX - (G.time - it.t0)) : 0; return ['EMBERS', labCleared() ? `Labyrinth conquered · portal closes in ${fmtTime(left)}` : `Raid the Labyrinth · portal closes in ${fmtTime(left)}`]; }
   if (G.phase === 'prep') return ['THE BAZAAR', 'Shop, level up, then take the portal north'];
   if (G.phase === 'final') return [G.everWait ? 'THE EVERFIELD' : 'DUNGEON MASTER', G.everWait ? 'Advance to face the Dungeon Master' : ''];
   if (G.phase === 'dawn' || G.phase === 'relic') return ['VICTORY', 'Gatekeeper defeated'];
@@ -7096,7 +7235,7 @@ function drawHUD() {
       const bw = Math.min(W * 0.36, 360 * s), by2 = pad + (tl2 ? 74 : 58) * s, room = ch.room || ch.home;
       txt(ch.def.name.toUpperCase(), cx, by2 - 6 * s, 13, ch.castle ? '#c8c8ff' : '#ffd44a', 'center'); bar(cx - bw / 2, by2, bw, 9 * s, ch.hp / ch.maxHp, ch.castle ? '#9a8ae0' : '#e8a83a'); drawStatusRowAt(ch, cx, by2 + 14 * s);
       const el = ch.castle ? (ch.def.weak ? 'weak to ' + ELEM[ch.def.weak].name : '') : room && room.tpl && room.tpl.elem ? 'drops ' + ELEM[room.tpl.elem].name + ' relics' : '';
-      txt(`${ch.castle ? 'Castle boss' : 'Room boss'} · Rec. Lv ${roomRec(room)}${el ? ' · ' + el : ''} · leaving its ${ch.castle ? 'chamber' : 'lair'} resets it`, cx, by2 + 34 * s, 9, '#fff3e0', 'center', FONT2);
+      txt(`${ch.castle ? 'Labyrinth boss' : 'Room boss'} · Rec. Lv ${roomRec(room)}${el ? ' · ' + el : ''} · leaving its ${ch.castle ? 'chamber' : 'lair'} resets it`, cx, by2 + 34 * s, 9, '#fff3e0', 'center', FONT2);
     }
     else { const lr = G.rooms.find(r => r.locked && inRoom(r, focus.x, focus.y, 4)); if (lr) txt(`AMBUSH · ${Math.max(0, lr.alive)} monsters left`, cx, pad + (tl2 ? 76 : 60) * s, 14, '#ff9a6a', 'center'); }
   }
@@ -7551,8 +7690,8 @@ function buildArchive() {
   const L = $('arch-list'); L.innerHTML = '';
   if (archTab === 'World') {
     L.appendChild(entry(spriteCanvas('sovereign', 128), 'The Krystal Hunt', 'World lore', WORLD_LORE, '#7ff0ff'));
-    L.appendChild(entry(spriteCanvas('warden', 128), 'Acts, Gatekeepers and Dungeon Masters', 'How a run works', 'Each run has two Acts on the same map. The Wildfire spreads twice per Act and finally closes on a Gatekeeper\'s lair. After Gatekeeper II a portal leads to The Bazaar, the last market before the Everfield, where the Dungeon Master you chose at the Gate awaits.', '#ffe6a0'));
-    L.appendChild(entry(spriteCanvas('bonecolossus', 128), 'The Castle', 'Optional fortress', 'Every map hides a triangular castle. Three towers hold Gatekeepers, the Keep holds a Dungeon Master. Skip it, raid it, or come back in Act II when you are strong enough.', '#c8c8ff'));
+    L.appendChild(entry(spriteCanvas('warden', 128), 'Acts, Gatekeepers and Dungeon Masters', 'How a run works', 'Each run has two Acts on the same map. The Wildfire spreads twice per Act and finally closes on a Gatekeeper\'s lair. After Gatekeeper II the Wildfire dies down (Embers): raid the Labyrinth, then take the portal to The Bazaar, the last market before the Everfield, where the Dungeon Master you chose at the Gate awaits.', '#ffe6a0'));
+    L.appendChild(entry(spriteCanvas('bonecolossus', 128), 'The Labyrinth', 'Optional fortress', 'Every map hides a triangular labyrinth with the strongest monsters in the realm. Three towers hold Gatekeepers (Lv 10, a full team with ultimates), the Keep holds a Dungeon Master (Lv 13). After Gatekeeper II the Wildfire dies down and the portal waits: that is the time to raid it. Clearing it is the way to the max level (15) the Dungeon Master demands.', '#c8c8ff'));
   }
   if (archTab === 'Krystalkers') for (const k of CHAR_KEYS) { const d = CHARS[k]; const c = mkCanvas(128, 128); drawHeroPortrait(c, k, 3.2); L.appendChild(entry(c, d.name, `${d.role} · ${CHAR_LORE[k].motive}`, `${CHAR_LORE[k].lore}<br><b>Attack:</b> ${d.lmb}${d.alt ? `<br><b>Secondary (RMB) · ${d.alt.name}:</b> ${d.alt.desc}` : ''}<br><b>Movement:</b> ${d.sp}<br><b>Skill:</b> ${d.q}${d.super ? `<br><b>Ultimate (Lv ${ULT_LEVEL}) · ${d.super.name}:</b> ${d.super.desc}` : ''}`, d.color)); }
   if (archTab === 'Gems') { for (const r of ['common', 'rare', 'epic']) { group(L, GEM_RAR[r].name + ' gems'); for (const g of GEM_LIST.filter(x => x.rarity === r)) L.appendChild(entry(iconImg(g), g.name, `${GEM_RAR[r].name} · owned ${PROFILE.gems[g.id] || 0}`, g.desc, GEM_RAR[r].color)); } group(L, 'Legendary gems (quests)'); for (const g of LEGEND_GEMS) L.appendChild(entry(iconImg(g), g.name, `${CHARS[g.char].name} · ${PROFILE.unlocked.includes(g.id) ? 'unlocked' : `${questProgress(g)}/${g.quest.n}`}`, `${g.desc}<br><i>${g.quest.text}</i>`, '#ffb52e')); }
@@ -7592,7 +7731,7 @@ function showResults() {
   $('r-title').textContent = r.won ? 'Dungeon Master defeated!' : 'Expedition failed';
   $('r-title').className = 'result-title ' + (r.won ? 'won' : 'lost');
   $('r-sub').textContent = r.won ? `The ${ENEMY[G.lord].name} is no more. The Krystal is yours.` : `Fell during: ${r.reached}.`;
-  $('r-facts').innerHTML = `<span><b>${fmtTime(r.time)}</b>Time</span><span><b>${G.castleKills || 0}/4</b>Castle bosses</span><span><b>Act ${ROMAN[r.day]}</b>Reached</span><span><b>${Math.max(...G.players.map(p => p.level))}</b>Best level</span>`;
+  $('r-facts').innerHTML = `<span><b>${fmtTime(r.time)}</b>Time</span><span><b>${G.castleKills || 0}/4</b>Labyrinth bosses</span><span><b>Act ${ROMAN[r.day]}</b>Reached</span><span><b>${Math.max(...G.players.map(p => p.level))}</b>Best level</span>`;
   const rows = G.players.map(p => `<tr><td style="color:${CHARS[p.char].color}">${p.isBot ? p.name + ' (' + p.ai.pers + ')' : 'You · ' + CHARS[p.char].name}</td><td>${p.level}</td><td>${Math.round(p.stats.dmg).toLocaleString('en-US')}</td><td>${p.stats.kills}</td><td>${p.stats.revives}</td><td>${p.stats.downs}</td><td>${itemCount(p)}</td><td>${Math.round(p.stats.picked || 0).toLocaleString('en-US')}</td><td>${p.stats.deaths}</td></tr>`).join('');
   $('r-table').innerHTML = `<thead><tr><th>Player</th><th>Level</th><th>Damage</th><th>Kills</th><th>Revives</th><th>Downs</th><th>Items</th><th>Gold found</th><th>Deaths</th></tr></thead><tbody>${rows}</tbody>`;
   $('b-again').hidden = !!G.watch;
