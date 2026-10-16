@@ -211,6 +211,7 @@ th { color: var(--muted); font-family: var(--display); font-weight: 400; }
       <p><b>Elements and weaknesses:</b> Fire, Frost, Bleed, Poison, Shock, Shadow. Bosses list their weakness: matching hits deal +50%, matching damage over time deals double. A frozen boss is freeze-immune for 12s.</p>
       <p><b>Dying while exploring</b> is not revivable: you respawn after a few seconds, drop one level, and leave that level's gold where you fell.</p>
       <p><b>Downed during a boss:</b> teammates can revive you; each down makes the next revive slower (up to the third). Beating a Gatekeeper or Dungeon Master revives everyone on the spot. If the whole team is down, the expedition fails.</p>
+      <p><b>Sprint</b> by holding Shift. It drains stamina (the bar under your feet), which refills after a short rest.</p>
       <p><b>Ping</b> with the middle mouse button. Pinging an enemy calls your bots to attack it.</p>
       <p><b>Gems:</b> win a run to find 5 random gems. Each Krystalker also has 3 legendary gems unlocked by personal quests.</p>
     </div>
@@ -286,8 +287,8 @@ let G = null;            // the running match
 let SIM_SPEED = 1;       // watch-mode speed
 
 // ===== Settings =====
-const DEFAULT_BINDS = { up: 'KeyW', down: 'KeyS', left: 'KeyA', right: 'KeyD', attack: 'Mouse0', skill: 'KeyQ', ult: 'KeyE', item: 'KeyR', interact: 'KeyF', reload: null, sticker: 'KeyT', map: 'KeyM', ping: 'Mouse1' };
-const BIND_LABELS = { up: 'Move up', down: 'Move down', left: 'Move left', right: 'Move right', attack: 'Attack', skill: 'Skill 1 (utility)', ult: 'Skill 2 (character skill)', item: 'Use active item', interact: 'Interact / revive', sticker: 'Stickers', map: 'Full map', ping: 'Ping (attack this / here)' };
+const DEFAULT_BINDS = { up: 'KeyW', down: 'KeyS', left: 'KeyA', right: 'KeyD', attack: 'Mouse0', skill: 'KeyQ', ult: 'KeyE', item: 'KeyR', interact: 'KeyF', reload: null, sprint: 'ShiftLeft', sticker: 'KeyT', map: 'KeyM', ping: 'Mouse1' };
+const BIND_LABELS = { up: 'Move up', down: 'Move down', left: 'Move left', right: 'Move right', attack: 'Attack', skill: 'Skill 1 (utility)', ult: 'Skill 2 (character skill)', item: 'Use active item', interact: 'Interact / revive', sprint: 'Sprint (hold)', sticker: 'Stickers', map: 'Full map', ping: 'Ping (attack this / here)' };
 const settings = { bindVer: 8, binds: { ...DEFAULT_BINDS }, quickCast: false, shake: true, dmgNumbers: true, botLevel: 'normal' };
 function loadSettings() {
   try {
@@ -812,6 +813,12 @@ function makeFloor(t, v, seed) {
     if (t.glyph && v === 1) { x.strokeStyle = 'rgba(80,190,255,0.55)'; x.lineWidth = 2.5; x.beginPath(); x.arc(32, 32, 16, 0, Math.PI * 2); x.stroke(); }
   } else if (t.kind === 'wood') {
     for (let i = 0; i < 4; i++) { const y = i * 16; const tint = (rnd() - 0.5) * 0.14; const col = tint > 0 ? light(base, tint) : dark(base, -tint); const g = x.createLinearGradient(0, y, 0, y + 16); g.addColorStop(0, light(col, 0.18)); g.addColorStop(1, dark(col, 0.1)); x.fillStyle = g; x.fillRect(0, y + 1, S, 14); x.fillStyle = dark(base, 0.4); x.fillRect(0, y + 15, S, 2); x.fillRect(((i * 37 + v * 13) % 44) + 10, y + 1, 2, 14); blob(x, 6, y + 8, 1.2, dark(base, 0.45)); }
+  } else if (t.kind === 'void') {
+    // the Sovereign's other dimension: a floor of purple nebula and stars
+    const g = x.createLinearGradient(0, 0, 64, 64); g.addColorStop(0, '#1a0c34'); g.addColorStop(1, '#2c1250'); x.fillStyle = g; x.fillRect(0, 0, S, S);
+    for (let i = 0; i < 3; i++) { const cx = rnd() * 64, cy = rnd() * 64, r = 14 + rnd() * 18, gg = x.createRadialGradient(cx, cy, 1, cx, cy, r); gg.addColorStop(0, rnd() < 0.5 ? 'rgba(200,90,255,0.35)' : 'rgba(90,160,255,0.3)'); gg.addColorStop(1, 'rgba(0,0,0,0)'); x.fillStyle = gg; x.fillRect(0, 0, S, S); }
+    for (let i = 0; i < 14; i++) { x.fillStyle = `rgba(255,255,255,${0.4 + rnd() * 0.6})`; const r = rnd() < 0.85 ? 0.7 : 1.4; x.beginPath(); x.arc(rnd() * 64, rnd() * 64, r, 0, Math.PI * 2); x.fill(); }
+    x.strokeStyle = 'rgba(180,120,255,0.25)'; x.lineWidth = 1; x.strokeRect(0.5, 0.5, 63, 63);
   } else if (t.kind === 'orange') {
     x.fillStyle = '#7a3e12'; x.fillRect(0, 0, S, S);
     x.beginPath(); x.roundRect(3, 3, 58, 58, 8); const g = x.createLinearGradient(0, 0, 0, 64); g.addColorStop(0, '#ffc45a'); g.addColorStop(0.5, '#ef9a30'); g.addColorStop(1, '#c8691e'); x.fillStyle = g; x.fill();
@@ -1548,7 +1555,7 @@ Object.assign(HUB_DRAW, {
 Object.assign(PROP_DRAW, {
   icepillar(x) { poly(x, [[-6, 0], [-7, -16], [-3, -24], [3, -25], [7, -17], [6, 0]], '#bfe6fa', { lw: 0.9 }); poly(x, [[-3, -2], [-3.6, -18], [0, -22], [1.6, -14], [0.6, -2]], '#ffffff', { outline: false }); ell(x, 0, 0, 7, 1.8, '#e8faff', { outline: false }); },
 });
-for (const t of [{ name: 'castle', kind: 'plaza', base: '#9a98aa' }, { name: 'castlehall', kind: 'plaza', base: '#8a8496' }]) { TH[t.name] = THEMES.length; THEMES.push(t); }
+for (const t of [{ name: 'castle', kind: 'plaza', base: '#9a98aa' }, { name: 'castlehall', kind: 'plaza', base: '#8a8496' }, { name: 'void', kind: 'void', base: '#2a1650' }]) { TH[t.name] = THEMES.length; THEMES.push(t); }
 function stoneTex(seed, face) {
   const S = 64, c = mkCanvas(S, S), x = c.getContext('2d'), rnd = seededRand(seed);
   x.fillStyle = face ? '#4a4a5c' : '#6a6a80'; x.fillRect(0, 0, S, S);
@@ -1599,7 +1606,7 @@ function abyssTex(seed) {
   return c;
 }
 function darkFantasy() {
-  for (const set of TEX.floor) for (const c of set) gradeTex(c, '#7e7688', 0.5);
+  TEX.floor.forEach((set, i) => { if (THEMES[i].kind !== 'void') for (const c of set) gradeTex(c, '#7e7688', 0.5); });
   TEX.canopy = [0, 1, 2].map(i => dunTex(700 + i * 11, false));
   TEX.hedge = [0, 1, 2].map(i => dunTex(760 + i * 13, true));
   TEX.forest = [0, 1, 2].map(i => abyssTex(820 + i * 7));
@@ -1858,6 +1865,10 @@ function buildEndgame() {
   for (const [a, b] of [[-17, 20], [16, 20], [-16, 50], [15, 50], [-8, 56], [8, 56]]) placeProp(E.cx + a, E.y + b, 'rock');
   E.bossX = E.px; E.bossY = (E.y + 18.5) * TILE; E.trigY = (E.y + 40) * TILE;
   G.arena = E;
+  // the Sovereign's dimension, reached only after its first "death"
+  G.voidRoom = makeRoom(null, null, 'void', { w: 40, h: 34, x: GW * CW + 3, y: 107, th: TH.void });
+  const V = G.voidRoom; V.bossX = V.px; V.bossY = V.py - 40;
+  for (let y = V.y - 1; y <= V.y + V.h; y++) for (let x = V.x - 1; x <= V.x + V.w; x++) if (tget(x, y) === T_WALL) G.wstyle[y * MW + x] = 2;
 }
 function placeProp(x, y, kind) { if (tget(x, y) !== T_FLOOR) return false; tset(x, y, T_PROP); G.prop.set(y * MW + x, kind); return true; }
 function decoPillar(room, x, y) { placeProp(x, y, 'pillar'); }
@@ -1886,7 +1897,7 @@ function roomAt(px, py) {
   const tx = Math.floor(px / TILE), ty = Math.floor(py / TILE);
   if (G.hub) return G.rooms.find(r => tx >= r.x && tx < r.x + r.w && ty >= r.y && ty < r.y + r.h) || null;
   if (G.castle && tx >= G.castle.x0 && tx < G.castle.x0 + 90 && ty >= G.castle.y0 && ty < G.castle.y0 + 48) return G.castle.rooms.find(r => tx >= r.x && tx < r.x + r.w && ty >= r.y && ty < r.y + r.h) || null;
-  for (const A of [G.bazaar, G.ever]) if (A && tx >= A.x && tx < A.x + A.w && ty >= A.y && ty < A.y + A.h) return A;
+  for (const A of [G.bazaar, G.ever, G.voidRoom]) if (A && tx >= A.x && tx < A.x + A.w && ty >= A.y && ty < A.y + A.h) return A;
   const gx = Math.floor(tx / CW), gy = Math.floor(ty / CH);
   const r = inGrid(gx, gy) ? G.grid[gx][gy] : null;
   if (r && tx >= r.x && tx < r.x + r.w && ty >= r.y && ty < r.y + r.h) return r;
@@ -3371,7 +3382,13 @@ function updatePlayer(p, c, dt) {
     const D = p.dash; D.t -= dt; moveEnt(p, D.vx * dt, D.vy * dt); D.onStep && D.onStep(p, dt);
     if (D.t <= 0) { p.dash = null; D.onEnd && D.onEnd(p); }
   } else if (!(p.ball > 0)) {
-    const spd = def.spd * p.st.spd * (p.fated > 0 ? 0.3 : 1) * (1 - stAmt(p, 'mire'));
+    // sprint (Shift): +55% speed, drains stamina; it refills after a short pause
+    if (p.stam == null) p.stam = 1;
+    const wantRun = c.run && L > 0 && !p.exhaust && p.stam > 0 && p.fated <= 0 && !(p.barrage > 0);
+    p.running = wantRun;
+    if (wantRun) { p.stam = Math.max(0, p.stam - dt / 3.2); p.stamT = 0.9; if (p.stam <= 0) { p.exhaust = true; if (!p.isBot) floatText(p.x, p.y - 30, 'Out of breath', '#ffe6a0', 0.7); } if (R() < 0.25) burst(p.x - mx * 5, p.y, '#b8a888', 1, 10, 0.4, { shape: 'smoke', size: 1.4 }); }
+    else { p.stamT = (p.stamT || 0) - dt; if (p.stamT <= 0) p.stam = Math.min(1, p.stam + dt / 4); if (p.exhaust && p.stam >= 0.35) p.exhaust = false; }
+    const spd = def.spd * p.st.spd * (p.fated > 0 ? 0.3 : 1) * (1 - stAmt(p, 'mire')) * (wantRun ? 1.55 : 1);
     moveEnt(p, mx * spd * dt, my * spd * dt);
   }
   p.moving = L > 0 || !!p.dash || p.ball > 0; if (p.moving) p.walkT += dt;
@@ -4032,10 +4049,49 @@ function fireWalls(e, waves, gap = 1.6) {
   }
   return waves * gap + (A.h * TILE) / 72;
 }
-function beamFence(e, n, life, va) {
+function beamFence(e, n, life, va, len = 320) {
   G.beams = G.beams || [];
   const a0 = R() * Math.PI;
-  for (let k = 0; k < n; k++) G.beams.push({ x: e.x, y: e.y - 8, a: a0 + k * Math.PI / n, va, len: 320, w: 12, t: 0, warn: 1.2, life, dmg: 26 * e.dmgM, owner: e, st: ST('hush', 1.5), color: '#ffe24a' });
+  for (let k = 0; k < n; k++) G.beams.push({ x: e.x, y: e.y - 8, a: a0 + k * Math.PI / n, va, len, w: 12, t: 0, warn: 1.2, life, dmg: 26 * e.dmgM, owner: e, st: ST('hush', 1.5), color: '#ffe24a' });
+}
+// ---- Sovereign helpers ----
+function sovRange(e) { const A = homeRoom(e); return A ? Math.hypot(A.w, A.h) * TILE : 700; }
+function sovBlink(e, mode) {
+  const A = homeRoom(e); if (!A) return;
+  let q = null;
+  if (mode === 'center') q = { x: A.bossX ?? A.px, y: A.bossY ?? A.py };
+  else { const T = pick(targets(e)); for (let i = 0; i < 14 && !q; i++) { const a = R() * 6.28, d = rr(80, 170), x = (T ? T.x : A.px) + Math.cos(a) * d, y = (T ? T.y : A.py) + Math.sin(a) * d * 0.8; if (inRoom(A, x, y, -36) && !hitsWall(x, y, e.r)) q = { x, y }; } if (!q) q = randomFloorIn(A, G.players, 90, 3); }
+  burst(e.x, e.y - 20, '#ff5ad0', 22, 120, 0.5, { glow: true }); shock(e.x, e.y, 40, '#d8a0ff', 0.3);
+  e.x = q.x; e.y = q.y; e.mover = null;
+  burst(e.x, e.y - 20, '#bff4ff', 22, 120, 0.5, { glow: true }); pillar(e.x, e.y, '#d8a0ff', 70, 16, 0.4); sfx('teleport', e.x, e.y, 0.8);
+}
+function sovChannel(e, dt) { // holding the centre while its lasers sweep the whole field
+  if (!(e.chan > 0)) return false;
+  e.chan -= dt; e.busy = 0;
+  if (R() < 0.5) burst(e.x + rr(-20, 20), e.y - rr(10, 40), pick(['#ff5ad0', '#bff4ff']), 1, 30, 0.5, { glow: true, g: -30 });
+  if ((e.chanShot = (e.chanShot || 0) - dt) <= 0) { e.chanShot = e.p4 ? 1.1 : 1.6; P.ring(e, 14, 70, 9, '#d8a0ff'); }
+  return true;
+}
+function sovMove(e, tg, spd, dt, blink) {
+  e.wob = (e.wob || 0) + dt;
+  e.blinkT = (e.blinkT ?? 1.5) - dt;
+  if (e.blinkT <= 0 && e.busy <= 0.4) { e.blinkT = rr(blink[0], blink[1]); sovBlink(e); return; }
+  if (!tg) return;
+  const A = homeRoom(e), want = 120 + Math.sin(e.wob * 0.9) * 40, a = Math.atan2(e.y - tg.y, e.x - tg.x) + Math.sin(e.wob * 1.7) * 0.9 + e.wob * 0.6;
+  const gx = tg.x + Math.cos(a) * want, gy = tg.y + Math.sin(a) * want * 0.8, d = Math.hypot(gx - e.x, gy - e.y);
+  if (d > 4) { const s2 = Math.min(d, spd * 2.2 * dt); const nx = e.x + (gx - e.x) / d * s2, ny = e.y + (gy - e.y) / d * s2; if (!A || inRoom(A, nx, ny, -e.r - 6)) { e.x = nx; e.y = ny; } e.moving = true; }
+  e.face = tg.x >= e.x ? 1 : -1;
+}
+function sovAttack(e, tg, dt, gap, seq) {
+  if (e.busy > 0) { e.busy -= dt; return; }
+  e.cd -= dt; if (e.cd > 0 || !tg) return;
+  const f = seq[e.pi = ((e.pi ?? -1) + 1) % seq.length]; e.busy = f(e, tg) || 0.5; e.cd = gap;
+}
+function sovArmy(e, n) {
+  const T = targets(e); if (!T.length) return;
+  const kinds = e.p4 ? ['shardling', 'shade', 'hushling', 'brute', 'shardling', 'shade'] : ['shardling', 'shade', 'hushling', 'shardling'];
+  for (let i = 0; i < n; i++) { const p = T[i % T.length]; let x, y, ok = false; for (let k = 0; k < 10 && !ok; k++) { const a = R() * 6.28, d = rr(80, 150); x = p.x + Math.cos(a) * d; y = p.y + Math.sin(a) * d; ok = !hitsWall(x, y, 6) && inRoom(homeRoom(e), x, y, -12); } if (!ok) continue; queueSpawn(kinds[i % kinds.length], x, y, 1, { aggro: true, extra: true, hpMul: 0.9 }); tele({ x, y, r: 14, life: 1, color: 'spore' }); }
+  burst(e.x, e.y - 24, '#ff5ad0', 26, 140, 0.6, { glow: true }); sfx('roar', e.x, e.y, 0.5);
 }
 function phaseTwo(e, title) {
   if (e.phase2) return false; e.phase2 = true;
@@ -4096,25 +4152,34 @@ Object.assign(BOSS_AI, {
       [(e, t) => P.lines(e, t, 3, 260, 16, 0.75, 24, 0.5, zig), burrow, (e) => P.spiral(e, 3, 2.2, 0.13, 80, 9, '#ffe24a'), rod],
       [(e, t) => P.lines(e, t, 5, 270, 16, 0.7, 24, 0.4, zig), burrow, rod, (e) => P.spiral(e, 4, 2.2, 0.12, 85, 9, '#ffe24a'), (e) => P.summon(e, 'hushling', 3), burrow]);
   },
+  // the Sovereign never stands still: it drifts erratically and blinks around its foes
   sovereign(e, tg, dd, spd, dt) {
     const frac = e.hp / e.maxHp;
-    if (!e.phase2 && frac < 0.5) { phaseTwo(e, 'Phase 2: the arms awaken'); e.crossT = 2; }
-    if (e.phase2 && (e.crossT -= dt) <= 0) { e.crossT = 15; beamFence(e, 2, 9, R() < 0.5 ? 0.5 : -0.5); }
-    const volley = (e, t) => { for (let k = 0; k < 6; k++) schedule(k * 0.22, () => { if (e.dead) return; const a = Math.atan2(t.y - e.y, t.x - e.x) + (k - 2.5) * 0.25; for (let j = -2; j <= 2; j++) eShoot(e, a + j * 0.07, 125, 10, { color: '#bff4ff' }); }); return 1.6; };
-    const homing = (e) => { for (let k = 0; k < 6; k++) { const a = k * Math.PI / 3; const b = eShoot(e, a, 60, 14, { color: '#ff5ad0', r: 4, life: 6 }); b.home = 1.2; } return 0.8; };
-    bossCycle(e, tg, dd, spd, dt, 90, 1.2,
-      [volley, (e) => P.rocks(e, 7, 24, 1.1, 22, 'crystal', { shards: 6, boom: '#7ff0ff' }), (e) => P.spiral(e, 6, 2.2, 0.15, 75, 9, '#bff4ff'), (e) => P.summon(e, 'shardling', 4)],
-      [volley, homing, (e) => P.rocks(e, 9, 24, 1, 24, 'crystal', { shards: 6, boom: '#7ff0ff' }), (e) => P.spiral(e, 6, 2.4, 0.13, 80, 9, '#bff4ff'), (e, t) => P.lines(e, t, 6, 260, 14, 0.8, 24, Math.PI / 3, { color: '#bff4ff' }), (e) => P.summon(e, 'shardling', 5)]);
+    if (!e.phase2 && frac < 0.5) { phaseTwo(e); e.crossT = 1.5; }
+    if (sovChannel(e, dt)) return;
+    if (e.phase2 && (e.crossT -= dt) <= 0 && e.busy <= 0) { e.crossT = 14; sovBlink(e, 'center'); beamFence(e, 2, 7, R() < 0.5 ? 0.55 : -0.55, sovRange(e)); e.chan = 7.4; return; }
+    sovMove(e, tg, spd, dt, e.phase2 ? [1.5, 2.5] : [2.2, 3.4]);
+    const volley = (e, t) => { for (let k = 0; k < 6; k++) schedule(k * 0.22, () => { if (e.dead) return; const a = Math.atan2(t.y - e.y, t.x - e.x) + (k - 2.5) * 0.25; for (let j = -2; j <= 2; j++) eShoot(e, a + j * 0.07, 125, 10, { color: '#bff4ff' }); }); return 1.4; };
+    const homing = (e) => { for (let k = 0; k < 6; k++) { const a = k * Math.PI / 3; const b = eShoot(e, a, 60, 14, { color: '#ff5ad0', r: 4, life: 6 }); b.home = 1.2; } return 0.7; };
+    sovAttack(e, tg, dt, e.phase2 ? 1.0 : 1.2, e.phase2
+      ? [volley, homing, (e) => P.rocks(e, 9, 24, 1, 24, 'crystal', { shards: 6, boom: '#7ff0ff' }), (e) => P.spiral(e, 6, 2.4, 0.13, 80, 9, '#bff4ff'), (e, t) => P.lines(e, t, 6, 260, 14, 0.8, 24, Math.PI / 3, { color: '#bff4ff' }), (e) => P.summon(e, 'shardling', 5)]
+      : [volley, (e) => P.rocks(e, 7, 24, 1.1, 22, 'crystal', { shards: 6, boom: '#7ff0ff' }), (e) => P.spiral(e, 6, 2.2, 0.15, 75, 9, '#bff4ff'), (e) => P.summon(e, 'shardling', 4)]);
   },
+  // the True Form, fought in its own dimension: faster blinks, meteor storms and an army
   sovereign2(e, tg, dd, spd, dt) {
     const frac = e.hp / e.maxHp;
-    if (!e.p4 && frac < 0.25) { e.p4 = true; e.phase2 = true; shake(9); G.flash = 0.3; beamFence(e, 3, 999, 0.42); }
-    const meteors = (e, n) => { for (const p of targets(e)) for (let k = 0; k < n; k++) { const x = p.x + (k ? rr(-60, 60) : 0), y = p.y + (k ? rr(-50, 50) : 0); tele({ x, y, r: 30, life: 1.3, color: 'meteor' }); schedule(1.3, () => { hitPlayersCircle(x, y, 30, 30 * e.dmgM, e, 10, { st: ST('scorch', 3, { dps: 5 }) }); fx({ k: 'boom', x, y, r: 30, life: 0.35, color: '#ff8a2a' }); burst(x, y, '#ffb030', 16, 120, 0.6, { glow: true }); decal(x, y, 'scorch', 22, 5); shake(3); }); } return 0.9; };
+    if (!e.p4 && frac < 0.25) { e.p4 = true; e.phase2 = true; shake(9); G.flash = 0.3; sovBlink(e, 'center'); beamFence(e, 3, 999, 0.42, sovRange(e)); e.chan = 1.6; }
+    if (sovChannel(e, dt)) return;
+    const meteors = (e, n) => { for (const p of targets(e)) for (let k = 0; k < n; k++) { const x = p.x + (k ? rr(-60, 60) : 0), y = p.y + (k ? rr(-50, 50) : 0); tele({ x, y, r: 30, life: 1.3, color: 'meteor' }); schedule(1.3, () => { hitPlayersCircle(x, y, 30, 30 * e.dmgM, e, 10, { st: ST('scorch', 3, { dps: 5 }) }); fx({ k: 'boom', x, y, r: 30, life: 0.35, color: '#ff8a2a' }); burst(x, y, '#ffb030', 16, 120, 0.5, { glow: true }); sfx('boom', x, y, 0.6); }); } return 1; };
     if (e.p4 && (e.rainT = (e.rainT || 0) - dt) <= 0) { e.rainT = 2.2; meteors(e, 1); }
-    const homing = (e) => { for (let k = 0; k < 8; k++) { const b = eShoot(e, k * Math.PI / 4, 60, 14, { color: '#ff5ad0', r: 4, life: 6 }); b.home = 1.4; } return 0.8; };
-    bossCycle(e, tg, dd, spd, dt, 90, e.p4 ? 0.9 : 1.1,
-      [(e) => meteors(e, 2), (e) => P.spiral(e, 6, 2.4, 0.12, 85, 10, '#d8a0ff'), homing, (e, t) => P.fan(e, t, 13, 0.12, 140, 10, '#ff5ad0', 3, 0.3), (e) => P.summon(e, 'shade', 4)],
-      [(e) => meteors(e, 3), (e) => P.spiral(e, 8, 2.6, 0.11, 90, 10, '#d8a0ff'), homing, (e, t) => P.fan(e, t, 15, 0.11, 150, 10, '#ff5ad0', 3, 0.25), (e) => P.summon(e, 'hushling', 4), (e) => P.ring(e, 30, 100, 10, '#bff4ff', 3, 0.35)]);
+    // the army: waves of servants keep coming
+    if ((e.armyT = (e.armyT ?? 6) - dt) <= 0) { e.armyT = e.p4 ? 9 : 12; sovArmy(e, e.p4 ? 6 : 4); }
+    sovMove(e, tg, spd, dt, e.p4 ? [1.0, 1.7] : [1.3, 2.2]);
+    if (!e.p4 && (e.crossT = (e.crossT ?? 8) - dt) <= 0 && e.busy <= 0) { e.crossT = 15; sovBlink(e, 'center'); beamFence(e, 2, 6, R() < 0.5 ? 0.6 : -0.6, sovRange(e)); e.chan = 6.4; return; }
+    const homing = (e) => { for (let k = 0; k < 8; k++) { const b = eShoot(e, k * Math.PI / 4, 60, 14, { color: '#ff5ad0', r: 4, life: 6 }); b.home = 1.4; } return 0.7; };
+    sovAttack(e, tg, dt, e.p4 ? 0.85 : 1.05, e.p4
+      ? [(e) => meteors(e, 3), (e) => P.spiral(e, 8, 2.6, 0.11, 90, 10, '#d8a0ff'), homing, (e, t) => P.fan(e, t, 15, 0.11, 150, 10, '#ff5ad0', 3, 0.25), (e) => P.ring(e, 30, 100, 10, '#bff4ff', 3, 0.35)]
+      : [(e) => meteors(e, 2), (e) => P.spiral(e, 6, 2.4, 0.12, 85, 10, '#d8a0ff'), homing, (e, t) => P.fan(e, t, 13, 0.12, 140, 10, '#ff5ad0', 3, 0.3)]);
   },
 });
 // the fake-out: the Sovereign "dies", the arena goes quiet... then the True Form arrives
@@ -4132,10 +4197,17 @@ function updateFakeout(dt) {
   if (t > 4 && t < 7.5) { shake(Math.min(9, (t - 4) * 3)); if (R() < 0.9) { const a = R() * 6.28, d = rr(60, 180); G.parts.push({ x: F.x + Math.cos(a) * d, y: F.y + Math.sin(a) * d * 0.6, vx: -Math.cos(a) * d * 1.6, vy: -Math.sin(a) * d, t: 0, life: 0.6, color: pick(['#ff5ad0', '#d8a0ff', '#bff4ff']), size: 1.5, g: 0, shape: 'spark', glow: true, drag: 1 }); } }
   if (t > 4 && !F.warn) { F.warn = true; setBanner('...', 'Something is wrong.', 2.5, '#ff9ad8'); }
   if (t > 6.2 && !F.pillar) { F.pillar = true; pillar(F.x, F.y, '#ff5ad0', 300, 34, 1.6); }
+  if (t > 6.8 && !F.pull) { F.pull = true; for (const p of G.players) if (p.state !== 'dead') { burst(p.x, p.y - 8, '#ff5ad0', 20, 100, 0.6, { glow: true }); pillar(p.x, p.y, '#d8a0ff', 90, 14, 0.7); } sfx('portal'); }
   if (t > 7.5) {
-    G.fake = null; G.flash = 0.6; shake(9);
-    G.boss = spawnEnemy('sovereign2', F.x, F.y); shock(F.x, F.y, 200, '#ff5ad0', 1); burst(F.x, F.y - 20, '#ff5ad0', 80, 260, 1, { glow: true });
-    setBanner('SOVEREIGN UNBOUND', 'True Form', 4, '#ff5ad0');
+    // the world tears open: everyone is pulled into the Sovereign's own dimension
+    G.fake = null; G.flash = 1; shake(10);
+    const V = G.voidRoom; G.inVoid = true; G.bossRoom = V; G.arena = V;
+    G.bullets = []; G.ezones = []; G.tele = []; G.beams = []; G.walls = [];
+    revealRoom(V);
+    G.players.forEach((p, i) => { if (p.state === 'dead') p.state = 'up'; if (p.state === 'up') p.hp = Math.max(p.hp, p.maxHp * 0.5); p.x = V.px + (i - 1.5) * 30; p.y = (V.y + V.h - 5) * TILE; p.dash = null; p.ball = 0; p.invulnT = 2; burst(p.x, p.y - 8, '#d8a0ff', 18, 90, 0.6, { glow: true }); });
+    G.cam.init = false;
+    G.boss = spawnEnemy('sovereign2', V.bossX, V.bossY); shock(V.bossX, V.bossY, 200, '#ff5ad0', 1); burst(V.bossX, V.bossY - 20, '#ff5ad0', 80, 260, 1, { glow: true });
+    setBanner('SOVEREIGN UNBOUND', '', 4, '#ff5ad0'); sfx('roar');
   }
 }
 // ===== Vesper, the Quiet Dark: blackouts that leave everyone near-sighted and half-deaf =====
@@ -4352,6 +4424,9 @@ function botControl(p, dt) {
     if (p.active.id === 'bubble' && p.hp < p.maxHp * 0.3 && A.nVis > 0) c.itemP = true;
     if (p.active.id === 'bomb' && tgt && (tgt.elite || tgt.boss || clusterAt(tgt.x, tgt.y, 40) >= 3) && dist(p, tgt) < 150) c.itemP = true;
   }
+  // sprint between rooms and when fleeing at low health
+  const far = A.mode === 'goto' && A.goal && d2(A.goal.x, A.goal.y, p.x, p.y) > 220 * 220 && !A.nVis;
+  if ((far && p.stam > 0.45) || (p.hp < p.maxHp * 0.3 && A.nVis && p.stam > 0.2) || (G.everWait && p.stam > 0.3)) c.run = true;
   return c;
 }
 function nextCircleR() { return predictR(14); }
@@ -4784,7 +4859,17 @@ function onBossDead(e) {
   for (const p of G.players) { clearStatus(p); if (p.state === 'downed') { p.state = 'up'; p.hp = Math.round(p.maxHp * 0.6); p.invulnT = 2; p.revive = 0; burst(p.x, p.y - 8, '#7ae07a', 18, 70, 0.6, { glow: true, g: -40 }); floatText(p.x, p.y - 30, 'Revived!', '#7ae07a', 1); } }
   shock(e.x, e.y, 120, '#ffffff', 0.8); glow(e.x, e.y - 20, 120, '#ffe6a0', 0.8); G.flash = 0.25;
   const H0 = human();
-  if (G.phase === 'final') { questEvent('dm', e.type); feed(`The ${e.def.name} falls!`, '#7ff0ff'); endMatch(true); return; }
+  if (G.phase === 'final') {
+    questEvent('dm', e.type); feed(`The ${e.def.name} falls!`, '#7ff0ff');
+    // a proper boss death: chained explosions, the body flickering, then bursting rings of light
+    const big = e.type === 'sovereign2';
+    G.deathFx = { t: 0, x: e.x, y: e.y, dur: big ? 4.6 : 2.8, big, spr: e.sprite + (e.tint ? '_d2' : ''), sc: e.scale || 1, boomT: 0, ring: false };
+    for (const o of G.enemies) if (!o.dead && o !== e) { o.dead = true; burst(o.x, o.y, '#c86aff', 8, 60); }
+    G.bullets = G.bullets.filter(b => b.team === 'player'); G.beams = []; G.walls = []; G.tele = []; G.delayed = []; G.ezones = [];
+    for (const p of G.players) p.invulnT = 99;
+    G.flash = 0.5; shake(10); sfx('bossdie');
+    return;
+  }
   questEvent('gk', e.type); if (H0 && !(H0.fightDowns > 0)) questEvent('gkflawless');
   const reward = G.day === 1 ? 200 : 320;
   spawnShrine(G.bossRoom); const gs = G.inter.find(i => i.kind === 'shrine' && i.room === G.bossRoom); if (gs) gs.day = G.day + 1;
@@ -4907,7 +4992,7 @@ function humanControl(p) {
     ax: w.x, ay: w.y, atk: bindDown('attack') && !block,
     skP: bindPressed('skill'), skD: bindDown('skill'), skR: bindReleased('skill'),
     ultP: bindPressed('ult'), ultD: bindDown('ult'), ultR: bindReleased('ult'),
-    itemP: bindPressed('item'), intD: bindDown('interact'), intP: bindPressed('interact'), relP: !block && (bindPressed('attack') || bindPressed('reload')),
+    itemP: bindPressed('item'), run: bindDown('sprint') || Input.down.has('ShiftRight'), intD: bindDown('interact'), intP: bindPressed('interact'), relP: !block && (bindPressed('attack') || bindPressed('reload')),
   };
 }
 function sendSticker(i) {
@@ -4995,6 +5080,18 @@ function step(dt) {
   }
   for (const e of G.enemies) if (!e.dead) updateEnemy(e, dt);
   if (G.fake) updateFakeout(dt);
+  if (G.deathFx) {
+    const D = G.deathFx; D.t += dt;
+    if (D.t < D.dur * 0.62) {
+      D.boomT -= dt;
+      if (D.boomT <= 0) { D.boomT = D.big ? 0.09 : 0.13; const x = D.x + rr(-34, 34) * D.sc, y = D.y - rr(0, 50) * D.sc; fx({ k: 'boom', x, y, r: rr(14, 26), life: 0.3, color: pick(['#ffffff', '#ffe06a', '#ff8a2a', '#ff5ad0']) }); burst(x, y, pick(['#ffe06a', '#ff8a2a', '#ffffff']), 12, 140, 0.45, { glow: true }); shake(D.big ? 7 : 5); sfx('boom', x, y, 0.8); if (R() < 0.3) G.flash = 0.15; }
+    } else if (!D.ring) {
+      D.ring = true; G.flash = 1; shake(14); sfx('bossdie'); sfx('boom');
+      for (let w = 0; w < (D.big ? 4 : 3); w++) for (let k = 0; k < 16; k++) { const a = k * Math.PI / 8 + w * 0.2, sp = 60 + w * 45; G.parts.push({ x: D.x, y: D.y - 24, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, t: 0, life: 2.2, color: w % 2 ? '#7ff0ff' : '#ffffff', size: 3.2, g: 0, shape: 'dot', glow: true, drag: 1 }); }
+      shock(D.x, D.y, 260, '#ffffff', 1.2); shock(D.x, D.y, 180, '#ffe06a', 0.9); pillar(D.x, D.y, '#ffffff', 300, 50, 1.4);
+    } else shake(Math.max(0, 6 - (D.t - D.dur * 0.62) * 4));
+    if (D.t >= D.dur) { G.deathFx = null; endMatch(true); }
+  }
   // anti-stall: a boss nobody can damage for 25s (stuck behind geometry) is pulled back to its arena centre
   if (G.boss && !G.boss.dead && G.bossRoom && G.bossFight) { const B = G.boss; if (B.stallHp !== B.hp) { B.stallHp = B.hp; B.stallT = G.time; } else if (G.time - B.stallT > 25 && !B.hidden && !B.sky) { B.x = G.bossRoom.px; B.y = G.bossRoom.py; B.mover = null; B.stallT = G.time; burst(B.x, B.y - 10, '#c86aff', 20, 120, 0.6, { glow: true }); } }
   separateEnemies();
@@ -5386,7 +5483,8 @@ function camTarget() {
 }
 function updateCamera(dt) {
   const t = camTarget(); let tx = t.x, ty = t.y - 10;
-  if (G.intro) { const k0 = clamp(1.6 - Math.hypot(G.intro.x - t.x, G.intro.y - t.y) / 260, 0.25, 0.6); tx = lerp(tx, G.intro.x, k0); ty = lerp(ty, G.intro.y - 10, k0); }
+  if (G.deathFx) { tx = G.deathFx.x; ty = G.deathFx.y - 20; }
+  else if (G.intro) { const k0 = clamp(1.6 - Math.hypot(G.intro.x - t.x, G.intro.y - t.y) / 260, 0.25, 0.6); tx = lerp(tx, G.intro.x, k0); ty = lerp(ty, G.intro.y - 10, k0); }
   else if (!t.isBot) { const w = screenToWorld(Input.mx, Input.my); tx += clamp((w.x - t.x) * 0.15, -40, 40); ty += clamp((w.y - t.y) * 0.15, -28, 28); }
   if (!G.cam.init) { G.cam.x = tx; G.cam.y = ty; G.cam.init = true; }
   const k = 1 - Math.pow(G.intro ? 0.02 : 0.0006, dt);
@@ -5398,7 +5496,7 @@ function drawTiles() {
   const y0 = Math.floor((G.cam.y - H / 2 / ZOOM) / TILE) - 1, y1 = Math.ceil((G.cam.y + H / 2 / ZOOM) / TILE) + 2;
   const T = TILE + 0.35;
   for (let by = Math.floor(y0 / 4) * 4; by <= y1; by += 4) for (let bx = Math.floor(x0 / 4) * 4; bx <= x1; bx += 4) {
-    const h = ((bx * 73856093) ^ (by * 19349663)) >>> 0; ctx.drawImage(TEX.forest[h % 3], bx * TILE, by * TILE, TILE * 4 + 0.4, TILE * 4 + 0.4);
+    const h = ((bx * 73856093) ^ (by * 19349663)) >>> 0; if (G.inVoid) { ctx.fillStyle = (bx + by) % 8 ? '#0a0418' : '#120828'; ctx.fillRect(bx * TILE, by * TILE, TILE * 4 + 0.4, TILE * 4 + 0.4); if (h % 3 === 0) { ctx.fillStyle = 'rgba(255,255,255,0.7)'; ctx.fillRect(bx * TILE + h % 50, by * TILE + (h >> 8) % 50, 1.2, 1.2); } } else ctx.drawImage(TEX.forest[h % 3], bx * TILE, by * TILE, TILE * 4 + 0.4, TILE * 4 + 0.4);
   }
   for (let ty = y0; ty <= y1; ty++) for (let tx = x0; tx <= x1; tx++) {
     const px = tx * TILE, py = ty * TILE, h = ((tx * 73856093) ^ (ty * 19349663)) >>> 0;
@@ -5408,7 +5506,8 @@ function drawTiles() {
     if (t === T_FLOOR || t === T_CRATE || t === T_DOOR || t === T_PROP) { const pk = t === T_PROP ? G.prop.get(i) : null; if (pk === 'water') ctx.drawImage(TEX.water, px, py, T, T); else if (pk === 'lava') ctx.drawImage(TEX.lava, px, py, T, T); else ctx.drawImage(TEX.floor[G.theme[i]][tileVar(tx, ty)], px, py, T, T); }
     else if (t === T_WALL) {
       const below = tget(tx, ty + 1); const face = below === T_FLOOR || below === T_CRATE || below === T_DOOR || below === T_PROP;
-      if (G.wstyle && G.wstyle[i]) { ctx.drawImage(face ? TEX.castleFace[h % 3] : TEX.castleTop[h % 3], px, py, T, T); }
+      if (G.wstyle && G.wstyle[i] === 2) { ctx.fillStyle = '#0c0618'; ctx.fillRect(px, py, T, T); ctx.fillStyle = `rgba(200,110,255,${0.35 + 0.2 * Math.sin(G.time * 3 + tx * 0.7 + ty)})`; ctx.fillRect(px + 6, py + 6, 4, 4); }
+      else if (G.wstyle && G.wstyle[i]) { ctx.drawImage(face ? TEX.castleFace[h % 3] : TEX.castleTop[h % 3], px, py, T, T); }
       else if (face) { ctx.drawImage(TEX.floor[G.theme[(ty + 1) * MW + tx]][0], px, py, T, T); ctx.drawImage(TEX.hedge[h % 3], px, py, T, T); }
       else ctx.drawImage(TEX.canopy[h % 3], px, py, T, T);
     }
@@ -5930,6 +6029,7 @@ function render(dt) {
   for (const t of G.healTotems) objs.push({ y: t.y, d: () => { ctx.fillStyle = `rgba(122,224,122,${0.1 + 0.05 * Math.sin(G.time * 5)})`; ctx.beginPath(); ctx.arc(t.x, t.y, 70, 0, Math.PI * 2); ctx.fill(); ctx.drawImage(itemIcon(ALL_ITEMS.totem, 40), t.x - 7, t.y - 18, 14, 14); } });
   for (const p of G.players) if (p.state !== 'dead') objs.push({ y: p.y, d: () => { shadow(p.x, p.y, 6.5); drawPlayer(p); } });
   if (G.intro) objs.push({ y: G.intro.y, d: () => drawIntro() });
+  if (G.deathFx && G.deathFx.t < G.deathFx.dur * 0.62) { const D = G.deathFx; objs.push({ y: D.y, d: () => { const S = SPR[D.spr] || SPR[D.spr.replace('_d2', '')]; if (!S) return; if (Math.floor(G.time * 18) % 2) return; ctx.save(); ctx.translate(D.x + rr(-1.5, 1.5), D.y); ctx.scale(D.sc, D.sc); drawFrame(D.t % 0.2 < 0.1 ? (D.tint || (D.tint = tintFrame(S.idle, '#ffffff', 0.8))) : S.idle, 0, 0); ctx.restore(); } }); }
   objs.sort((a, b) => a.y - b.y); for (const o of objs) o.d();
   for (const l of G.lobs) {
     if (l.t < 0) continue; const k = l.t / l.dur, x = lerp(l.sx, l.tx, k), y = lerp(l.sy, l.ty, k) - Math.sin(k * Math.PI) * 24;
@@ -5948,7 +6048,7 @@ function render(dt) {
   drawAimHelpers(human());
   for (const p of G.players) {
     if (p.state === 'dead') continue;
-    drawWolfReload(p); drawHeatBar(p);
+    drawWolfReload(p); drawHeatBar(p); drawStamina(p);
     if (p.state === 'up') drawStatusIcons(p, p.y - (p.isBot ? 41 : 36) - ((p.char === 'wolf' && (p.reload || !p.loaded)) || (p.char === 'hedgehog' && (p.heat > 0.02 || p.over)) ? 8 : 0));
     if (p.isBot) { ctx.font = `6.5px ${FONT}`; ctx.textAlign = 'center'; ctx.lineWidth = 2; ctx.strokeStyle = OUTL; const ty = p.y - 34; ctx.strokeText(p.name, p.x, ty); ctx.fillStyle = CHARS[p.char].color; ctx.fillText(p.name, p.x, ty); }
     if (p.sticker) {
@@ -6046,7 +6146,7 @@ function drawLighting() {
   if (!LIGHT || LIGHT.width !== lw || LIGHT.height !== lh) { LIGHT = mkCanvas(lw, lh); }
   const L = LIGHT.getContext('2d'), sc = ZOOM / 4;
   const vx0 = G.cam.x - W / 2 / ZOOM, vy0 = G.cam.y - H / 2 / ZOOM;
-  const dark = G.hub ? 0.42 : G.phase === 'final' || G.phase === 'prep' ? 0.38 : 0.55;
+  const dark = G.inVoid ? 0.18 : G.hub ? 0.42 : G.phase === 'final' || G.phase === 'prep' ? 0.38 : 0.55;
   L.globalCompositeOperation = 'source-over'; L.clearRect(0, 0, lw, lh); L.fillStyle = `rgba(6,4,12,${dark})`; L.fillRect(0, 0, lw, lh);
   L.globalCompositeOperation = 'destination-out';
   const warm = [];
@@ -6071,6 +6171,13 @@ function drawLighting() {
   ctx.save(); ctx.globalCompositeOperation = 'lighter';
   for (const [x, y, r, a] of warm) { const g = ctx.createRadialGradient(x, y, 0, x, y, r); g.addColorStop(0, `rgba(255,160,80,${a * (0.85 + 0.15 * Math.sin(G.time * 9 + x))})`); g.addColorStop(1, 'rgba(255,160,80,0)'); ctx.fillStyle = g; ctx.fillRect(x - r, y - r, r * 2, r * 2); }
   ctx.restore();
+}
+
+function drawStamina(p) {
+  if (p.isBot || p.state !== 'up' || p.stam == null || p.stam >= 0.999) return;
+  const w = 20, x = p.x - w / 2, y = p.y + 4;
+  ctx.fillStyle = 'rgba(10,8,14,0.75)'; roundRect(ctx, x - 1, y - 1, w + 2, 3.6, 1.6); ctx.fill();
+  ctx.fillStyle = p.exhaust ? '#c86a4a' : '#e8d070'; roundRect(ctx, x, y, w * p.stam, 1.6, 0.8); ctx.fill();
 }
 // ===== HUD (cartoon panels) =====
 const SHORT = {
@@ -6318,7 +6425,7 @@ function drawMinimap(big) {
   const inArena = G.phase === 'prep' || G.phase === 'final';
   const focus = camTarget();
   let x0, y0, bw, bh;
-  const AR = G.phase === 'prep' ? G.bazaar : G.ever;
+  const AR = G.phase === 'prep' ? G.bazaar : G.inVoid ? G.voidRoom : G.ever;
   if (big) { x0 = inArena ? AR.x - 3 : 0; y0 = inArena ? AR.y - 3 : 0; bw = inArena ? AR.w + 6 : GW * CW; bh = inArena ? AR.h + 6 : GH * CH; }
   else { bw = 54; bh = 40; x0 = focus.x / TILE - bw / 2; y0 = focus.y / TILE - bh / 2; }
   const size = big ? Math.min(W * 0.62, H * 0.8) : Math.round(220 * s);
