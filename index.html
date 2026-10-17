@@ -1715,8 +1715,16 @@ Object.assign(HERO_DRAW, {
     // tail
     shape(x, '#c83a2e', [-14, -8, -2, 0], c => { c.moveTo(-3, -7); c.quadraticCurveTo(-10, -6, -14, -1.4); c.quadraticCurveTo(-9, -2.6, -3, -2.4); c.closePath(); });
     for (let i = 0; i < 3; i++) poly(x, [[-5 - i * 3, -6.8 + i * 0.6], [-6.2 - i * 3, -9 + i * 0.8], [-7 - i * 3, -6.4 + i * 0.7]], '#ffb030', { lw: 0.4 });
+    // the floating hoop: its far half sits behind the body
+    const hoop = (a0, a1) => { for (const [w, c] of [[2.6, OUTL], [1.6, '#9aa0b0'], [0.6, '#eef2ff']]) { x.strokeStyle = c; x.lineWidth = w; x.beginPath(); x.ellipse(0, -5.2, 10.5, 3.4, -0.08, a0, a1); x.stroke(); } };
+    hoop(Math.PI, Math.PI * 2);
     ell(x, 0, -8.4, 5.6, 5.4, '#d8483a');
     ell(x, 1.4, -7.4, 3.2, 3.6, '#ffc46a', { outline: false });
+    // arms folded across the chest: he fights with his mind, not his hands
+    for (const [a, b, c] of [[[-4.6, -10.2], [4.2, -7.4], '#c83a2e'], [[4.8, -10.6], [-3.6, -7.2], '#d8483a']]) { line(x, [a, b], OUTL, 3.2); line(x, [a, b], c, 2.1); }
+    ell(x, 4.4, -7.4, 1.3, 1.2, '#e05a46', { lw: 0.5 }); ell(x, -3.4, -7.2, 1.3, 1.2, '#e05a46', { lw: 0.5 });
+    hoop(0, Math.PI);
+    for (const k of [0.6, 1.6, 2.6]) ell(x, Math.cos(k) * 10.5, -5.2 + Math.sin(k) * 3.4, 0.7, 0.7, '#ffb030', { outline: false });
     // head
     ell(x, 2, -16, 6.2, 5, '#d8483a');
     shape(x, '#e05a46', [4, -18, 13, -12], c => { c.moveTo(4, -18.2); c.quadraticCurveTo(12, -17.4, 13, -14.4); c.quadraticCurveTo(11, -12, 4.4, -12.8); c.closePath(); });
@@ -1809,7 +1817,7 @@ Object.assign(HERO_DRAW, {
 });
 Object.assign(WEAPON_DRAW, {
   goat(x) { for (const [w, c] of [[5.2, OUTL], [4, '#f0e2c0']]) { x.strokeStyle = c; x.lineWidth = w; x.lineCap = 'round'; x.beginPath(); x.moveTo(-2, 1); x.quadraticCurveTo(8, 4, 16, -3); x.stroke(); } ell(x, 17, -4, 2.6, 3.4, '#d8c8a0', { rot: -0.6 }); ell(x, 17.4, -4.4, 1.4, 2, '#5a4030', { flat: true, outline: false, rot: -0.6 }); for (const t of [0.3, 0.6]) rrc(x, -2 + 18 * t - 1, -1 + 2 * Math.sin(t * 3) - 2.4, 2.2, 4.4, 0.6, '#d8a83a', { lw: 0.4 }); },
-  lizard(x) { rrc(x, -2, -2.6, 6, 5.2, 1.6, '#5a3a2a'); for (const y of [-2.2, 0, 2.2]) poly(x, [[3.4, y - 0.8], [11, y + 0.2], [3.4, y + 1]], '#f4ecd8', { lw: 0.5 }); },
+  lizard(x) { },
   serpent(x) { shape(x, '#ffd36a', [0, -9, 12, 9], c => { c.moveTo(0, 5); c.quadraticCurveTo(2, -9, 10, -8); c.lineTo(11.4, -6.4); c.quadraticCurveTo(5, -6, 2.6, 5); c.closePath(); }, { lw: 0.6 }); line(x, [[0, 5], [12, 5]], OUTL, 1.8); line(x, [[0, 5], [12, 5]], '#e8b040', 1); for (let i = 0; i < 4; i++) line(x, [[3 + i * 2, -5 + i * 0.4], [3 + i * 2, 5]], '#fff6d0', 0.35); },
   beaver(x) { rrc(x, -3, -1.6, 16, 3.2, 1, '#8a5a30'); shape(x, '#9aa0ae', [8, -8, 13, 8], c => { c.moveTo(9, -1.2); c.quadraticCurveTo(13.6, -5, 11, -8.4); c.lineTo(9.6, -7.8); c.quadraticCurveTo(11.6, -5, 8.2, -1.2); c.closePath(); c.moveTo(9, 1.2); c.quadraticCurveTo(13.6, 5, 11, 8.4); c.lineTo(9.6, 7.8); c.quadraticCurveTo(11.6, 5, 8.2, 1.2); c.closePath(); }); line(x, [[10.8, -8.2], [2, 0], [10.8, 8.2]], '#e8e0d0', 0.4); poly(x, [[13, -1], [17, 0], [13, 1]], '#c8ccd6', { lw: 0.5 }); rrc(x, 2, -3.4, 3, 2, 0.5, '#ffc23a', { lw: 0.4 }); },
   owl(x) { rrc(x, -4, -2.4, 6, 4.8, 1.2, '#6a4a2a', { lw: 0.5 }); rrc(x, 0, -3.2, 14, 6.4, 2.4, '#3a3a48'); rrc(x, 3, -3.7, 1.6, 7.4, 0.6, '#c8a050', { lw: 0.4 }); rrc(x, 9, -3.7, 1.6, 7.4, 0.6, '#c8a050', { lw: 0.4 }); ell(x, 14.4, 0, 2.2, 4.2, '#2a2a36'); ell(x, 14.8, 0, 1.2, 2.6, '#0a0a12', { outline: false }); line(x, [[1, -1.8], [12, -1.8]], 'rgba(255,255,255,0.25)', 0.6); },
@@ -7177,9 +7185,9 @@ function drawPlayer(p) {
   }
   if (p.tempest > 0) { ctx.strokeStyle = OUTL; ctx.lineWidth = 1.6; for (const k of [-1, 0, 1]) { ctx.beginPath(); ctx.moveTo(p.x, p.y - 8); ctx.lineTo(p.x + k * 7, p.y + 1); ctx.stroke(); } }
   p.y += dy;
-  if (behind) drawWeapon(p);
+  if (behind) { if (p.char !== 'lizard') drawWeapon(p); }
   if (tilt) { ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(tilt); drawFrame(frame, 0, 0, flip, alpha); ctx.restore(); } else drawFrame(frame, p.x, p.y, flip, alpha);
-  if (!behind) drawWeapon(p);
+  if (!behind) { if (p.char !== 'lizard') drawWeapon(p); }
   p.y -= dy;
   if (p.aurora > 0) { for (const [ox, oy, r] of [[-10, -46, 9], [0, -50, 11], [11, -46, 8], [4, -42, 8]]) { ctx.fillStyle = 'rgba(70,80,110,0.85)'; ctx.beginPath(); ctx.arc(p.x + ox, p.y + oy, r, 0, Math.PI * 2); ctx.fill(); } ctx.fillStyle = 'rgba(200,230,255,0.25)'; ctx.beginPath(); ctx.arc(p.x, p.y - 50, 12, 0, Math.PI * 2); ctx.fill(); }
   if (p.guardT > 0) { ctx.strokeStyle = 'rgba(255,232,192,0.8)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(p.x, p.y - 8, 13, p.guardA - 1.1, p.guardA + 1.1); ctx.stroke(); }
@@ -7188,6 +7196,7 @@ function drawPlayer(p) {
   if (p.buffT > 0) { ctx.fillStyle = 'rgba(255,200,90,0.5)'; ctx.beginPath(); ctx.arc(p.x + rr(-6, 6), p.y - rr(4, 24), 1, 0, Math.PI * 2); ctx.fill(); }
   if (p.bubble > 0) { ctx.strokeStyle = 'rgba(127,224,255,0.9)'; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.arc(p.x, p.y - 12, 16, 0, Math.PI * 2); ctx.stroke(); ctx.fillStyle = 'rgba(127,224,255,0.15)'; ctx.fill(); }
   if (p.fated > 0) { ctx.strokeStyle = `rgba(255,211,106,${0.4 + 0.6 * (1 - p.fated / 0.8)})`; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(p.x, p.y - 12, 8 + 12 * (p.fated / 0.8), 0, Math.PI * 2); ctx.stroke(); }
+  if (p.char === 'lizard' && R() < 0.12) burst(p.x + rr(-10, 10), p.y - 4 + rr(-2, 2), '#ffd27a', 1, 8, 0.4, { glow: true, size: 0.8, g: -10 });
   drawStatusFx(p, 24);
 }
 function drawWeapon(p, n) {
