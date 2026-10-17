@@ -205,7 +205,7 @@ th { color: var(--muted); font-family: var(--display); font-weight: 400; }
       <ol>
         <li><b>The Hub.</b> Pick your Krystalker and up to <b>3 gems</b> at the Round Table, read the Archive, train on dummies, and set out through the Expedition Gate.</li>
         <li><b>Biomes.</b> Each biome is a group of rooms with its own monsters and a <b>broken altar</b> (◇). Restore it (F) to start the biome's <b>challenge</b>. The altar shows the recommended level, with ☠ in red when you are below it.</li>
-        <li><b>Challenges.</b> The biome seals: nobody inside can leave, but allies can still walk in to help. Monsters keep pouring in and the biome's boss rises in one of its rooms. Inside and outside cannot see each other. Downed allies can be revived. Beat the boss and the altar becomes a <b>Krystal Shrine</b> for levelling. If everyone inside falls, the challenge fails. The Wildfire burns seals open.</li>
+        <li><b>Challenges.</b> The biome seals: nobody inside can leave, but allies can still walk in to help. Monsters keep pouring in and the biome's boss rises in one of its rooms. Inside and outside cannot see each other. Beat the boss and the altar becomes a <b>Krystal Shrine</b> for levelling. If everyone inside falls, the challenge fails. The Wildfire burns seals open.</li>
         <li><b>Boss chests.</b> Every boss drops a chest. Each player opens it once and picks 1 of 3 relics. Bosses with a higher recommended level give better odds. Unopened chests stay marked on your map.</li>
         <li><b>Gold</b> flies straight to your purse and is shared by the whole team. Rooms slowly refill with monsters to farm. Two linked <b>teleporter rooms</b> (◎) connect far corners of the map.</li>
         <li><b>The Wildfire</b> ignites twice per Act and closes on a <b>Gatekeeper</b>. Act II is longer and has stronger monsters. After Gatekeeper II the fire stays and a <b>portal</b> opens to <b>The Bazaar</b>. Its northern portal leads to the Dungeon Master's own arena.</li>
@@ -215,8 +215,10 @@ th { color: var(--muted); font-family: var(--display); font-weight: 400; }
       </ol>
       <p><b>Elements and weaknesses:</b> Fire, Frost, Bleed, Poison, Shock, Shadow. Bosses list their weakness: matching hits deal +50%, matching damage over time deals double. A frozen boss is freeze-immune for 12s.</p>
       <p><b>Dying while exploring</b> is not revivable: you respawn after a few seconds, drop one level, and leave that level's gold where you fell.</p>
+      <p><b>Death.</b> Only during a Gatekeeper or Dungeon Master fight can a fallen ally be revived. Anywhere else, falling means death: you respawn at a shrine one level lower and leave your gold where you fell.</p>
+      <p><b>Flasks.</b> You start with 2 flasks (R): each heals 20% of your health. Standing at a Krystal Shrine with no enemies near refills your flasks and health. Six small rooms hold <b>Krystal Fonts</b> (⚱): your map shows where they are, but not how to get there. Channel one for 5 seconds (taking damage breaks it) and the whole team gets +1 flask and stronger flasks. All six give 8 flasks that heal 65% each.</p>
       <p><b>Downed during a boss:</b> teammates can revive you; each down makes the next revive slower (up to the third). Beating a Gatekeeper or Dungeon Master revives everyone on the spot. If the whole team is down, the expedition fails.</p>
-      <p><b>Controls:</b> LMB attack · RMB secondary (melee) attack · Space movement skill · Q character skill · E ultimate (unlocks at level 10) · R active item · F interact / revive · Shift sprint.</p>
+      <p><b>Controls:</b> LMB attack · RMB secondary (melee) attack · Space movement skill · Q character skill · E ultimate (unlocks at level 10) · R drink a flask · T active item · F interact / revive · Shift sprint · G stickers.</p>
       <p><b>Sprint</b> drains stamina (the bar under your feet). Run it dry and you must wait until it is completely full again. Most Krystalkers cannot attack while sprinting; Crow, Rabbit, Serpent and Owl can.</p>
       <p><b>Krystal Shrines</b> restore you to full health while no monsters are nearby. If you die while exploring, you return at the nearest shrine that the Wildfire will not reach.</p>
       <p><b>Ping</b> with the middle mouse button. Pinging an enemy calls your bots to attack it.</p>
@@ -294,13 +296,13 @@ let G = null;            // the running match
 let SIM_SPEED = 1;       // watch-mode speed
 
 // ===== Settings =====
-const DEFAULT_BINDS = { up: 'KeyW', down: 'KeyS', left: 'KeyA', right: 'KeyD', attack: 'Mouse0', alt: 'Mouse2', skill: 'Space', ult: 'KeyQ', super: 'KeyE', item: 'KeyR', interact: 'KeyF', reload: null, sprint: 'ShiftLeft', sticker: 'KeyT', map: 'KeyM', ping: 'Mouse1' };
-const BIND_LABELS = { up: 'Move up', down: 'Move down', left: 'Move left', right: 'Move right', attack: 'Attack', alt: 'Secondary attack (melee)', skill: 'Movement skill', ult: 'Character skill', super: 'Ultimate (unlocks at Lv 10)', item: 'Use active item', interact: 'Interact / revive', sprint: 'Sprint (hold)', sticker: 'Stickers', map: 'Full map', ping: 'Ping (attack this / here)' };
-const settings = { bindVer: 9, binds: { ...DEFAULT_BINDS }, quickCast: false, shake: true, dmgNumbers: true, botLevel: 'normal' };
+const DEFAULT_BINDS = { up: 'KeyW', down: 'KeyS', left: 'KeyA', right: 'KeyD', attack: 'Mouse0', alt: 'Mouse2', skill: 'Space', ult: 'KeyQ', super: 'KeyE', item: 'KeyT', flask: 'KeyR', interact: 'KeyF', reload: null, sprint: 'ShiftLeft', sticker: 'KeyG', map: 'KeyM', ping: 'Mouse1' };
+const BIND_LABELS = { up: 'Move up', down: 'Move down', left: 'Move left', right: 'Move right', attack: 'Attack', alt: 'Secondary attack (melee)', skill: 'Movement skill', ult: 'Character skill', super: 'Ultimate (unlocks at Lv 10)', item: 'Use active item', flask: 'Drink a flask', interact: 'Interact / revive', sprint: 'Sprint (hold)', sticker: 'Stickers', map: 'Full map', ping: 'Ping (attack this / here)' };
+const settings = { bindVer: 10, binds: { ...DEFAULT_BINDS }, quickCast: false, shake: true, dmgNumbers: true, botLevel: 'normal' };
 function loadSettings() {
   try {
     const s = JSON.parse(localStorage.getItem('krystolen_settings') || 'null');
-    if (s) { Object.assign(settings, s); settings.binds = { ...DEFAULT_BINDS, ...(s.binds || {}) }; if (settings.binds.map === 'Tab') settings.binds.map = 'KeyM'; if ((settings.bindVer || 0) < 9) { Object.assign(settings.binds, { alt: 'Mouse2', skill: 'Space', ult: 'KeyQ', super: 'KeyE', item: 'KeyR', sprint: 'ShiftLeft', reload: null }); settings.bindVer = 9; } }
+    if (s) { Object.assign(settings, s); settings.binds = { ...DEFAULT_BINDS, ...(s.binds || {}) }; if (settings.binds.map === 'Tab') settings.binds.map = 'KeyM'; if ((settings.bindVer || 0) < 9) { Object.assign(settings.binds, { alt: 'Mouse2', skill: 'Space', ult: 'KeyQ', super: 'KeyE', item: 'KeyR', sprint: 'ShiftLeft', reload: null }); settings.bindVer = 9; } if (settings.bindVer < 10) { Object.assign(settings.binds, { item: 'KeyT', flask: 'KeyR', sticker: 'KeyG' }); settings.bindVer = 10; } }
   } catch (e) { /* storage unavailable */ }
 }
 function saveSettings() { try { localStorage.setItem('krystolen_settings', JSON.stringify(settings)); } catch (e) { /* ignore */ } }
@@ -1981,6 +1983,7 @@ function generateDungeon() {
   for (const r of G.rooms) if (r.type === 'themed') shapeRoom(r);
   if (cg) buildCastle(cg);
   for (const r of G.rooms) decorateRoom(r);
+  genFonts();
   buildBiomeMask();
   G.startRoom = G.grid[start[0]][start[1]];
   G.nightRooms = best.map(c => G.grid[c[0]][c[1]]);
@@ -2417,6 +2420,7 @@ function buildBiomeMask() {
   for (const B of G.biomes) {
     for (const r of B.rooms) for (let y = r.y - 1; y <= r.y + r.h; y++) for (let x = r.x - 1; x <= r.x + r.w; x++) if (x >= 0 && y >= 0 && x < MW && y < MH) G.bmask[y * MW + x] = B.id;
     for (const i of B.corr || []) G.bmask[i] = B.id;
+    for (const fr of G.fontRooms || []) if (fr.host && fr.host.biome === B) { for (let y = fr.y - 1; y <= fr.y + fr.h; y++) for (let x = fr.x - 1; x <= fr.x + fr.w; x++) G.bmask[y * MW + x] = B.id; for (const [cx, cy] of fr.cor) G.bmask[cy * MW + cx] = B.id; }
     B.seals = []; for (const r of B.rooms) for (const k of r.extDoors || []) B.seals.push({ room: r, key: k, tiles: r.doorTiles[k] });
   }
   if (G.castle) {
@@ -2648,6 +2652,7 @@ function damage(target, amt, src, o = {}) {
     if (target.guardT > 0 && src && Math.abs(angDiff(target.guardA, Math.atan2(src.y - target.y, src.x - target.x))) < 1.25) { amt *= 0.15; target.guardHit = true; burst(target.x + Math.cos(target.guardA) * 8, target.y - 8 + Math.sin(target.guardA) * 8, '#ffe8c0', 6, 60, 0.25, { shape: 'spark' }); }
     amt = playerOnHurt(target, amt, src); if (amt <= 0) return 0;
     if (!target.isBot) sfx('hurt');
+    if (target.fchan) cancelFont(target, true);
     target.hp -= amt; if (G.codaT > G.time && target.hp < 1) target.hp = 1; target.hitT = 0.12; target.lastHurt = G.time; target.stats.taken += amt; target.invulnT = Math.max(target.invulnT, 0.3);
     if (G.dmgLog) { const k = src ? (src.team === 'enemy' ? src.type : 'x') : 'zone'; G.dmgLog[k] = (G.dmgLog[k] || 0) + amt; }
     shake(target.isBot ? 0 : 3);
@@ -2842,9 +2847,10 @@ function interPrompt(it, p) {
       return { text: `Level up to ${p.level + 1}`, cost: c, sub: '+8% health, +7% damage, full heal' };
     }
     case 'seal': return null;
+    case 'font': { if (it.used) return null; const ch = G.players.find(q => q.fchan && q.fchan.it === it); if (ch) return { text: ch === p ? 'Channelling… (do not get hit)' : `${ch.isBot ? ch.name : 'An ally'} is channelling`, locked: true }; return { text: `Channel the Krystal Font (${FONT_CHANNEL}s)`, sub: `Every ally gets +1 flask and stronger flasks (${flaskMax()} → ${flaskMax() + 1}, heal ${Math.round(flaskPct() * 100)}% → ${Math.round((flaskPct() + 0.075) * 100)}%)` }; }
     case 'altar': { const B = it.B, rec = chalRec(B); if (B.chal) return { text: `${B.name}: challenge in progress`, locked: true }; if (B.retryT > G.time) return { text: 'The altar is still cooling…', locked: true }; return { text: `Restore the altar: challenge the ${B.name}`, sub: `Recommended Lv ${rec} · the biome seals until its boss falls`, danger: rec > p.level }; }
     case 'bosschest': return it.taken.has(p) ? null : { text: `Open ${it.label}'s chest: choose 1 of 3 relics`, sub: oddsText(it.odds) };
-    case 'portal': { const n = G.players.filter(q => q.state === 'up').length, k = [...it.ready].filter(q => q.state === 'up').length; return it.ready.has(p) ? { text: `Ready · waiting for the team (${k}/${n})`, locked: true } : { text: it.to === 'bazaar' ? `Step into the portal: The Bazaar (${k}/${n} ready)` : `Step into the portal: the Everfield (${k}/${n} ready)` }; }
+    case 'portal': { if (it.opening) return null; const n = G.players.filter(q => q.state === 'up').length, k = [...it.ready].filter(q => q.state === 'up').length; return it.ready.has(p) ? { text: `Ready · waiting for the team (${k}/${n})`, locked: true } : { text: it.to === 'bazaar' ? `Step into the portal: The Bazaar (${k}/${n} ready)` : `Step into the portal: the Everfield (${k}/${n} ready)` }; }
     case 'tpad': return (p.tpCd || 0) > G.time ? { text: 'Teleporter recharging…', locked: true } : { text: 'Teleporter: travel to the linked room' };
     case 'table': return { text: 'Round Table: change Krystalker & gems' };
     case 'archive': return { text: 'Read the Archive (glossary)' };
@@ -2861,6 +2867,7 @@ function useInter(it, p) {
     case 'chest': if (!p.isBot) sfx('chest'); p.gold -= pr.cost; it.used = true; if (!it.free) p.chests = (p.chests || 0) + 1; if (!p.isBot) questEvent('chest'); burst(it.x, it.y - 6, it.rare ? '#c070ff' : '#ffd44a', 22, 90, 0.6, { glow: true }); glow(it.x, it.y - 8, 30, it.rare ? '#c070ff' : '#ffd44a', 0.4); giveItem(p, rollRelic(p, it.rare ? ODDS.rareChest : it.free ? ODDS.room1 : ODDS.chest)); break;
     case 'stand': if (!p.isBot) sfx('buy'); p.gold -= pr.cost; it.used = true; burst(it.x, it.y, '#ffd44a', 12, 60); if (it.item.id === 'stew') { p.hp = p.maxHp; clearStatus(p); floatText(p.x, p.y - 30, 'Full health', '#7ae07a'); } else giveItem(p, it.item); break;
     case 'altar': startChallenge(it.B, p); break;
+    case 'font': startFont(it, p); break;
     case 'bosschest': openBossChest(it, p); break;
     case 'shrine': levelUp(p); it.lastUse = G.time; pillar(it.x, it.y, '#7ff0ff', 70, 14, 0.6); break;
     case 'portal': it.ready.add(p); burst(p.x, p.y - 8, '#c86aff', 12, 60, 0.5, { glow: true }); floatText(p.x, p.y - 30, 'Ready!', '#e0b0ff', 0.9); if (p.isBot && R() < 0.35) botSay(p, 'ready'); break;
@@ -3794,6 +3801,7 @@ function updatePlayer(p, c, dt) {
     const cap = p.maxHp * p.st.shield; if (cap > 0 && G.time - (p.lastHurt || -99) > 6) p.shieldHp = Math.min(Math.max(cap, p.shieldHp), (p.shieldHp || 0) + cap * 0.5 * dt);
   }
   if (p.state === 'dead') { p.respawnT -= dt; if (p.respawnT <= 0) respawnPlayer(p); return; }
+  if (p.state === 'up') updateFlask(p, dt);
   p.aimA = Math.atan2(c.ay - (p.y - HAND_Y), c.ax - p.x); p.aimX = c.ax; p.aimY = c.ay;
   p.face = Math.cos(p.aimA) >= 0 ? 1 : -1;
   let mx = c.mx || 0, my = c.my || 0; if (p.channel > 0) { p.channel -= dt; mx = my = 0; } const L = Math.hypot(mx, my); if (L > 0) { mx /= L; my /= L; }
@@ -3817,16 +3825,17 @@ function updatePlayer(p, c, dt) {
     p.running = wantRun;
     if (wantRun) { p.stam = Math.max(0, p.stam - dt / 3.2); p.stamT = 0.9; if (p.stam <= 0) { p.exhaust = true; if (!p.isBot) floatText(p.x, p.y - 30, 'Out of breath', '#ffe6a0', 0.7); } if (R() < 0.25) burst(p.x - mx * 5, p.y, '#b8a888', 1, 10, 0.4, { shape: 'smoke', size: 1.4 }); }
     else { p.stamT = (p.stamT || 0) - dt; if (p.stamT <= 0) p.stam = Math.min(1, p.stam + dt / 4); if (p.exhaust && p.stam >= 1) p.exhaust = false; }
-    const spd = def.spd * p.st.spd * (p.fated > 0 ? 0.3 : 1) * (1 - stAmt(p, 'mire')) * (wantRun ? 1.55 : 1);
+    const spd = def.spd * p.st.spd * (p.drinkT > 0 ? 0.45 : 1) * (p.fated > 0 ? 0.3 : 1) * (1 - stAmt(p, 'mire')) * (wantRun ? 1.55 : 1);
     moveEnt(p, mx * spd * dt, my * spd * dt);
   }
   p.moving = L > 0 || !!p.dash || p.ball > 0; if (p.moving) p.walkT += dt * (p.running ? 1.7 : 1);
   if (def.update) def.update(p, c, dt);
-  const canAtk = !busy(p) && (!p.running || def.runAtk);
+  const canAtk = !busy(p) && !(p.drinkT > 0) && (!p.running || def.runAtk);
   if (canAtk) def.attack(p, c, dt);
   if (canAtk && def.alt && c.altD && p.altCd <= 0) { if (def.alt.use(p, c) !== false) p.altCd = def.alt.cd / Math.max(0.5, p.st.rate); }
   handleCast(p, c, 'skill'); handleCast(p, c, 'ult'); handleCast(p, c, 'super');
   if (c.itemP) useActive(p, c);
+  if (c.flaskP) drinkFlask(p);
   if (c.intP && !downedNear(p)) { const want = c.intIt && !c.intIt.used && d2(p.x, p.y, c.intIt.x, c.intIt.y) < 34 * 34 ? c.intIt : null; const d = want ? null : nearestDrop(p); if (d) takeDrop(p, d); else { const it = want || nearestInter(p); if (it) useInter(it, p); } }
 }
 function downedNear(p) { return G.players.find(q => q !== p && q.state === 'downed' && d2(q.x, q.y, p.x, p.y) < 24 * 24); }
@@ -3857,7 +3866,7 @@ function respawnPlayer(p) {
   const pt = G.respawnPoint(p);
   p.x = pt.x + rr(-12, 12); p.y = pt.y + rr(-12, 12);
   while (hitsWall(p.x, p.y, p.r)) { p.x = pt.x; p.y = pt.y; break; }
-  p.state = 'up'; p.hp = p.maxHp; p.invulnT = 2; clearStatus(p);
+  p.state = 'up'; p.hp = p.maxHp; p.invulnT = 2; clearStatus(p); refillFlasks(p); p.fchan = null; p.drinkT = 0;
   if (p.char === 'hedgehog') { p.heat = 0; p.over = false; }
   if (p.char === 'wolf') { p.loaded = true; p.reload = null; }
   pillar(p.x, p.y, '#9fe8ff', 50, 12, 0.6); burst(p.x, p.y - 6, '#9fe8ff', 16, 70, 0.5, { glow: true });
@@ -4483,6 +4492,110 @@ function addNewcomerDialogue() {
       to: { serpent: [["You sing for the drowned. I dance for the buried.", ">We are not so different.", "We are VERY different. I am much older."]], rabbit: [["Your potions smell like my grandmother's soup.", ">Is that good?", "She was a terrible cook."]] } },
   });
   for (const ch of ['goat', 'lizard', 'serpent', 'beaver', 'owl', 'monkey']) for (const k in DIALOGUE[ch].to) if (!DIALOGUE[ch].to[k].length) delete DIALOGUE[ch].to[k];
+}
+// ===== Krystal flasks: R drinks, shrines refill, six hidden Krystal Fonts strengthen the whole team =====
+const FONT_COUNT = 6, FONT_CHANNEL = 5;
+function flaskMax() { return 2 + (G.flaskUp || 0); }
+function flaskPct() { return 0.2 + 0.075 * (G.flaskUp || 0); }
+function refillFlasks(p) { p.flasks = flaskMax(); }
+function drinkFlask(p) {
+  if (p.state !== 'up' || p.drinkT > 0 || !(p.flasks > 0) || p.hp >= p.maxHp || p.fchan) return false;
+  p.flasks--; p.drinkT = 0.55; sfx('revive', p.x, p.y, p.isBot ? 0.3 : 0.6);
+  burst(p.x, p.y - 14, '#ff7a8a', 6, 30, 0.5, { glow: true, g: -30 });
+  return true;
+}
+function updateFlask(p, dt) {
+  if (p.flasks == null) p.flasks = flaskMax();
+  if (p.drinkT > 0) {
+    p.drinkT -= dt;
+    if (p.drinkT <= 0) {
+      p.drinkT = 0; if (p.state !== 'up') return;
+      const h = p.maxHp * flaskPct(); p.hp = Math.min(p.maxHp, p.hp + h);
+      floatText(p.x, p.y - 30, `+${Math.round(h)}`, '#7ae07a', 0.8); burst(p.x, p.y - 10, '#7ae07a', 14, 60, 0.6, { glow: true, g: -40 });
+    }
+  }
+  const F = p.fchan;
+  if (F) {
+    if (p.state !== 'up' || F.it.used || d2(p.x, p.y, F.it.x, F.it.y) > 40 * 40) { cancelFont(p, false); return; }
+    F.t -= dt; p.channel = Math.max(p.channel || 0, 0.05);
+    if (R() < 0.5) burst(F.it.x + rr(-10, 10), F.it.y - rr(4, 26), '#7ff0ff', 1, 20, 0.6, { glow: true, g: -40 });
+    if (F.t <= 0) finishFont(p, F.it);
+  }
+}
+function startFont(it, p) {
+  if (it.used || p.fchan) return false;
+  for (const q of G.players) if (q.fchan && q.fchan.it === it) return false;
+  p.fchan = { it, t: FONT_CHANNEL }; p.channel = 0.05;
+  if (!p.isBot) feed('Channelling the Krystal Font… taking damage breaks it.', '#bff4ff');
+  return true;
+}
+function cancelFont(p, hit) {
+  if (!p.fchan) return; p.fchan = null; p.channel = 0;
+  if (hit) floatText(p.x, p.y - 34, 'Interrupted!', '#ff8a8a', 0.8);
+}
+function finishFont(p, it) {
+  p.fchan = null; p.channel = 0; it.used = true;
+  G.flaskUp = (G.flaskUp || 0) + 1;
+  for (const q of G.players) q.flasks = Math.min(flaskMax(), (q.flasks || 0) + 1);
+  pillar(it.x, it.y, '#7ff0ff', 120, 18, 1); burst(it.x, it.y - 16, '#bff4ff', 30, 120, 0.8, { glow: true }); sfx('bell', it.x, it.y);
+  setBanner('Krystal Font restored', `${flaskMax()} flasks · each heals ${Math.round(flaskPct() * 100)}%`, 3, '#7ff0ff');
+  if (p.isBot) botAnnounce(p, 'Font restored: our flasks are stronger!', 'fontdone' + it.x);
+}
+// ---- map generation: six tiny side rooms, each budding off an existing room ----
+function genFonts() {
+  G.fontRooms = [];
+  const hosts = shuffle(G.rooms.filter(r => (r.type === 'themed' || r.type === 'shop' || r.type === 'tele' || r.type === 'start') && r.gx != null));
+  const S = 5;
+  const tryAt = (R0, side, L, off, minGap) => {
+    let x, y, cor = [];
+    const my = clamp(R0.cy + off, R0.y + 2, R0.y + R0.h - 3), mx = clamp(R0.cx + off, R0.x + 2, R0.x + R0.w - 3);
+    if (side === 'e') { x = R0.x + R0.w + L + 1; y = my - 2; for (let i = R0.x + R0.w; i <= x - 1; i++) for (let d = -1; d <= 1; d++) cor.push([i, my + d]); }
+    if (side === 'w') { x = R0.x - L - 1 - S; y = my - 2; for (let i = x + S; i <= R0.x - 1; i++) for (let d = -1; d <= 1; d++) cor.push([i, my + d]); }
+    if (side === 's') { y = R0.y + R0.h + L + 1; x = mx - 2; for (let j = R0.y + R0.h; j <= y - 1; j++) for (let d = -1; d <= 1; d++) cor.push([mx + d, j]); }
+    if (side === 'n') { y = R0.y - L - 1 - S; x = mx - 2; for (let j = y + S; j <= R0.y - 1; j++) for (let d = -1; d <= 1; d++) cor.push([mx + d, j]); }
+    if (x < 2 || y < 2 || x + S > GW * CW - 2 || y + S > GH * CH - 2) return null;
+    if (!G.fontRooms.every(f => Math.hypot(f.x - x, f.y - y) > minGap)) return null;
+    for (let yy = y - 2; yy <= y + S + 1; yy++) for (let xx = x - 2; xx <= x + S + 1; xx++) if (tget(xx, yy) !== T_VOID) return null;
+    for (const [cx, cy] of cor) { const onHostWall = (side === 'e' && cx === R0.x + R0.w) || (side === 'w' && cx === R0.x - 1) || (side === 's' && cy === R0.y + R0.h) || (side === 'n' && cy === R0.y - 1); const t = tget(cx, cy); if (!onHostWall && t !== T_VOID) return null; if (onHostWall && t !== T_WALL && t !== T_FLOOR) return null; }
+    // the corridor's flanks must be void too (do not graze other corridors)
+    for (const [cx, cy] of cor) for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const nx = cx + dx, ny = cy + dy; if (cor.some(([a, b]) => a === nx && b === ny)) continue; if (nx >= x - 1 && nx <= x + S && ny >= y - 1 && ny <= y + S) continue; if (inRoom(R0, (nx + 0.5) * TILE, (ny + 0.5) * TILE, TILE)) continue; if (tget(nx, ny) === T_FLOOR) return null; }
+    if (G.castle) { const C = G.castle; if (x + S > C.x0 - 2 && x < C.x0 + 92 && y + S > C.y0 - 2 && y < C.y0 + 50) return null; }
+    return { x, y, cor };
+  };
+  for (const minGap of [40, 24, 12]) for (const R0 of hosts) {
+    if (G.fontRooms.length >= FONT_COUNT) break;
+    if (G.fontRooms.some(f => f.host === R0)) continue;
+    let got = null;
+    for (const side of shuffle(['n', 's', 'e', 'w'])) { for (const L of [2, 3, 4, 5, 6]) { for (const off of [0, -3, 3, -5, 5]) { got = tryAt(R0, side, L, off, minGap); if (got) break; } if (got) break; } if (got) break; }
+    if (!got) continue;
+    const fr = makeRoom(null, null, 'font', { x: got.x, y: got.y, w: S, h: S, th: TH.shrine });
+    for (const [cx, cy] of got.cor) carveFloor(cx, cy, TH.corridor);
+    for (const [cx, cy] of got.cor) for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) wallIfVoid(cx + dx, cy + dy);
+    fr.host = R0; fr.cor = got.cor; G.fontRooms.push(fr);
+  }
+}
+function placeFonts() { for (const fr of G.fontRooms || []) if (!G.inter.some(i => i.kind === 'font' && i.room === fr)) addInter({ kind: 'font', room: fr, x: fr.px, y: fr.py + 6, r: 12 }); }
+function drawFont(it) {
+  const x = it.x, y = it.y, on = !it.used, ch = G.players.find(q => q.fchan && q.fchan.it === it);
+  shadow(x, y, 9);
+  ctx.fillStyle = '#5a5668'; ctx.strokeStyle = OUTL; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.ellipse(x, y, 10, 4.5, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = '#6e6a7e'; ctx.fillRect(x - 3, y - 12, 6, 12); ctx.strokeRect(x - 3, y - 12, 6, 12);
+  ctx.fillStyle = '#7e7a90'; ctx.beginPath(); ctx.ellipse(x, y - 13, 9, 4, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  if (on) {
+    const g = ctx.createRadialGradient(x, y - 16, 1, x, y - 16, 22); g.addColorStop(0, `rgba(127,240,255,${0.55 + 0.2 * Math.sin(G.time * 3)})`); g.addColorStop(1, 'rgba(127,240,255,0)'); ctx.fillStyle = g; ctx.fillRect(x - 22, y - 38, 44, 44);
+    ctx.fillStyle = '#bff4ff'; ctx.beginPath(); ctx.ellipse(x, y - 14, 6.5, 2.6, 0, 0, Math.PI * 2); ctx.fill();
+    // the flask hovering above the font
+    const fy = y - 26 + Math.sin(G.time * 2) * 1.5; ctx.fillStyle = '#ff6a7a'; ctx.beginPath(); ctx.arc(x, fy, 4, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); ctx.fillStyle = '#e8d8c0'; ctx.fillRect(x - 1.5, fy - 7, 3, 3.5); ctx.strokeRect(x - 1.5, fy - 7, 3, 3.5);
+  } else { ctx.fillStyle = '#4a4656'; ctx.beginPath(); ctx.ellipse(x, y - 14, 6.5, 2.6, 0, 0, Math.PI * 2); ctx.fill(); }
+  if (ch) { const k = 1 - ch.fchan.t / FONT_CHANNEL; ctx.strokeStyle = '#7ff0ff'; ctx.lineWidth = 2.2; ctx.beginPath(); ctx.arc(x, y - 16, 16, -Math.PI / 2, -Math.PI / 2 + k * Math.PI * 2); ctx.stroke(); }
+}
+// a small flask icon (HUD and map)
+function drawFlaskIcon(x, y, s, full) {
+  ctx.fillStyle = full ? '#ff5a6a' : 'rgba(70,40,40,0.9)'; ctx.strokeStyle = UI.edge; ctx.lineWidth = 1.2 * s;
+  ctx.beginPath(); ctx.arc(x, y + 1.5 * s, 4 * s, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = full ? '#e8d8c0' : '#5a4a40'; ctx.fillRect(x - 1.6 * s, y - 5 * s, 3.2 * s, 3.2 * s); ctx.strokeRect(x - 1.6 * s, y - 5 * s, 3.2 * s, 3.2 * s);
+  if (full) { ctx.fillStyle = 'rgba(255,255,255,0.7)'; ctx.beginPath(); ctx.arc(x - 1.4 * s, y, 1.1 * s, 0, Math.PI * 2); ctx.fill(); }
 }
 // ===== Enemies, room champions, Gatekeepers (minibosses), Dungeon Masters =====
 const ST = (k, t, o = {}) => Object.assign({ k, t }, o);
@@ -5375,6 +5488,8 @@ function botControl(p, dt) {
     if (A.relPlan > 0 && p.reload.t >= A.relPlan) c.relP = true;
   }
   if (p.char === 'hedgehog' && !p.over && p.heat > 0.88 && R() < L.heatSmart && !(A.target && !A.target.boss && p.hp > p.maxHp * 0.6 && d2(A.target.x, A.target.y, p.x, p.y) < 70 * 70)) c.atk = false; // close in? let it overheat and swing fire
+  // flasks: drink when it matters, not in the middle of a melee scramble unless desperate
+  if (p.flasks > 0 && !(p.drinkT > 0) && !p.fchan) { const low = G.bossFight ? 0.5 : 0.4; if (p.hp < p.maxHp * low && (!tgt || Math.hypot(tgt.x - p.x, tgt.y - p.y) > 45 || p.hp < p.maxHp * 0.25)) c.flaskP = true; }
   // active item
   if (p.active && p.activeCd <= 0) {
     if (p.active.id === 'brew' && p.hp < p.maxHp * 0.45) c.itemP = true;
@@ -5395,6 +5510,7 @@ function campSafe(p, x, y, margin = 40, stay = 14) { const t = Math.hypot(x - p.
 function safePoint(p) { const c = G.circle, R0 = nextCircleR(12) - 110; const d = Math.hypot(p.x - c.x, p.y - c.y) || 1; if (R0 <= 40) return { x: c.x, y: c.y }; const k = Math.min(1, R0 / d); let x = c.x + (p.x - c.x) * k, y = c.y + (p.y - c.y) * k; if (hitsWall(x, y, 6)) { let best = null, bd = 1e12; for (const r of G.rooms) { if (Math.hypot(r.px - c.x, r.py - c.y) > R0) continue; const dd = d2(r.px, r.py, p.x, p.y); if (dd < bd) { bd = dd; best = r; } } if (best) { x = best.px; y = best.py; } else { x = c.x; y = c.y; } } return { x, y }; }
 function decideMode(p, A, vis) {
   const H = human();
+  if (p.fchan) return 'idle';
   // Rimehorn's Glacial Roar: break line of sight behind an ice pillar (skill-dependent)
   const rh = G.enemies.find(e => e.roar > 0 && e.pillars && e.pillars.length && !e.dead);
   if (!rh) A.hideRoll = null; else if (A.hideRoll == null) A.hideRoll = R();
@@ -5472,6 +5588,7 @@ function decideMode(p, A, vis) {
   const buy = bestPurchase(p); if (buy) { A.goal = { x: buy.x, y: buy.y + 6, near: 10, use: true, it: buy }; return 'goto'; }
   if (A.followT > 0 && H && H.state === 'up') { if (d2(H.x, H.y, p.x, p.y) > 50 * 50) { A.goal = { x: H.x, y: H.y, near: 40 }; return 'goto'; } return 'idle'; }
   if (H && H.state === 'up' && A.P === PERSONAS.Careful && d2(H.x, H.y, p.x, p.y) > 520 * 520) { A.goal = { x: H.x, y: H.y, near: 60 }; return 'goto'; }
+  { const m = fontPlan(p, A, vis); if (m) return m; }
   { const m = altarPlan(p, A); if (m) return m; }
   // no shrine to level at: the team hunts a room boss together
   const hunt = huntRoom(p);
@@ -5872,6 +5989,25 @@ function altarPlan(p, A) {
   if (!near) botAnnounce(p, `Heading to the ${B.name} altar`, 'head' + B.id);
   A.goal = { x: al.x + rr(-40, 40), y: al.y + rr(10, 40), near: 50 }; A.camp = null; return 'goto';
 }
+
+// one bot at a time walks to an unclaimed Krystal Font and channels it
+function fontPlan(p, A, vis) {
+  if (G.phase !== 'day' || (vis.length && vis[0].d < 220)) return null;
+  const fonts = G.inter.filter(i => i.kind === 'font' && !i.used); if (!fonts.length) return null;
+  if (G.fontBot && (G.fontBot.state === 'dead' || !G.fontTgt || G.fontTgt.used || G.time > G.fontUntil)) G.fontBot = null;
+  if (!G.fontBot) {
+    const here = bmAt(p.x, p.y), sealed = here >= 0 && sealHolds(G.biomes[here]);
+    let best = null, bd = 1700 * 1700;
+    for (const it of fonts) { const ib = bmAt(it.x, it.y); if (sealed && ib !== here) continue; if (!sealed && ib >= 0 && sealHolds(G.biomes[ib])) continue; if (!campSafe(p, it.x, it.y, 40, 20)) continue; const dd = d2(it.x, it.y, p.x, p.y); if (dd < bd) { bd = dd; best = it; } }
+    if (!best) return null;
+    if (G.players.some(q => q !== p && q.isBot && q.state === 'up' && d2(q.x, q.y, best.x, best.y) < bd * 0.8)) return null; // someone closer can take it
+    G.fontBot = p; G.fontTgt = best; G.fontUntil = G.time + 60;
+  }
+  if (G.fontBot !== p) return null;
+  const it = G.fontTgt;
+  botAnnounce(p, 'Going for a Krystal Font', 'font' + it.x);
+  A.goal = { x: it.x, y: it.y, near: 18, use: true, it }; return 'goto';
+}
 // ===== Run flow: Act I (explore → Wildfire → Gatekeeper) → Act II → portal → The Bazaar → Everfield (Dungeon Master) =====
 const STICKERS = [
   { key: 'Digit1', label: 'Follow me!', act: 'follow' },
@@ -5915,6 +6051,7 @@ function startGame(charKey, watch, lord = 'warden', team = null) {
   G = baseG({ watch: !!watch, lord, night1: pick(NIGHT1_POOL), night2: pick(NIGHT2_POOL) });
   newMap(); generateDungeon();
   const start = G.startRoom;
+  G.flaskUp = 0;
   const others = shuffle(CHAR_KEYS.filter(k => k !== charKey));
   const pers = shuffle(['Aggressive', 'Careful', 'Greedy', pick(['Aggressive', 'Careful', 'Greedy'])]);
   const roster = team && team.length ? team.slice(0, 4) : [charKey, ...others.slice(0, 3)];
@@ -5922,11 +6059,13 @@ function startGame(charKey, watch, lord = 'warden', team = null) {
     const bot = watch || i > 0;
     const p = makePlayer(ch, bot, bot ? CHARS[ch].name : 'You', i, gemsFor(ch, bot));
     if (bot) makeBotBrain(p, pers[i]);
-    const a = i * Math.PI / 2 + Math.PI / 4; p.x = start.px + Math.cos(a) * 30; p.y = start.py + 20 + Math.sin(a) * 18;
+    const a = i * Math.PI / 2 + Math.PI / 4; p.x = start.px + Math.cos(a) * 30; p.y = start.py + 20 + Math.sin(a) * 18; p.flasks = 2; p.spawnIn = 0.7 + i * 0.45; p.outX = p.x; p.outY = p.y; p.x = start.px; p.y = start.py;
     G.players.push(p);
   });
   G.respawnPoint = respawnPoint;
   revealRoom(start);
+  // the run opens with a portal: the four step out of it, then it closes
+  G.opening = { t: 0, it: addInter({ kind: 'portal', x: start.px, y: start.py, to: 'open', r: 22, ready: new Set(), t0: 0, opening: true }) };
   setupTeleporters();
   startDay(1);
   spawnCastleBosses();
@@ -5935,7 +6074,7 @@ function startGame(charKey, watch, lord = 'warden', team = null) {
 }
 const GK_REC = [0, 5, 10], FINAL_REC = 15;
 // the later bosses are tuned for the recommended level: Gatekeeper II for Lv 10 with ultimates, the Dungeon Master for Lv 15
-const GK_HP = [0, 1, 1.7], GK_DMG = [0, 1, 1.2], FINAL_HP = 9, FINAL_DMG = 1.5;
+const GK_HP = [0, 1, 1.7], GK_DMG = [0, 1, 1.2], FINAL_HP = 8, FINAL_DMG = 1.5;
 function tuneBoss(e, hp, dmg) { e.hp *= hp; e.maxHp *= hp; e.dmgM *= dmg; return e; }
 function setBanner(title, sub, life = 4.5, color) { G.banner = { title, sub, t: 0, life, color }; if (!G.hub) sfx('bell'); }
 function circleFor(room) {
@@ -5946,7 +6085,7 @@ function circleFor(room) {
 }
 function rollMob(tpl) { const tot = Object.values(tpl.mobs).reduce((a, b) => a + b, 0); let r = R() * tot; for (const k in tpl.mobs) if ((r -= tpl.mobs[k]) < 0) return k; return 'grub'; }
 function populateRooms() {
-  G.inter = G.inter.filter(i => i.kind === 'shrine' || i.kind === 'tpad' || (i.kind === 'bosschest' && !i.used));
+  G.inter = G.inter.filter(i => i.kind === 'shrine' || i.kind === 'tpad' || i.kind === 'font' || (i.kind === 'bosschest' && !i.used));
   G.enemies = G.enemies.filter(e => e.boss || e.castle);
   const themed = G.rooms.filter(r => r.type === 'themed');
   for (const room of G.rooms) {
@@ -5970,7 +6109,7 @@ function populateRooms() {
       stock.forEach((item, i) => addInter({ kind: 'stand', item, x: room.px + (i - 1.5) * 48, y: room.py + 14 }));
     }
   }
-  placeAltars();
+  placeAltars(); placeFonts();
   // every biome room keeps a chest or two to farm
   for (const r of themed) {
     const n = 1 + (R() < 0.3 ? 1 : 0) + (r.hall ? 1 : 0);
@@ -6080,7 +6219,7 @@ function updateShrineRest(dt) {
     const threat = G.enemies.some(e => !e.dead && !e.def.objective && e.type !== 'dummy' && d2(e.x, e.y, it.x, it.y) < 150 * 150);
     it.calm = !threat;
     if (threat) continue;
-    for (const p of near) { if (p.hp < p.maxHp) { p.hp = Math.min(p.maxHp, p.hp + p.maxHp * 0.3 * dt); if (R() < 0.3) burst(p.x + rr(-5, 5), p.y - rr(4, 20), '#7ff0ff', 1, 14, 0.6, { glow: true, g: -30 }); } if (anyStatus(p)) clearStatus(p); }
+    for (const p of near) { if (p.flasks < flaskMax()) { refillFlasks(p); floatText(p.x, p.y - 34, 'Flasks refilled', '#ff8a9a', 0.8); } if (p.hp < p.maxHp) { p.hp = Math.min(p.maxHp, p.hp + p.maxHp * 0.3 * dt); if (R() < 0.3) burst(p.x + rr(-5, 5), p.y - rr(4, 20), '#7ff0ff', 1, 14, 0.6, { glow: true, g: -30 }); } if (anyStatus(p)) clearStatus(p); }
   }
 }
 function startNight() {
@@ -6139,7 +6278,7 @@ function openPortal(x, y, to) {
 }
 function updatePortals(dt) {
   for (const it of G.inter) {
-    if (it.kind !== 'portal') continue;
+    if (it.kind !== 'portal' || it.opening) continue;
     const team = G.players.filter(p => p.state !== 'dead' || p.respawnT > 0);
     for (const p of it.ready) if (p.state === 'up' && d2(p.x, p.y, it.x, it.y) > 90 * 90) it.ready.delete(p);
     if (R() < 0.5) burst(it.x + rr(-14, 14), it.y - rr(0, 34), pick(['#c86aff', '#e0b0ff', '#7ff0ff']), 1, 20, 0.8, { g: -50, glow: true, size: 1.2 });
@@ -6159,7 +6298,13 @@ function startEmbers() {
   feed(`The Labyrinth's monsters are the strongest in the realm: its towers need a full team at Lv ${G.castle ? G.castle.north.rec : 10}+, the Keep Lv ${G.castle ? G.castle.keep.rec : 13}+.`, '#c8c8ff');
 }
 function labCleared() { return !G.castle || G.castle.rooms.every(r => !r.hasBoss || r.bossDone === 99); }
-function labFight(p) { const B = biomeAt(p.x, p.y); return !!(B && B.chal); }
+function labFight(p) { return false; } // only Gatekeeper and Dungeon Master fights allow revives
+function updateOpening(dt) {
+  const O = G.opening; O.t += dt;
+  for (const p of G.players) if (p.spawnIn != null && O.t >= p.spawnIn) { p.spawnIn = null; burst(p.x, p.y - 10, '#c86aff', 16, 80, 0.5, { glow: true }); startDash(p, Math.atan2(p.outY - p.y, p.outX - p.x), Math.hypot(p.outX - p.x, p.outY - p.y) / 0.3, 0.3); sfx('teleport', p.x, p.y, 0.5); }
+  if (O.t > 2.9 && O.it) { burst(O.it.x, O.it.y - 16, '#c86aff', 30, 110, 0.6, { glow: true }); shock(O.it.x, O.it.y, 50, '#c86aff', 0.4); G.inter = G.inter.filter(i => i !== O.it); O.it = null; sfx('portal'); }
+  if (O.t > 3.2) G.opening = null;
+}
 function placeTeam(x, y) { G.players.forEach((p, i) => { p.state = 'up'; p.hp = p.maxHp; p.dash = null; p.ball = 0; p.barrage = 0; p.fated = 0; clearStatus(p); p.x = x + (i - 1.5) * 26; p.y = y; burst(p.x, p.y, '#c86aff', 14, 70); }); G.cam.init = false; sfx('portal'); }
 function goBazaar() {
   const A = G.bazaar;
@@ -6257,7 +6402,7 @@ function humanControl(p) {
     skP: bindPressed('skill'), skD: bindDown('skill'), skR: bindReleased('skill'),
     ultP: bindPressed('ult'), ultD: bindDown('ult'), ultR: bindReleased('ult'),
     supP: bindPressed('super'), supD: bindDown('super'), supR: bindReleased('super'), altD: bindDown('alt') && !block, altP: bindPressed('alt') && !block,
-    itemP: bindPressed('item'), run: bindDown('sprint') || Input.down.has('ShiftRight'), intD: bindDown('interact'), intP: bindPressed('interact'), relP: !block && (bindPressed('attack') || bindPressed('reload')),
+    itemP: bindPressed('item'), flaskP: bindPressed('flask'), run: bindDown('sprint') || Input.down.has('ShiftRight'), intD: bindDown('interact'), intP: bindPressed('interact'), relP: !block && (bindPressed('attack') || bindPressed('reload')),
   };
 }
 function sendSticker(i) {
@@ -6299,6 +6444,7 @@ function step(dt) {
   if (G.intro) updateIntro(dt);
   if (G.everWait && G.players.some(p => p.state === 'up' && p.y < G.ever.trigY)) startFinalBoss();
   updatePortals(dt);
+  if (G.opening) updateOpening(dt);
   if (G.phase === 'day') {
     G.stageT -= dt; const c = G.circle;
     c.r = circleRadiusAt(G.dayStage, G.stageT);
@@ -6325,6 +6471,7 @@ function step(dt) {
   if (H0 && H0.state === 'dead' && (bindPressed('attack') || bindPressed('skill'))) G.specIdx++;
   if (H0 && !G.watch && bindPressed('ping')) { const w = screenToWorld(Input.mx, Input.my); makePing(H0, w.x, w.y); }
   for (const p of G.players) {
+    if (p.spawnIn != null) continue;
     const c = p.isBot ? botControl(p, dt) : humanControl(p);
     updatePlayer(p, c, dt);
   }
@@ -6973,6 +7120,7 @@ function drawEnemy(e) {
 function roundRect(c, x, y, w, h, r) { c.beginPath(); c.roundRect(x, y, w, h, r); }
 function drawInter(it) {
   const x = it.x, y = it.y;
+  if (it.opening && !it.inner) { const O = G.opening, k = O ? clamp(Math.min(O.t / 0.5, (3 - O.t) / 0.5), 0.05, 1) : 1; ctx.save(); ctx.translate(x, y); ctx.scale(k, k); ctx.translate(-x, -y); it.inner = true; drawInter(it); it.inner = false; ctx.restore(); return; }
   if (it.kind === 'portal' || it.kind === 'tpad') {
     const P = it.kind === 'portal', c1 = P ? '#c86aff' : '#49d6ff', c2 = P ? '#f0c8ff' : '#bff4ff', t = G.time;
     ctx.save();
@@ -6997,6 +7145,8 @@ function drawInter(it) {
     return;
   }
   if (it.kind === 'altar') { drawAltar(it); return; }
+  if (it.kind === 'font') { drawFont(it); return; }
+
   if (it.kind === 'bosschest') { drawBossChest(it); return; }
   if (it.kind === 'chest') { shadow(x, y, 8); drawFrame(it.used ? SPR.chestOpen : SPR.chest, x, y); if (!it.used) { ctx.fillStyle = it.free ? `rgba(255,220,120,${0.35 + 0.2 * Math.sin(G.time * 5)})` : `rgba(255,220,120,${0.25 + 0.15 * Math.sin(G.time * 4)})`; ctx.beginPath(); ctx.arc(x, y - 6, it.free ? 16 : 12, 0, Math.PI * 2); ctx.fill(); if (it.rare) { ctx.strokeStyle = 'rgba(192,112,255,0.8)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(x, y - 6, 10, 0, Math.PI * 2); ctx.stroke(); } } }
   if (it.kind === 'keeper') { shadow(x, y, 7); drawFrame(SPR.keeper, x, y + Math.sin(G.time * 2) * 0.5); }
@@ -7323,7 +7473,7 @@ function render(dt) {
   for (const d of G.drops) objs.push({ y: d.y, d: () => { shadow(d.x, d.y, 5); ctx.fillStyle = 'rgba(90,208,122,0.3)'; ctx.beginPath(); ctx.arc(d.x, d.y - 9, 9, 0, Math.PI * 2); ctx.fill(); ctx.drawImage(itemIcon(d.item, 40), d.x - 6, d.y - 15 + Math.sin(G.time * 3) * 1.2, 12, 12); } });
   for (const o of G.orbs) objs.push({ y: o.y, d: () => { const col = CHARS[o.owner.char].color; const g = ctx.createRadialGradient(o.x, o.y - 10, 1, o.x, o.y - 10, 14); g.addColorStop(0, '#ffffff'); g.addColorStop(0.4, col); g.addColorStop(1, 'rgba(255,255,255,0)'); ctx.fillStyle = g; ctx.beginPath(); ctx.arc(o.x, o.y - 10 + Math.sin(G.time * 4 + o.x) * 1.5, 14, 0, Math.PI * 2); ctx.fill(); ctx.font = `6px ${FONT}`; ctx.textAlign = 'center'; ctx.lineWidth = 2; ctx.strokeStyle = OUTL; ctx.strokeText(o.owner.name, o.x, o.y - 26); ctx.fillStyle = col; ctx.fillText(o.owner.name, o.x, o.y - 26); } });
   for (const t of G.healTotems) objs.push({ y: t.y, d: () => { ctx.fillStyle = `rgba(122,224,122,${0.1 + 0.05 * Math.sin(G.time * 5)})`; ctx.beginPath(); ctx.arc(t.x, t.y, 70, 0, Math.PI * 2); ctx.fill(); ctx.drawImage(itemIcon(ALL_ITEMS.totem, 40), t.x - 7, t.y - 18, 14, 14); } });
-  for (const p of G.players) if (p.state !== 'dead') objs.push({ y: p.y, d: () => { shadow(p.x, p.y, 6.5); drawPlayer(p); } });
+  for (const p of G.players) if (p.state !== 'dead' && p.spawnIn == null) objs.push({ y: p.y, d: () => { shadow(p.x, p.y, 6.5); drawPlayer(p); } });
   if (G.minions) for (const m of G.minions) objs.push({ y: m.y, d: () => drawMinion(m) });
   if (G.intro) objs.push({ y: G.intro.y, d: () => drawIntro() });
   if (G.deathFx && G.deathFx.t < G.deathFx.dur * 0.62) { const D = G.deathFx; objs.push({ y: D.y, d: () => { const S = SPR[D.spr] || SPR[D.spr.replace('_d2', '')]; if (!S) return; if (Math.floor(G.time * 18) % 2) return; ctx.save(); ctx.translate(D.x + rr(-1.5, 1.5), D.y); ctx.scale(D.sc, D.sc); drawFrame(D.t % 0.2 < 0.1 ? (D.tint || (D.tint = tintFrame(S.idle, '#ffffff', 0.8))) : S.idle, 0, 0); ctx.restore(); } }); }
@@ -7709,12 +7859,14 @@ function drawSkillBar(p) {
     { key: settings.binds.ult, name: (SHORT[p.char] || CHARS[p.char].short)[2], cd: p.cd.ult, max: CHARS[p.char].ult.cd * (1 - p.st.cdr), flash: G.cdFlash && G.cdFlash.slot === 'ult', aiming: p.aiming === 'ult', gemSlot: 'q' },
     ...(CHARS[p.char].super ? [{ key: settings.binds.super, name: CHARS[p.char].super.short || 'Ultimate', cd: p.level < ULT_LEVEL ? 0 : p.cd.super, max: CHARS[p.char].super.cd * (1 - p.st.cdr), flash: G.cdFlash && G.cdFlash.slot === 'super', aiming: p.aiming === 'super', locked: p.level < ULT_LEVEL, ult: true }] : []),
     ...(CHARS[p.char].alt ? [{ key: settings.binds.alt, name: CHARS[p.char].alt.short || 'Melee', cd: Math.max(0, p.altCd), max: CHARS[p.char].alt.cd, small: true }] : []),
+    { key: settings.binds.flask, name: `Flask ${p.flasks ?? 0}/${flaskMax()}`, cd: p.drinkT > 0 ? p.drinkT : 0, max: 0.55, flask: true, empty: !(p.flasks > 0) },
     { key: settings.binds.item, name: p.active ? p.active.name.split(' ')[0] : 'Empty', cd: p.activeCd > 0 ? p.activeCd : 0, max: p.active ? p.active.cd * (1 - p.st.cdr) : 1, empty: !p.active, icon: p.active },
   ];
   const total = slots.length * sz + (slots.length - 1) * gap; let x = cx - total / 2; const y = H - Math.round(20 * s) - sz;
   for (const sl of slots) {
     panel(x, y, sz, sz, 0.92, 12 * s);
     if (sl.icon) ctx.drawImage(itemIcon(sl.icon, 64), x + sz / 2 - 13 * s, y + 9 * s, 26 * s, 26 * s);
+    if (sl.flask) drawFlaskIcon(x + sz / 2, y + 22 * s, 2.6 * s, p.flasks > 0);
     if (sl.gemSlot) { const g = (p.gems || []).map(id => GEM_BY_ID[id]).find(g => g && g.slot === sl.gemSlot); if (g) { ctx.drawImage(itemIcon(g, 40), x + sz - 15 * s, y + 3 * s, 13 * s, 13 * s); const mxp = Input.mx * DPR, myp = Input.my * DPR; if (mxp >= x && mxp <= x + sz && myp >= y && myp <= y + sz) G.hoverItem = { it: g, x: x, y: y - 70 * s }; } }
     txt(sl.name, x + sz / 2, y + sz - 8 * s, 10, sl.empty ? '#6a7c90' : '#f4f7ff', 'center');
     if (sl.cd > 0) {
@@ -7803,6 +7955,8 @@ function drawMinimap(big) {
     if (it.kind === 'tpad' || it.kind === 'portal') { const r = (3 + Math.sin(G.time * 4)) * s * k + 2 * s; ctx.strokeStyle = it.kind === 'tpad' ? UI.cyan : '#e0b0ff'; ctx.lineWidth = 2 * s; ctx.beginPath(); ctx.arc(px, py, r, 0, Math.PI * 2); ctx.stroke(); ctx.fillStyle = ctx.strokeStyle; ctx.beginPath(); ctx.arc(px, py, 1.6 * s * k, 0, Math.PI * 2); ctx.fill();
       if (big && it.kind === 'tpad' && it.link && seen(it.link.x, it.link.y)) { ctx.setLineDash([4 * s, 4 * s]); ctx.strokeStyle = 'rgba(127,240,255,0.45)'; ctx.lineWidth = 1.5 * s; ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(X(it.link.x / TILE), Y(it.link.y / TILE)); ctx.stroke(); ctx.setLineDash([]); } }
   }
+  // Krystal Fonts show through the fog (the way there does not)
+  for (const it of G.inter) { if (it.kind !== 'font') continue; const px = X(it.x / TILE), py = Y(it.y / TILE); ctx.save(); ctx.globalAlpha = it.used ? 0.45 : 1; drawFlaskIcon(px, py, (big ? 1.5 : 1.1) * s, !it.used); ctx.restore(); }
   // boss chests the viewer has not opened yet are always marked
   { const H1 = human(); for (const it of G.inter) { if (it.kind !== 'bosschest' || it.used || (H1 && it.taken.has(H1))) continue; const px = X(it.x / TILE), py = Y(it.y / TILE), k = big ? 1.5 : 1.1; ctx.fillStyle = '#ffd44a'; ctx.strokeStyle = UI.edge; ctx.lineWidth = 1.4 * s; ctx.fillRect(px - 4 * s * k, py - 3 * s * k, 8 * s * k, 6 * s * k); ctx.strokeRect(px - 4 * s * k, py - 3 * s * k, 8 * s * k, 6 * s * k); const pr = (5 + 2 * Math.sin(G.time * 5)) * s * k; ctx.strokeStyle = 'rgba(255,212,74,0.7)'; ctx.beginPath(); ctx.arc(px, py, pr + 3 * s, 0, Math.PI * 2); ctx.stroke(); } }
   for (const B of G.biomes || []) { if (!B.chal) continue; const bs = B.lab ? G.castle.rooms.filter(r => r.boss && !r.boss.dead).map(r => r.boss) : [B.chal.boss].filter(e => e && !e.dead); for (const e of bs) txt('☠', X(e.x / TILE), Y(e.y / TILE) + 5 * s, big ? 16 : 12, '#ff5a6a', 'center'); }
@@ -7825,7 +7979,7 @@ function drawMinimap(big) {
   if (!big) txt(`${keyName(settings.binds.map)}: full map`, ox + mw, oy + mh + 18 * s, 9, '#fff3e0', 'right', FONT2);
   if (big) {
     txt('MAP', ox, oy - 24 * s, 16, '#fff3e0');
-    txt('◆ shrine   ◇ broken altar (red: challenge on)   ■ chest   ▣ boss chest   ● shop   ☠ boss   ✓ conquered   ◎ teleporter / ping   ☾ Gatekeeper', ox + mw, oy - 6 * s, 10, '#fff3e0', 'right', FONT2);
+    txt('◆ shrine   ◇ broken altar (red: challenge on)   ⚱ Krystal Font   ■ chest   ▣ boss chest   ● shop   ☠ boss   ✓ conquered   ◎ teleporter / ping   ☾ Gatekeeper', ox + mw, oy - 6 * s, 10, '#fff3e0', 'right', FONT2);
     // relic list on the side
     const p = focus; const lx = ox + mw + 22 * s; let ly = oy;
     const lw = Math.min(260 * s, W - lx - 16 * s); if (lw > 120 * s) {
