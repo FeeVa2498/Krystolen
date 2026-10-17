@@ -1812,7 +1812,7 @@ Object.assign(WEAPON_DRAW, {
   lizard(x) { rrc(x, -2, -2.6, 6, 5.2, 1.6, '#5a3a2a'); for (const y of [-2.2, 0, 2.2]) poly(x, [[3.4, y - 0.8], [11, y + 0.2], [3.4, y + 1]], '#f4ecd8', { lw: 0.5 }); },
   serpent(x) { shape(x, '#ffd36a', [0, -9, 12, 9], c => { c.moveTo(0, 5); c.quadraticCurveTo(2, -9, 10, -8); c.lineTo(11.4, -6.4); c.quadraticCurveTo(5, -6, 2.6, 5); c.closePath(); }, { lw: 0.6 }); line(x, [[0, 5], [12, 5]], OUTL, 1.8); line(x, [[0, 5], [12, 5]], '#e8b040', 1); for (let i = 0; i < 4; i++) line(x, [[3 + i * 2, -5 + i * 0.4], [3 + i * 2, 5]], '#fff6d0', 0.35); },
   beaver(x) { rrc(x, -3, -1.6, 16, 3.2, 1, '#8a5a30'); shape(x, '#9aa0ae', [8, -8, 13, 8], c => { c.moveTo(9, -1.2); c.quadraticCurveTo(13.6, -5, 11, -8.4); c.lineTo(9.6, -7.8); c.quadraticCurveTo(11.6, -5, 8.2, -1.2); c.closePath(); c.moveTo(9, 1.2); c.quadraticCurveTo(13.6, 5, 11, 8.4); c.lineTo(9.6, 7.8); c.quadraticCurveTo(11.6, 5, 8.2, 1.2); c.closePath(); }); line(x, [[10.8, -8.2], [2, 0], [10.8, 8.2]], '#e8e0d0', 0.4); poly(x, [[13, -1], [17, 0], [13, 1]], '#c8ccd6', { lw: 0.5 }); rrc(x, 2, -3.4, 3, 2, 0.5, '#ffc23a', { lw: 0.4 }); },
-  owl(x) { rrc(x, -2, -1.2, 4, 2.4, 0.8, '#3a2a40'); shape(x, '#d8dce8', [2, -2, 15, 2], c => { c.moveTo(2, -1.4); c.quadraticCurveTo(10, -3.4, 15, 0); c.quadraticCurveTo(10, 0.6, 2, 1.2); c.closePath(); }, { lw: 0.6 }); line(x, [[3, -0.4], [12, -0.8]], '#ffffff', 0.4); rrc(x, 1.4, -3, 1.4, 6, 0.6, '#8a6a3a', { lw: 0.4 }); },
+  owl(x) { rrc(x, -4, -2.4, 6, 4.8, 1.2, '#6a4a2a', { lw: 0.5 }); rrc(x, 0, -3.2, 14, 6.4, 2.4, '#3a3a48'); rrc(x, 3, -3.7, 1.6, 7.4, 0.6, '#c8a050', { lw: 0.4 }); rrc(x, 9, -3.7, 1.6, 7.4, 0.6, '#c8a050', { lw: 0.4 }); ell(x, 14.4, 0, 2.2, 4.2, '#2a2a36'); ell(x, 14.8, 0, 1.2, 2.6, '#0a0a12', { outline: false }); line(x, [[1, -1.8], [12, -1.8]], 'rgba(255,255,255,0.25)', 0.6); },
   monkey(x) { line(x, [[-3, 0], [17, -1]], OUTL, 2.6); line(x, [[-3, 0], [17, -1]], '#6a4a2a', 1.6); for (const k of [4, 9]) rrc(x, k, -1.8, 1.4, 1.8, 0.4, '#c8343e', { lw: 0.3 }); ell(x, 19, -1.6, 3.2, 3, '#e8e0d0', { lw: 0.6 }); ell(x, 18.6, -1.8, 0.8, 0.9, '#2a1a1a', { flat: true, outline: false }); ell(x, 20.2, -1.8, 0.8, 0.9, '#2a1a1a', { flat: true, outline: false }); for (const [a, c] of [[-0.5, '#7ae07a'], [0.2, '#ff8a3c'], [0.9, '#7a5aaa']]) ell(x, 17 + Math.cos(a) * 2, 2.6 + Math.sin(a) * 2, 0.9, 2.4, c, { rot: a, lw: 0.4 }); },
 });
 Object.assign(WEAPON_GRIP, { goat: [3, -7.5], lizard: [3, -7.5], serpent: [3.5, -9], beaver: [3, -7.5], owl: [3, -8], monkey: [3, -8] });
@@ -2737,6 +2737,7 @@ function damage(target, amt, src, o = {}) {
   const elem = o.elem || (o.elec ? 'shock' : null);
   let weakHit = false;
   { const m = resMul(target, elem); if (m <= 0) return 0; amt *= m; }
+  if (target.flareT > G.time) amt *= 1.25; // Marked by the Owl's Starshell
   if (elem && target.def.weak === elem) { amt *= o.dot ? 2 : 1.5; weakHit = true; if (R() < 0.25) floatText(target.x, target.y - target.r - 22, 'WEAK!', ELEM[elem].color, 0.6, 1.1); }
   target.hp -= amt; target.hitT = 0.1;
   if (src && src.team === 'player' && !o.dot) sfx(crit ? 'crit' : 'hit', target.x, target.y, src.isBot ? 0.5 : 0.9);
@@ -2822,7 +2823,7 @@ function updateBullets(dt) {
       }
       if (!dead && G.minions) for (const m of G.minions) { if (m.state !== 'up' || d2(m.x, m.y - 4, b.x, b.y) > (m.r + b.r) ** 2) continue; damage(m, b.dmg, b.owner); dead = true; break; }
     }
-    if (dead) B.splice(i, 1);
+    if (dead) { B.splice(i, 1); if (b.onEnd) { const f0 = b.onEnd; b.onEnd = null; f0(b); } }
   }
 }
 function clearEnemyBullets(x, y, r) {
@@ -4258,26 +4259,31 @@ function playSong(p, id, k, dur) {
   floatText(p.x, p.y - 34, `${S.name}${k < 1 ? ` (${Math.round(k * 100)}%)` : ''}`, S.color, 1, 0.9); sfx('bell', p.x, p.y, 0.7);
   if (!p.isBot) { PROFILE.songsSeen = PROFILE.songsSeen || {}; PROFILE.songsSeen[id] = 1; questEvent('song', Object.keys(PROFILE.songsSeen).length); }
 }
-// ---------- Red Lizard: ember orbit ----------
-function lizardOrbs(p, n, dur) { p.orbs = []; for (let i = 0; i < n; i++) p.orbs.push({ a: i * Math.PI * 2 / n, st: 'orbit', t: 0, x: p.x, y: p.y, hit: new Map() }); p.orbT = dur; }
+// ---------- Red Lizard: a living sun — fireballs always orbit him; LMB widens the ring, RMB draws it in ----------
+const LZ_MIN = 16, LZ_MAX = 96;
+function lizardCount(p) { return (hasGem(p, 'lz_twin') ? 7 : 5) + (p.flareT > 0 ? 3 : 0) + (p.molten > 0 ? 5 : 0); }
 function updateLizardOrbs(p, dt) {
-  if (!p.orbs) return;
-  p.orbT -= dt; if (p.orbT <= 0) { p.orbs = null; return; }
-  const spin = G.time * 4.5, molten = p.molten > 0;
-  for (const o of p.orbs) {
-    if (o.st === 'orbit') { const a = o.a + spin; o.x = p.x + Math.cos(a) * (molten ? 30 : 22); o.y = p.y - 8 + Math.sin(a) * (molten ? 20 : 14); }
-    else if (o.st === 'out') { o.t += dt; o.x += o.vx * dt; o.y += o.vy * dt; if (o.t > 0.5 || hitsWall(o.x, o.y, 2)) { o.st = 'back'; o.t = 0; } }
-    else { o.t += dt; const a = Math.atan2(p.y - 8 - o.y, p.x - o.x), d = Math.hypot(p.x - o.x, p.y - 8 - o.y); if (o.t > 1 || d < 10) { o.st = 'orbit'; } else { o.x += Math.cos(a) * 260 * dt; o.y += Math.sin(a) * 260 * dt; } }
+  if (p.ringR == null) p.ringR = 34;
+  const n = lizardCount(p), flare = p.flareT > 0, molten = p.molten > 0;
+  if (!p.orbs || p.orbs.length !== n) p.orbs = Array.from({ length: n }, () => ({ x: p.x, y: p.y, hit: new Map() }));
+  // same speed along the rim at any size: a wide ring turns slower, a tight one whips around
+  p.orbA = (p.orbA || 0) + dt * (150 / Math.max(LZ_MIN, p.ringR)) * (flare ? 1.6 : 1);
+  const base = molten ? 5 : 0, hitR = flare || molten ? 12 : 9, dmg = 9 * p.st.dmg * (flare ? 1.8 : 1) * (molten ? 1.4 : 1);
+  p.orbs.forEach((o, i) => {
+    const inner = molten && i >= base ? false : molten; // in Molten Shed half the orbs ride an inner ring
+    const R0 = molten && i < 5 ? p.ringR * 0.5 + 10 : p.ringR, k = molten && i < 5 ? i / 5 : (i - (molten ? 5 : 0)) / (n - (molten ? 5 : 0));
+    const a = (molten && i < 5 ? -p.orbA * 1.3 : p.orbA) + k * Math.PI * 2;
+    o.x = p.x + Math.cos(a) * R0; o.y = p.y - 8 + Math.sin(a) * R0 * 0.62; o.big = flare || molten;
     for (const e of G.enemies) {
-      if (e.dead || d2(e.x, e.y - 4, o.x, o.y) > (e.r + 5) ** 2) continue;
-      const last = o.hit.get(e) || -9; if (G.time - last < 0.4) continue; o.hit.set(e, G.time);
-      damage(e, (o.st === 'orbit' ? 7 : 14) * p.st.dmg, p, { elem: 'fire', proc: o.st === 'orbit', color: '#ffb070' });
-      applyStatus(e, 'scorch', 2.5, { dps: 4 * p.st.dmg, src: p }); burst(o.x, o.y, '#ffb030', 5, 50, 0.3, { glow: true });
+      if (e.dead || e.hidden || d2(e.x, e.y - 4, o.x, o.y) > (e.r + hitR) ** 2) continue;
+      const last = o.hit.get(e) || -9; if (G.time - last < 0.33) continue; o.hit.set(e, G.time);
+      damage(e, dmg, p, { elem: 'fire', color: '#ffb070', kb: 30 });
+      if (R() < 0.35) applyStatus(e, 'scorch', 2.5, { dps: 3 * p.st.dmg, src: p });
+      burst(o.x, o.y, '#ffb030', 3, 40, 0.25, { glow: true });
     }
-    if (R() < 0.4) burst(o.x, o.y, pick(['#ff8a2a', '#ffd060']), 1, 10, 0.3, { glow: true, size: 1.2 });
-  }
+    if (R() < 0.25) burst(o.x, o.y, pick(['#ff8a2a', '#ffd060']), 1, 10, 0.3, { glow: true, size: 1.1 });
+  });
 }
-function launchOrb(p, ang) { const o = p.orbs && p.orbs.find(z => z.st === 'orbit'); if (!o) return; o.st = 'out'; o.t = 0; o.vx = Math.cos(ang) * 320; o.vy = Math.sin(ang) * 320; o.hit = new Map(); }
 // ---------- the kits ----------
 Object.assign(CHARS, {
   goat: {
@@ -4306,28 +4312,22 @@ Object.assign(CHARS, {
     super: { name: 'Grand Finale', short: 'Finale', cd: 110, desc: 'Play all five songs at full strength for 6s and forget the repeats.', cast(p) { for (const S of SONGS) playSong(p, S.id, 1, 6); p.songRep = 0; p.lastSong = null; pillar(p.x, p.y, '#ffd27a', 120, 24, 1); } },
   },
   lizard: {
-    name: 'Red Lizard', role: 'Fire buster', color: '#e05a46', hp: 120, spd: 84, range: 130, weapon: 'w_lizard', wx: 1, handColor: '#d8483a',
-    short: ['Buster', 'Dash', 'Orbit'],
-    lmb: 'Ember Buster. Tap for rapid fireballs. Hold to charge, release for a huge piercing fireball that Scorches. Hits fling an orbiting fireball toward your aim.',
+    name: 'Red Lizard', role: 'Living sun', color: '#e05a46', hp: 128, spd: 86, range: 34, weapon: 'w_lizard', wx: 1, handColor: '#d8483a', runAtk: true,
+    short: ['Widen', 'Dash', 'Flare'],
+    lmb: 'Sun Ring. Five fireballs always orbit you and burn whatever they touch. Hold LMB to widen the ring, hold RMB to draw it in. Position yourself so the ring sweeps through the enemies.',
     sp: 'Scorch Dash. Dart forward, leaving burning ground.',
-    q: 'Ember Orbit. Three fireballs circle you for 8s, burning whatever they touch.',
-    init(p) { p.combo = 0; p.orbs = null; },
-    attack(p, c) { },
+    q: 'Solar Flare. For 5s the ring blazes: three extra fireballs, bigger and faster, dealing 80% more damage.',
+    init(p) { p.ringR = 34; p.orbs = null; },
+    attack(p, c) { if (c.atk) p.ringR = Math.min(LZ_MAX, p.ringR + 110 / 60); },
     update(p, c, dt) {
-      // buster: a press fires at once; keep holding to charge, release to loose the big shot
-      const can = !busy(p) && !p.running, held = !!c.atk && can, mol = p.molten > 0 ? 1.4 : 1;
-      if (held && !p.lzPrev && p.atkCd <= 0) { const m = muzzle(p, 12); p.atkCd = 0.16 / p.st.rate; shoot(p, m.x, m.y, p.aimA + rr(-0.03, 0.03), 300, 9 * p.st.dmg * mol, { life: 0.5, r: 3, color: '#ffb030', elem: 'fire', onHit: () => { if (p.orbs) launchOrb(p, p.aimA); } }); p.chg = 0; }
-      if (held) { p.chg = (p.chg || 0) + dt; if (p.chg > 0.3 && R() < 0.5) { const m = muzzle(p, 12); burst(m.x, m.y, p.chg > 0.9 ? '#ffe06a' : '#ff8a2a', 1, 20, 0.3, { glow: true, size: 1 + Math.min(1, p.chg) }); } }
-      if (!held && p.lzPrev && (p.chg || 0) >= 0.9 && can) { const m = muzzle(p, 14), k = Math.min(1.6, p.chg) / 1.6; shoot(p, m.x, m.y, p.aimA, 250, (32 + 30 * k) * p.st.dmg * mol, { life: 0.8, r: 7 + 3 * k, pierce: 4, kind: 'buster', color: '#ffb030', elem: 'fire', kb: 140, st: { k: 'scorch', t: 4, dps: 6 * p.st.dmg }, onHit: () => { if (p.orbs) launchOrb(p, p.aimA); } }); muzzleFlash(m.x, m.y, p.aimA, '#ffe06a', 2); shake(p.isBot ? 0 : 2); p.atkCd = 0.25; }
-      if (!held) p.chg = 0;
-      p.lzPrev = held;
+      if (p.flareT > 0) p.flareT -= dt;
       updateLizardOrbs(p, dt);
-      if (p.molten > 0) { p.molten -= dt; if ((p.spiT = (p.spiT || 0) - dt) <= 0 && p.orbs) { p.spiT = 0.3; p.spA = (p.spA || 0) + 1.1; launchOrb(p, p.spA); } if ((p.lavT = (p.lavT || 0) - dt) <= 0) { p.lavT = 0.25; const zx = p.x, zy = p.y; zone({ x: zx, y: zy, r: 14, life: 3, tick: 0.4, kind: 'lava', owner: p, onTick: z => { for (const e of enemiesIn(z.x, z.y, z.r)) damage(e, 5 * p.st.dmg, p, { proc: true, elem: 'fire' }); } }); } if (p.molten <= 0) { p.orbs = null; } }
+      if (p.molten > 0) { p.molten -= dt; if ((p.lavT = (p.lavT || 0) - dt) <= 0) { p.lavT = 0.25; const zx = p.x, zy = p.y; zone({ x: zx, y: zy, r: 14, life: 3, tick: 0.4, kind: 'lava', owner: p, onTick: z => { for (const e of enemiesIn(z.x, z.y, z.r)) damage(e, 5 * p.st.dmg, p, { proc: true, elem: 'fire' }); } }); } }
     },
-    alt: { name: 'Tail Whip', short: 'Tail', cd: 1.2, desc: 'A full spin of the tail that knocks everything back.', use(p) { hitAround(p, p.x, p.y, 30, 14 * p.st.dmg, { kb: 220, elem: 'fire' }); fx({ k: 'ring', x: p.x, y: p.y - 4, r: 30, life: 0.25, color: '#ff8a5a' }); sfx('swing', p.x, p.y); } },
+    alt: { name: 'Draw In', short: 'Draw in', cd: 0, desc: 'Hold to pull the ring of fireballs in toward you.', use(p) { p.ringR = Math.max(LZ_MIN, p.ringR - 110 / 60); } },
     skill: { cd: 4, cast(p, tx, ty, c) { let t = 0; dashTo(p, moveAng(p, c), 330, 0.26, 0.25, { onStep(q, dt) { if ((t -= dt) <= 0) { t = 0.05; const zx = q.x, zy = q.y; zone({ x: zx, y: zy, r: 12, life: hasGem(q, 'lz_ash') ? 6 : 2, tick: 0.4, kind: 'lava', owner: q, onTick: z => { for (const e of enemiesIn(z.x, z.y, z.r)) applyStatus(e, 'scorch', 2, { dps: 4 * q.st.dmg, src: q }); } }); } } }); } },
-    ult: { cd: 12, cast(p) { lizardOrbs(p, hasGem(p, 'lz_twin') ? 5 : 3, 8); glow(p.x, p.y - 8, 30, '#ff8a2a', 0.4); } },
-    super: { name: 'Molten Shed', short: 'Molten', cd: 95, desc: 'Shed your skin and turn molten for 8s: six fireballs spiral out, you leave lava and deal 40% more damage.', cast(p) { p.molten = 8; lizardOrbs(p, 6, 8); if (hasGem(p, 'lz_heart')) p.hp = Math.min(p.maxHp, p.hp + p.maxHp * 0.25); burst(p.x, p.y - 8, '#ff8a2a', 40, 160, 0.7, { glow: true }); shock(p.x, p.y, 60, '#ff5a2a', 0.6); } },
+    ult: { cd: 12, cast(p) { p.flareT = 5; glow(p.x, p.y - 8, 40, '#ffb030', 0.5); shock(p.x, p.y, p.ringR, '#ff8a2a', 0.4); sfx('fire', p.x, p.y); } },
+    super: { name: 'Molten Shed', short: 'Molten', cd: 95, desc: 'Turn molten for 8s: a second ring of five fireballs spins the other way inside the first, every fireball hits harder, and you leave lava behind you.', cast(p) { p.molten = 8; if (hasGem(p, 'lz_heart')) p.hp = Math.min(p.maxHp, p.hp + p.maxHp * 0.25); burst(p.x, p.y - 8, '#ff8a2a', 40, 160, 0.7, { glow: true }); shock(p.x, p.y, 60, '#ff5a2a', 0.6); } },
   },
   serpent: {
     name: 'Serpent', role: 'Radiant healer', color: '#5ab88a', hp: 92, spd: 74, range: 130, weapon: 'w_serpent', wx: 1, handColor: '#5ab88a', runAtk: true,
@@ -4398,26 +4398,39 @@ Object.assign(CHARS, {
     super: { name: 'Beaver Dam', short: 'Dam', cd: 100, desc: 'Raise a ring of palisades for 10s that stops enemy bullets, and make every ballista fire three times as fast.', cast(p) { G.dam = { x: p.x, y: p.y, r: 70, t: 10, owner: p }; p.damT = G.time + 10; for (const m of minionsOf(p, 'turret')) m.oc = G.time + 10; burst(p.x, p.y, '#a87a4a', 30, 120, 0.6, { g: 200 }); shake(4); } },
   },
   owl: {
-    name: 'Owl', role: 'Assassin', color: '#8a7ac8', hp: 94, spd: 88, range: 130, weapon: 'w_owl', wx: 1, handColor: '#6a5a8c', runAtk: true,
-    short: ['Knives', 'Feather', 'Silent'],
-    lmb: 'Knife Fan. Each press throws a quick volley of four knives toward your aim.',
+    name: 'Owl', role: 'Night gunner', color: '#8a7ac8', hp: 104, spd: 80, range: 150, weapon: 'w_owl', wx: 1, handColor: '#6a5a8c',
+    short: ['Cannon', 'Feather', 'Starshell'],
+    lmb: 'Hand Cannon. Tap for rapid, long-range pellets. Hold to charge, release a huge shell: shorter range, it ploughs through enemies and explodes at the end of its flight.',
     sp: 'Feather Step. A short dash with two charges.',
-    q: 'Silent Wings. Vanish for 4s; enemies lose track of you. Your first hit from the shadows deals triple damage, always crits, and Bleeds and Glooms.',
+    q: 'Starshell. Lob a flare that bursts over an area: it damages and Marks every enemy there for 6s (Marked enemies take 25% more damage from everyone).',
     init(p) { p.fsCharges = 2; p.fsT = 0; },
-    attack(p, c) {
-      if (!(c.atk && p.atkCd <= 0)) return;
-      p.atkCd = 0.55 / p.st.rate; p.volley = { n: 4, t: 0 };
-    },
+    attack(p, c) { },
     update(p, c, dt) {
-      const V = p.volley;
-      if (V && (V.t -= dt) <= 0) { V.t = 0.05; V.n--; const m = muzzle(p, 10); shoot(p, m.x, m.y, p.aimA + rr(-0.07, 0.07), 380, 7 * p.st.dmg, { life: 0.42, r: 2.2, kind: 'knife', color: '#d8dce8', elem: 'shadow', silent: V.n < 3 }); if (V.n <= 0) p.volley = null; } if (p.fsCharges < 2) { p.fsT += dt; if (p.fsT >= 4) { p.fsT = 0; p.fsCharges++; } } updateHunt(p, dt); if (p.ambush && p.stealthT <= 0) p.ambush = false; },
-    alt: { name: 'Lunge', short: 'Lunge', cd: 2.5, desc: 'Dash at your target and strike the first enemy in the way.', use(p) { const hit = new Set(); startDash(p, p.aimA, 380, 0.16, { onStep(q) { for (const e of G.enemies) { if (e.dead || hit.size || d2(e.x, e.y, q.x, q.y) > (e.r + 8) ** 2) continue; hit.add(e); damage(e, 22 * q.st.dmg, q, { kb: 80, elem: 'shadow' }); burst(e.x, e.y - 6, '#b48cff', 10, 70, 0.3, { shape: 'spark' }); } } }); swing(p, '#b48cff'); } },
+      if (p.fsCharges < 2) { p.fsT += dt; if (p.fsT >= 4) { p.fsT = 0; p.fsCharges++; } }
+      const can = !busy(p) && !p.running && !(p.drinkT > 0), held = !!c.atk && can;
+      if (held && !p.owPrev && p.atkCd <= 0) { const m = muzzle(p, 16); p.atkCd = 0.17 / p.st.rate; shoot(p, m.x, m.y, p.aimA + rr(-0.03, 0.03), 360, 8 * p.st.dmg, { life: 0.6, r: 2.6, color: '#e8dcc0', elem: 'shadow', st: hasGem(p, 'o_moonless') ? { k: 'gloom', t: 2, ch: 0.25 } : null }); muzzleFlash(m.x, m.y, p.aimA, '#ffe6a0', 0.8); p.chg = 0; }
+      if (held) { p.chg = (p.chg || 0) + dt; if (p.chg > 0.3 && R() < 0.5) { const m = muzzle(p, 16); burst(m.x, m.y, p.chg > 0.9 ? '#c8b0ff' : '#8a7ac8', 1, 20, 0.3, { glow: true, size: 1 + Math.min(1, p.chg) }); } }
+      if (!held && p.owPrev && (p.chg || 0) >= 0.9 && can) {
+        const m = muzzle(p, 16), k = Math.min(1.6, p.chg) / 1.6, splits = hasGem(p, 'o_hollow');
+        const boom = b => { explode(b.x, b.y, 34 + 10 * k, (24 + 22 * k) * p.st.dmg, p, { boomColor: '#c8b0ff', elem: 'shadow' }); if (splits) for (let s2 = 0; s2 < 3; s2++) { const a2 = s2 * 2.1 + rr(-0.3, 0.3); shoot(p, b.x, b.y, a2, 220, 12 * p.st.dmg, { life: 0.3, r: 4, color: '#c8b0ff', elem: 'shadow', silent: true, onEnd: b2 => explode(b2.x, b2.y, 20, 14 * p.st.dmg, p, { boomColor: '#c8b0ff', elem: 'shadow' }) }); } };
+        shoot(p, m.x, m.y, p.aimA, 230, (26 + 22 * k) * p.st.dmg, { life: 0.5, r: 6 + 3 * k, pierce: 4, kind: 'buster', color: '#c8b0ff', elem: 'shadow', kb: 120, onEnd: boom });
+        muzzleFlash(m.x, m.y, p.aimA, '#e0d0ff', 2); shake(p.isBot ? 0 : 2); p.atkCd = 0.3;
+      }
+      if (!held) p.chg = 0;
+      p.owPrev = held;
+    },
+    alt: { name: 'Wing Buffet', short: 'Buffet', cd: 2, desc: 'A close-range blast of the wings that hurls nearby enemies away.', use(p) { hitAround(p, p.x, p.y, 32, 12 * p.st.dmg, { kb: 260, elem: 'shadow' }); fx({ k: 'ring', x: p.x, y: p.y - 6, r: 32, life: 0.25, color: '#c8b0ff' }); burst(p.x, p.y - 8, '#8a7ac8', 10, 60, 0.4, { shape: 'feather', g: 30 }); sfx('swing', p.x, p.y); } },
     skill: { cd: 0.3, cast(p, tx, ty, c) { if (p.fsCharges <= 0) return false; p.fsCharges--; dashTo(p, moveAng(p, c), 320, 0.18, 0.22); burst(p.x, p.y - 8, '#8a7ac8', 8, 40, 0.4, { shape: 'feather', g: 30 }); } },
-    ult: { cd: 10, cast(p) { p.stealthT = 4; p.ambush = true; for (const e of G.enemies) if (e.tgt === p) { e.tgt = null; e.tgtT = 1; } burst(p.x, p.y - 8, '#4a3e6a', 16, 60, 0.6, { shape: 'feather', g: 20 }); smoke(p.x, p.y - 6, 8, '#6a5a8c', 30, 0.8); } },
-    super: { name: 'Night Hunt', short: 'Hunt', cd: 90, desc: 'Mark up to six enemies, then blink to each in turn and strike. Every kill grants one more strike.', cast(p) {
-      const list = G.enemies.filter(e => !e.dead && !e.hidden && !e.def.objective && d2(e.x, e.y, p.x, p.y) < 230 * 230 && enemySeen(e)).sort((a, b) => d2(a.x, a.y, p.x, p.y) - d2(b.x, b.y, p.x, p.y)).slice(0, 6);
-      if (!list.length) { if (!p.isBot) floatText(p.x, p.y - 30, 'No prey', '#b48cff', 0.6); return false; }
-      p.hunt = { list, t: 0.1, extra: 3, ox: p.x, oy: p.y }; p.channel = 9; for (const e of list) e.markedT = G.time + 3;
+    ult: { cd: 11, range: 170, cast(p, tx, ty) {
+      lob(p, tx, ty, 0.5, '#fff1a8', l => {
+        const r = 58; glow(l.tx, l.ty, 70, '#fff1a8', 0.7); shock(l.tx, l.ty, r, '#fff1a8', 0.6); burst(l.tx, l.ty - 20, '#fff6c8', 30, 120, 0.8, { shape: 'spark', glow: true });
+        for (const e of enemiesIn(l.tx, l.ty, r)) { damage(e, 22 * p.st.dmg, p, { elem: 'radiant', color: '#fff1a8' }); e.flareT = G.time + (hasGem(p, 'o_guild') ? 10 : 6); }
+      }, 4);
+    } },
+    super: { name: 'Bombardment', short: 'Barrage', cd: 90, desc: 'Call down twelve shells around your aim over 2.5s; each one explodes and Marks what it hits.', cast(p) {
+      const cx = p.aimX ?? p.x, cy = p.aimY ?? p.y;
+      for (let i = 0; i < 12; i++) schedule(0.2 * i, () => { const a = R() * 6.28, d = R() * 70, x = cx + Math.cos(a) * d, y = cy + Math.sin(a) * d; tele({ x, y, r: 24, life: 0.35, color: 'spore' }); schedule(0.35, () => { explode(x, y, 26, 26 * p.st.dmg, p, { boomColor: '#c8b0ff', elem: 'shadow' }); for (const e of enemiesIn(x, y, 26)) e.flareT = G.time + 6; shake(p.isBot ? 0 : 2); }); });
+      sfx('rumble', p.x, p.y);
     } },
   },
   monkey: {
@@ -4504,14 +4517,14 @@ function updateDam(dt) {
 }
 // ---------- registration ----------
 CHAR_KEYS.push('goat', 'lizard', 'serpent', 'beaver', 'owl', 'monkey');
-Object.assign(SPRINT, { goat: 'gallop', lizard: 'lean', serpent: 'slither', beaver: 'run', owl: 'hover', monkey: 'run' });
-Object.assign(CHAR_SFX, { goat: 'swing', lizard: 'fire', serpent: 'dart', beaver: 'bolt', owl: 'swing', monkey: 'swing' });
+Object.assign(SPRINT, { goat: 'gallop', lizard: 'lean', serpent: 'slither', beaver: 'run', owl: 'run', monkey: 'run' });
+Object.assign(CHAR_SFX, { goat: 'swing', lizard: 'fire', serpent: 'dart', beaver: 'bolt', owl: 'rifle', monkey: 'swing' });
 Object.assign(CHAR_LORE, {
   goat: { motive: 'Hear the lost song again', lore: 'The last horn-player of the Highcliff Abbey, whose horn once kept a whole valley safe. When the abbey fell silent he kept playing, alone, for three winters. He wants the wish to hear the song of his brothers one more time.' },
   lizard: { motive: 'Be allowed to stay', lead: '', lore: 'A child of the Cinder Crags, cast out because the fire inside him would not stay small. He fights to prove the flame can protect instead of burn. He wants the wish so his people will let him come home.' },
   serpent: { motive: 'Let the drowned be remembered', lore: 'The court storyteller of Coralreach, a kingdom that sank in a single night. She is the only one left who knows its songs and names. She wants the wish so the drowned are never forgotten.' },
   beaver: { motive: 'Build without losses', lore: 'The engineer who built the great dam of Timberholt and watched it break. She counts every rivet twice now. She wants the wish to rebuild it so no one ever has to drown again.' },
-  owl: { motive: 'Unknown', lore: 'The last blade of the Silent Guild, an order of assassins that Vesper put out like candles, one by one. She speaks rarely and never about the wish. Some think she wants revenge; Crow thinks it is something stranger.' },
+  owl: { motive: 'Light the long night', lore: 'The night gunner of the Silent Watch, who kept the lanterns of the old border forts burning until Vesper put them out one by one. She carries the last fort cannon on her back and speaks rarely about the wish. Some think she wants revenge; Crow thinks it is something stranger.' },
   monkey: { motive: 'Bring the tribe back', lore: 'An old witch doctor from the deep jungle who still talks to the dead every night. A sickness took his whole tribe in a single season. He wants the wish to call them back from the other side for good.' },
 });
 // legendary gems for the newcomers (3 each, unlocked by quests)
@@ -4521,7 +4534,7 @@ Object.assign(CHAR_LORE, {
     L('g_encore', 'goat', 'Encore', 'Songs last 50% longer.', { id: 'gq1', text: 'Play all five songs (across runs) as Goat', type: 'songs', n: 5 }),
     L('g_ram', 'goat', "Ram's Crescendo", 'Every third ▲ in a row stuns for 0.5s.', { id: 'gq2', text: 'Defeat a Gatekeeper as Goat', type: 'gk', target: null, n: 1, any: true }),
     L('g_echo', 'goat', 'Mountain Echo', 'Song auras reach much farther.', { id: 'gq3', text: 'Win a run as Goat', type: 'win', n: 1 }),
-    L('lz_twin', 'lizard', 'Twin Suns', 'Ember Orbit summons five fireballs.', { id: 'lq1', text: 'Defeat the Ashen Phoenix as Red Lizard', type: 'dm', target: 'phoenix', n: 1 }),
+    L('lz_twin', 'lizard', 'Twin Suns', 'Your ring holds seven fireballs instead of five.', { id: 'lq1', text: 'Defeat the Ashen Phoenix as Red Lizard', type: 'dm', target: 'phoenix', n: 1 }),
     L('lz_ash', 'lizard', 'Ashwalk', 'Scorch Dash trails burn three times longer.', { id: 'lq2', text: 'Visit 6 different biomes as Red Lizard', type: 'biome', n: 6 }),
     L('lz_heart', 'lizard', 'Heart of Magma', 'Molten Shed also heals 25% health.', { id: 'lq3', text: 'Win a run as Red Lizard', type: 'win', n: 1 }),
     L('s_lull', 'serpent', 'Lullaby', 'Enemies in the Hymn Pool are Hushed.', { id: 'sq1', text: 'Heal 5000 health with Hymn Pools as Serpent', type: 'heal', n: 5000 }),
@@ -4530,9 +4543,9 @@ Object.assign(CHAR_LORE, {
     L('bv_third', 'beaver', 'Third Ballista', 'One more turret charge and up to three turrets.', { id: 'bq1', text: 'Kill 300 monsters as Beaver', type: 'kill', n: 300 }),
     L('bv_splinter', 'beaver', 'Splinter Bolts', 'Turret bolts split into three.', { id: 'bq2', text: 'Defeat 2 castle bosses in one run as Beaver', type: 'castle3', n: 2 }),
     L('bv_lodge', 'beaver', 'Lodge Keeper', 'Standing near your turret: -20% damage taken.', { id: 'bq3', text: 'Win a run as Beaver', type: 'win', n: 1 }),
-    L('o_moonless', 'owl', 'Moonless', 'Leaving stealth refunds half of Silent Wings.', { id: 'oq1', text: 'Defeat Vesper as Owl', type: 'dm', target: 'vesper', n: 1 }),
-    L('o_hollow', 'owl', 'Hollow Talons', 'Strikes from stealth ignore armor and Sunder.', { id: 'oq2', text: 'Defeat 30 room bosses as Owl', type: 'champ', n: 30 }),
-    L('o_guild', 'owl', 'Silent Guild', 'Night Hunt heals 5% health per strike.', { id: 'oq3', text: 'Win a run as Owl', type: 'win', n: 1 }),
+    L('o_moonless', 'owl', 'Moonless Powder', 'Cannon pellets have a 25% chance to Gloom.', { id: 'oq1', text: 'Defeat Vesper as Owl', type: 'dm', target: 'vesper', n: 1 }),
+    L('o_hollow', 'owl', 'Cluster Shell', 'A charged shell scatters three bomblets when it explodes.', { id: 'oq2', text: 'Defeat 30 room bosses as Owl', type: 'champ', n: 30 }),
+    L('o_guild', 'owl', 'Long Night', 'Starshell Marks last 10s.', { id: 'oq3', text: 'Win a run as Owl', type: 'win', n: 1 }),
     L('m_jar', 'monkey', 'Soul Jar', 'Hold up to 15 souls.', { id: 'mq1', text: 'Gather 500 souls as Monkey', type: 'soul', n: 500 }),
     L('m_pact', 'monkey', 'Grave Pact', 'Spirits explode when they fade, Withering enemies.', { id: 'mq2', text: 'Defeat a Gatekeeper as Monkey', type: 'gk', target: null, n: 1, any: true }),
     L('m_blood', 'monkey', 'Old Blood', 'Each living spirit restores 1% of your health per second.', { id: 'mq3', text: 'Win a run as Monkey', type: 'win', n: 1 }),
@@ -4713,7 +4726,7 @@ function dmgMult() { return G.day >= 2 ? 1.5 : 1; }
 function spawnEnemy(type, x, y, o = {}) {
   const d = ENEMY[type], room = o.room || null, dg = room ? room.danger : 2, d2x = G.day >= 2;
   let hpM, dmgM;
-  if (d.boss) { hpM = 0.55 + 0.15 * G.players.length; dmgM = d.dm; }
+  if (d.boss) { hpM = (0.55 + 0.15 * G.players.length) * BOSS_HP_NERF; dmgM = d.dm; }
   else if (d.champ) { hpM = 1.15 * (1 + 0.3 * (dg - 1)) * (d2x ? 2.3 : 1); dmgM = 1.12 * (1 + 0.15 * (dg - 1)) * (d2x ? 1.6 : 1); }
   else if (d.objective) { hpM = 0.55 + 0.15 * G.players.length; dmgM = 1; }
   else if (type === 'dummy') { hpM = 1; dmgM = 0; }
@@ -5804,7 +5817,7 @@ function A_greedCheck(p) { return p.ai.P.greed < 1 && p.level < 8; }
 function fightMove(p, A, tgt, c, dt, stayZone) {
   const def = CHARS[p.char];
   const hot = p.char === 'hedgehog' && p.over && p.hp > p.maxHp * 0.45 && (A.nVis || 0) <= 4 && !(tgt.boss && p.hp < p.maxHp * 0.7);
-  const pd = hot ? 18 : def.range * A.P.range * (tgt.boss ? 1.2 : 1);
+  const pd = hot ? 18 : p.char === 'lizard' ? (A.lzWant || p.ringR || 34) : def.range * A.P.range * (tgt.boss ? 1.2 : 1);
   const dd = Math.hypot(tgt.x - p.x, tgt.y - p.y);
   const lowHp = p.hp < p.maxHp * A.P.retreatHp;
   const los = losClear(p.x, p.y - 4, tgt.x, tgt.y - 4);
@@ -5813,7 +5826,8 @@ function fightMove(p, A, tgt, c, dt, stayZone) {
   let mvA = null;
   const L0 = lairOf(tgt); if (L0 && !inRoom(L0, p.x, p.y, -4)) { const q = inRoom(L0, tgt.x, tgt.y, -10) ? tgt : { x: L0.px, y: L0.py }; goTo(p, A, q.x, q.y, c, dt); A.wantMove = true; return; }
   if (!los || dd > pd + 30) { if (!lowHp) { goTo(p, A, tgt.x, tgt.y, c, dt); A.wantMove = true; return; } }
-  if (dd < pd - 25 || lowHp) mvA = away + A.strafe * 0.5;
+  if (p.char === 'lizard' && !lowHp) mvA = dd > pd + 5 ? away + Math.PI + A.strafe * 0.35 : dd < pd - 5 ? away + A.strafe * 0.35 : away + A.strafe * Math.PI / 2; // keep the target right on the ring
+  else if (dd < pd - 25 || lowHp) mvA = away + A.strafe * 0.5;
   else mvA = away + A.strafe * Math.PI / 2;
   // keep inside the krystal zone during the boss fight
   if (tgt.type === 'shellback' && !tgt.spinning) { const bx = tgt.x - tgt.face * (pd * 0.9 + 20), by = tgt.y + A.strafe * 20; mvA = Math.atan2(by - p.y, bx - p.x); if (Math.hypot(bx - p.x, by - p.y) < 14) mvA = away + A.strafe * Math.PI / 2; }
@@ -5831,14 +5845,14 @@ function botCombat(p, A, tgt, c, dt, L, def) {
   if (A.tPrev !== tgt) { A.tPrev = tgt; A.tvx = 0; A.tvy = 0; A.tlx = tgt.x; A.tly = tgt.y; }
   else if (dt > 0) { A.tvx = lerp(A.tvx, (tgt.x - A.tlx) / dt, 0.2); A.tvy = lerp(A.tvy, (tgt.y - A.tly) / dt, 0.2); A.tlx = tgt.x; A.tly = tgt.y; }
   const dd = Math.hypot(tgt.x - p.x, tgt.y - p.y);
-  const bspd = { hedgehog: 340, pangolin: 310, rabbit: 320, crow: 450, reindeer: 1e9, wolf: 1e9, serpent: 260, beaver: 330, goat: 290, lizard: 300, owl: 380, monkey: 1e9 }[p.char] || 1e9;
+  const bspd = { hedgehog: 340, pangolin: 310, rabbit: 320, crow: 450, reindeer: 1e9, wolf: 1e9, serpent: 260, beaver: 330, goat: 290, lizard: 1e9, owl: 360, monkey: 1e9 }[p.char] || 1e9;
   const tt = dd / bspd * L.lead;
   let ax = tgt.x + A.tvx * tt, ay = tgt.y - 4 + A.tvy * tt;
   const a = Math.atan2(ay - (p.y - 6), ax - p.x) + (A.errA || 0) * (p.char === 'crow' ? 0.5 : 1);
   const r = Math.hypot(ax - p.x, ay - p.y);
   c.ax = p.x + Math.cos(a) * r; c.ay = p.y - 6 + Math.sin(a) * r;
   const los = losClear(p.x, p.y - 6, tgt.x, tgt.y - 4);
-  const fireRange = { hedgehog: p.over ? 40 : 210, crow: 165, pangolin: 95, reindeer: 140, rabbit: 230, wolf: 600, goat: 118, lizard: 150, serpent: 170, beaver: 190, owl: 150, monkey: 170 }[p.char];
+  const fireRange = { hedgehog: p.over ? 40 : 210, crow: 165, pangolin: 95, reindeer: 140, rabbit: 230, wolf: 600, goat: 118, lizard: 120, serpent: 170, beaver: 190, owl: 200, monkey: 170 }[p.char];
   if (los && dd < fireRange) c.atk = true;
   const n = A.nVis || 0, big = tgt.boss || tgt.elite;
   const ready = s => p.cd[s] <= 0 && !busy(p);
@@ -5894,13 +5908,14 @@ function botNewKits(p, A, tgt, c, dd, n, big, los) {
       if (ready('skill') && dd > 60 && dd < 160 && los) { c.skP = true; c.mx = Math.cos(Math.atan2(tgt.y - p.y, tgt.x - p.x)); c.my = Math.sin(Math.atan2(tgt.y - p.y, tgt.x - p.x)); }
       break;
     }
-    case 'lizard':
-      // buster: charge for big targets and crowds, tap-fire otherwise
-      if (c.atk) { if (big || tgt.champ || tgt.castle || n >= 3) { A.lzHold = (A.lzHold || 0) + 1 / 60; if (A.lzHold > 1.3) { c.atk = false; A.lzHold = 0; } } else { A.lzTog = !A.lzTog; c.atk = A.lzTog; } }
-      if (ready('ult') && dd < 80 && !p.orbs) c.ultP = true;
-      if (ready('skill') && dd > 50 && dd < 150 && los) { const a = Math.atan2(tgt.y - p.y, tgt.x - p.x); c.skP = true; c.mx = Math.cos(a); c.my = Math.sin(a); }
-      if (p.altCd <= 0 && clusterAt(p.x, p.y, 32) >= 2) c.altD = true;
+    case 'lizard': {
+      // the ring is the weapon: size it so it sweeps through the target (wider for crowds), stay at that distance
+      const want = clamp(tgt.boss || tgt.castle ? (tgt.r || 10) + 26 : n >= 4 ? 64 : 42, LZ_MIN + 4, LZ_MAX - 6);
+      A.lzWant = want; c.atk = (p.ringR ?? 34) < want - 3; c.altD = (p.ringR ?? 34) > want + 3;
+      if (ready('ult') && dd < want + 30 && (big || n >= 3 || tgt.champ)) c.ultP = true;
+      if (ready('skill') && dd > want + 50 && dd < 160 && los) { const a = Math.atan2(tgt.y - p.y, tgt.x - p.x); c.skP = true; c.mx = Math.cos(a); c.my = Math.sin(a); }
       break;
+    }
     case 'serpent': {
       const hurt = allies.filter(q => q.hp < q.maxHp * 0.65 && d2(q.x, q.y, p.x, p.y) < 150 * 150).sort((a, b) => a.hp / a.maxHp - b.hp / b.maxHp)[0];
       if (ready('ult')) { if (hurt) { c.ultP = true; c.ax = hurt.x; c.ay = hurt.y; } else if (clusterAt(tgt.x, tgt.y, 40) >= 3 && dd < 140) { c.ultP = true; c.ax = tgt.x; c.ay = tgt.y; } }
@@ -5919,11 +5934,10 @@ function botNewKits(p, A, tgt, c, dd, n, big, los) {
       break;
     }
     case 'owl':
-      if (ready('ult') && !p.ambush && ((dd < 160 && (big || n >= 2 || tgt.champ)) || (p.hp < p.maxHp * 0.35 && dd < 80))) c.ultP = true;
-      // hit and run: when hurt and crowded, slip back out between strikes
-      if (p.hp < p.maxHp * 0.5 && n >= 3 && p.stealthT <= 0 && dd < 50 && p.atkCd > 0.05) { const a = Math.atan2(p.y - tgt.y, p.x - tgt.x); c.mx = Math.cos(a); c.my = Math.sin(a); }
-      if (p.altCd <= 0 && dd > 40 && dd < 95 && los) { c.altD = true; c.ax = tgt.x; c.ay = tgt.y; }
-      if (p.fsCharges > 0 && ready('skill') && p.hp < p.maxHp * 0.4 && dd < 40) { const a = Math.atan2(p.y - tgt.y, p.x - tgt.x); c.skP = true; c.mx = Math.cos(a); c.my = Math.sin(a); }
+      // hand cannon: charge shells for big targets and crowds, tap pellets otherwise
+      if (c.atk) { if (big || tgt.champ || tgt.castle || n >= 3) { if (dd < 140) { A.owHold = (A.owHold || 0) + 1 / 60; if (A.owHold > 1.2) { c.atk = false; A.owHold = 0; } } } else { A.owTog = !A.owTog; c.atk = A.owTog; } }
+      if (ready('ult') && dd < 170 && (big || clusterAt(tgt.x, tgt.y, 50) >= 3 || tgt.champ)) { c.ultP = true; c.ax = tgt.x; c.ay = tgt.y; }
+      if (p.fsCharges > 0 && ready('skill') && p.hp < p.maxHp * 0.45 && dd < 50) { const a = Math.atan2(p.y - tgt.y, p.x - tgt.x); c.skP = true; c.mx = Math.cos(a); c.my = Math.sin(a); }
       break;
     case 'monkey':
       if (ready('ult') && (p.souls >= 4 || (big && p.souls > 0)) && minionsOf(p, 'ghost').length < 4 && dd < 220) c.ultP = true;
@@ -6205,6 +6219,7 @@ function startGame(charKey, watch, lord = 'warden', team = null) {
 const GK_REC = [0, 5, 10], FINAL_REC = 15;
 // the later bosses are tuned for the recommended level: Gatekeeper II for Lv 10 with ultimates, the Dungeon Master for Lv 15
 const GK_HP = [0, 1, 1.7], GK_DMG = [0, 1, 1.2], FINAL_HP = 4.5, FINAL_DMG = 1.5;
+const BOSS_HP_NERF = 0.75; // every Gatekeeper, Labyrinth guardian and Dungeon Master
 function tuneBoss(e, hp, dmg) { e.hp *= hp; e.maxHp *= hp; e.dmgM *= dmg; return e; }
 function setBanner(title, sub, life = 4.5, color) { G.banner = { title, sub, t: 0, life, color }; if (!G.hub) sfx('bell'); }
 function circleFor(room) {
@@ -7800,6 +7815,7 @@ function drawKitFx() {
   if (G.dam) { const D = G.dam; ctx.strokeStyle = 'rgba(42,27,46,0.9)'; ctx.lineWidth = 3.5; ctx.beginPath(); ctx.arc(D.x, D.y, D.r, 0, Math.PI * 2); ctx.stroke(); ctx.strokeStyle = '#a87a4a'; ctx.lineWidth = 2; ctx.stroke(); for (let i = 0; i < 24; i++) { const a = i * Math.PI / 12, x = D.x + Math.cos(a) * D.r, y = D.y + Math.sin(a) * D.r; ctx.fillStyle = '#8a5a30'; ctx.fillRect(x - 1.5, y - 7, 3, 7); ctx.fillStyle = '#c8a070'; ctx.fillRect(x - 1.5, y - 8, 3, 1.5); } }
   for (const p of G.players) {
     if (p.state === 'dead') continue;
+    if (p.char === 'lizard' && p.ringR) { ctx.save(); ctx.strokeStyle = `rgba(255,140,60,${p.flareT > 0 || p.molten > 0 ? 0.45 : 0.22})`; ctx.lineWidth = 1; ctx.setLineDash([3, 4]); ctx.beginPath(); ctx.ellipse(p.x, p.y - 8, p.ringR, p.ringR * 0.62, 0, 0, Math.PI * 2); ctx.stroke(); ctx.restore(); }
     if (p.orbs) for (const o of p.orbs) { ctx.save(); ctx.globalCompositeOperation = 'lighter'; const g = ctx.createRadialGradient(o.x, o.y, 0, o.x, o.y, 7); g.addColorStop(0, 'rgba(255,230,140,1)'); g.addColorStop(0.5, 'rgba(255,120,40,0.8)'); g.addColorStop(1, 'rgba(255,60,20,0)'); ctx.fillStyle = g; ctx.beginPath(); ctx.arc(o.x, o.y, 7, 0, Math.PI * 2); ctx.fill(); ctx.restore(); }
     if (p.songs && Object.keys(p.songs).length) { const range = hasGem(p, 'g_echo') ? 120 : 75; const ids = Object.keys(p.songs); ids.forEach((id, i) => { const S = SONGS.find(z => z.id === id); ctx.strokeStyle = S.color; ctx.globalAlpha = 0.35 + 0.15 * Math.sin(G.time * 4 + i); ctx.lineWidth = 1.2; ctx.setLineDash([4, 5]); ctx.lineDashOffset = -G.time * 12 * (i % 2 ? 1 : -1); ctx.beginPath(); ctx.ellipse(p.x, p.y, range - i * 3, (range - i * 3) * 0.6, 0, 0, Math.PI * 2); ctx.stroke(); }); ctx.setLineDash([]); ctx.globalAlpha = 1; }
     if (p.char === 'goat' && p.notes) { ctx.font = `bold 8px ${FONT}`; ctx.textAlign = 'center'; const txt0 = p.notes.split('').map(n => n === 'A' ? '▲' : '●').join(' '); ctx.lineWidth = 2.4; ctx.strokeStyle = OUTL; ctx.strokeText(txt0, p.x, p.y - 34); ctx.fillStyle = '#ffe6a0'; ctx.fillText(txt0, p.x, p.y - 34); }
