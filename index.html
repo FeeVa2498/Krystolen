@@ -3107,6 +3107,8 @@ function recalcStats(p) {
   if (oldMax && p.maxHp > oldMax) p.hp += p.maxHp - oldMax;
   p.hp = Math.min(p.hp, p.maxHp);
 }
+// healing given to someone else counts toward the end-of-run 'Ally healing' stat
+function healAlly(src, q, amt) { const b = q.hp; q.hp = Math.min(q.maxHp, q.hp + amt); if (src && src !== q && src.stats) src.stats.healed = (src.stats.healed || 0) + (q.hp - b); }
 function relicCount(p) { let n = 0; for (const id in p.items) n += p.items[id]; return n; }
 function itemCount(p) { return relicCount(p) + (p.active ? 1 : 0); }
 function giveItem(p, item, quiet) {
@@ -3254,7 +3256,7 @@ function relicOnSkill(p, slot, sx, sy, tx, ty) {
   const s = p.st, D = s.dmg;
   if (slot === 'skill') for (const k of s.spFx) {
     if (k === 'lava') { decal(sx, sy, 'scorch', 18, 4); zone({ x: sx, y: sy, r: 22, life: 3.5, tick: 0.4, kind: 'lava', owner: p, onTick: z => { for (const e of enemiesIn(z.x, z.y, z.r)) { damage(e, 5 * D, p, { elem: 'fire', color: '#ffb070', proc: true }); applyStatus(e, 'scorch', 3, { dps: 5 * D, src: p }); } if (R() < 0.8) burst(z.x + rr(-14, 14), z.y + rr(-8, 8), '#ffb030', 1, 15, 0.6, { g: -40, glow: true }); } }); }
-    if (k === 'halo') { for (const q of G.players) if (q.state === 'up' && d2(q.x, q.y, sx, sy) < 70 * 70) { q.hp = Math.min(q.maxHp, q.hp + q.maxHp * 0.06); burst(q.x, q.y - 10, '#fff6c8', 6, 30, 0.5, { glow: true, g: -30 }); } for (const e of enemiesIn(sx, sy, 34)) damage(e, 12 * D, p, { proc: true, elem: 'radiant', color: '#fff1a8' }); glow(sx, sy, 34, '#fff1a8', 0.4); shock(sx, sy, 34, '#fff6c8', 0.35); }
+    if (k === 'halo') { for (const q of G.players) if (q.state === 'up' && d2(q.x, q.y, sx, sy) < 70 * 70) { healAlly(p, q, q.maxHp * 0.06); burst(q.x, q.y - 10, '#fff6c8', 6, 30, 0.5, { glow: true, g: -30 }); } for (const e of enemiesIn(sx, sy, 34)) damage(e, 12 * D, p, { proc: true, elem: 'radiant', color: '#fff1a8' }); glow(sx, sy, 34, '#fff1a8', 0.4); shock(sx, sy, 34, '#fff6c8', 0.35); }
     if (k === 'frost') { decal(sx, sy, 'frost', 22, 4); zone({ x: sx, y: sy, r: 24, life: 3.5, tick: 0.5, kind: 'frostpatch', owner: p, onTick: z => { for (const e of enemiesIn(z.x, z.y, z.r)) applyStatus(e, 'chill', 0, { src: p }); } }); }
     if (k === 'razor') { for (let i = 0; i < 10; i++) shoot(p, sx, sy - 6, i * Math.PI / 5, 240, 7 * D, { life: 0.45, color: '#ff8aa0', kind: 'quill', st: { k: 'bleed', t: 4, dmg: 3 * D } }); }
     if (k === 'spore') { zone({ x: sx, y: sy, r: 26, life: 3, tick: 0.5, kind: 'toxic', owner: p, onTick: z => { for (const e of enemiesIn(z.x, z.y, z.r)) addPoison(e, 1, p); } }); }
@@ -3262,7 +3264,7 @@ function relicOnSkill(p, slot, sx, sy, tx, ty) {
     if (k === 'veil') { p.stealthT = Math.max(p.stealthT, 1); for (const e of G.enemies) { if (e.tgt === p) { e.tgt = null; e.tgtT = 1; } if (d2(e.x, e.y, p.x, p.y) < 70 * 70) applyStatus(e, 'gloom', 2.5, { src: p }); } smoke(sx, sy - 4, 10, '#9a8ac8', 40, 1.2); }
   }
   if (slot === 'ult') for (const k of s.qFx) {
-    if (k === 'sanctum') { const zx = p.x, zy = p.y; zone({ x: zx, y: zy, r: 50, life: 5, tick: 0.5, kind: 'storm', owner: p, onTick: z => { for (const q of G.players) if (q.state === 'up' && d2(q.x, q.y, z.x, z.y) < z.r * z.r) q.hp = Math.min(q.maxHp, q.hp + q.maxHp * 0.02); for (const e of enemiesIn(z.x, z.y, z.r)) damage(e, 7 * D, p, { proc: true, elem: 'radiant', color: '#fff1a8' }); burst(z.x + rr(-z.r, z.r) * 0.7, z.y + rr(-z.r, z.r) * 0.5, '#fff1a8', 2, 20, 0.8, { glow: true, g: -30 }); } }); pillar(zx, zy, '#fff1a8', 80, 20, 0.6); sfx('bell'); }
+    if (k === 'sanctum') { const zx = p.x, zy = p.y; zone({ x: zx, y: zy, r: 50, life: 5, tick: 0.5, kind: 'storm', owner: p, onTick: z => { for (const q of G.players) if (q.state === 'up' && d2(q.x, q.y, z.x, z.y) < z.r * z.r) healAlly(p, q, q.maxHp * 0.02); for (const e of enemiesIn(z.x, z.y, z.r)) damage(e, 7 * D, p, { proc: true, elem: 'radiant', color: '#fff1a8' }); burst(z.x + rr(-z.r, z.r) * 0.7, z.y + rr(-z.r, z.r) * 0.5, '#fff1a8', 2, 20, 0.8, { glow: true, g: -30 }); } }); pillar(zx, zy, '#fff1a8', 80, 20, 0.6); sfx('bell'); }
     if (k === 'inferno') { for (const e of enemiesIn(p.x, p.y, 62)) { damage(e, 30 * D, p, { elem: 'fire', color: '#ffb070', proc: true }); applyStatus(e, 'scorch', 4, { dps: 7 * D, src: p }); } shock(p.x, p.y, 62, '#ff8a2a'); glow(p.x, p.y, 70, '#ff8a2a', 0.4); burst(p.x, p.y, '#ffb030', 26, 140, 0.6, { glow: true }); decal(p.x, p.y, 'scorch', 40, 5); }
     if (k === 'blizzard') { const bx = tx ?? p.aimX, by = ty ?? p.aimY; zone({ x: bx, y: by, r: 52, life: 4, tick: 0.5, kind: 'blizzard', owner: p, onTick: z => { for (const e of enemiesIn(z.x, z.y, z.r)) { damage(e, 6 * D, p, { elem: 'frost', proc: true, color: '#bff4ff' }); applyStatus(e, 'chill', 0, { src: p }); } burst(z.x + rr(-z.r, z.r) * 0.7, z.y - 20 + rr(-10, 10), '#ffffff', 3, 30, 0.8, { vy: 50 }); } }); }
     if (k === 'bloodrite') { let n = 0; for (const e of enemiesIn(p.x, p.y, 90)) { applyStatus(e, 'bleed', 6, { dmg: 6 * D, src: p }); n++; burst(e.x, e.y - 6, '#c8102e', 6, 60, 0.4, { g: 120 }); } p.hp = Math.min(p.maxHp, p.hp + p.maxHp * 0.02 * n); shock(p.x, p.y, 90, '#c8102e'); }
@@ -3300,7 +3302,7 @@ function updateMeteorsTotems(dt) {
   for (let i = G.meteors.length - 1; i >= 0; i--) { const m = G.meteors[i]; m.t -= dt; if (m.t <= 0) { G.meteors.splice(i, 1); explode(m.x, m.y, 52, 220 * m.owner.st.dmg, m.owner, { kb: 200, boomColor: '#ff7a2a', elem: 'fire', st: { k: 'scorch', t: 3, dps: 12 * m.owner.st.dmg } }); shock(m.x, m.y, 70, '#ffb030'); smoke(m.x, m.y, 14, '#8a7a6a', 50, 1.4); shake(6); } }
   for (let i = G.healTotems.length - 1; i >= 0; i--) {
     const t = G.healTotems[i]; t.t += dt;
-    for (const q of G.players) if (q.state === 'up' && d2(q.x, q.y, t.x, t.y) < 70 * 70) q.hp = Math.min(q.maxHp, q.hp + q.maxHp * 0.05 * dt);
+    for (const q of G.players) if (q.state === 'up' && d2(q.x, q.y, t.x, t.y) < 70 * 70) healAlly(t.owner, q, q.maxHp * 0.05 * dt);
     if (t.t >= t.life) G.healTotems.splice(i, 1);
   }
 }
@@ -4114,7 +4116,7 @@ Object.assign(CHARS.rabbit, {
   alt: { name: 'Thump Kick', short: 'Kick', cd: 1.1, desc: 'Kick enemies away and leave a small poison patch at your feet.', use(p) { meleeArc(p, 22, 1.2, 8 * p.st.dmg, 320, { elem: 'poison' }); meleeFx(p, '#8cff6a'); const zx = p.x, zy = p.y; zone({ x: zx, y: zy, r: 18, life: 2.5, tick: 0.5, kind: 'toxic', owner: p, onTick: z => { for (const e of enemiesIn(z.x, z.y, z.r)) addPoison(e, 1, p); } }); } },
   super: { name: 'Plague Garden', short: 'Garden', cd: 110, desc: 'A garden spreads around you for 10s: enemies inside are poisoned and slowed, allies inside heal.', cast(p) {
     const born = G.time; glow(p.x, p.y, 60, '#8cff6a', 0.6);
-    zone({ x: p.x, y: p.y, r: 40, life: 10, tick: 0.5, kind: 'toxic', owner: p, onTick: z => { z.r = 40 + 70 * Math.min(1, (G.time - born) / 3); for (const e of enemiesIn(z.x, z.y, z.r)) { addPoison(e, 2, p); slowE(e, 0.45, 0.7); } for (const q of G.players) if (q.state === 'up' && d2(q.x, q.y, z.x, z.y) < z.r * z.r) { q.hp = Math.min(q.maxHp, q.hp + q.maxHp * 0.015); if (R() < 0.3) burst(q.x, q.y - 10, '#7ae07a', 2, 20, 0.6, { glow: true, g: -30 }); } for (let i = 0; i < 3; i++) burst(z.x + rr(-z.r, z.r) * 0.8, z.y + rr(-z.r, z.r) * 0.6, pick(['#ff8ab0', '#8cff6a', '#ffe06a']), 1, 10, 1.2, { shape: 'feather', g: -10 }); } });
+    zone({ x: p.x, y: p.y, r: 40, life: 10, tick: 0.5, kind: 'toxic', owner: p, onTick: z => { z.r = 40 + 70 * Math.min(1, (G.time - born) / 3); for (const e of enemiesIn(z.x, z.y, z.r)) { addPoison(e, 2, p); slowE(e, 0.45, 0.7); } for (const q of G.players) if (q.state === 'up' && d2(q.x, q.y, z.x, z.y) < z.r * z.r) { healAlly(p, q, q.maxHp * 0.015); if (R() < 0.3) burst(q.x, q.y - 10, '#7ae07a', 2, 20, 0.6, { glow: true, g: -30 }); } for (let i = 0; i < 3; i++) burst(z.x + rr(-z.r, z.r) * 0.8, z.y + rr(-z.r, z.r) * 0.6, pick(['#ff8ab0', '#8cff6a', '#ffe06a']), 1, 10, 1.2, { shape: 'feather', g: -10 }); } });
   } },
 });
 Object.assign(CHARS.wolf, {
@@ -4245,7 +4247,7 @@ function goatAura(p, dt) {
       if (q.state !== 'up' || d2(q.x, q.y, p.x, p.y) > range * range) continue;
       if (id === 'hymn') { q.auraDmg = Math.max(q.auraDmgT > G.time ? q.auraDmg : 0, 0.25 * s.k); q.auraDmgT = G.time + 0.3; }
       if (id === 'ward') { q.auraArm = Math.max(q.auraArmT > G.time ? q.auraArm : 0, 0.3 * s.k); q.auraArmT = G.time + 0.3; }
-      if (id === 'life') q.hp = Math.min(q.maxHp, q.hp + q.maxHp * 0.03 * s.k * dt);
+      if (id === 'life') healAlly(p, q, q.maxHp * 0.03 * s.k * dt);
       if (id === 'reel') { q.auraSpd = Math.max(q.auraSpdT > G.time ? q.auraSpd : 0, 0.2 * s.k); q.auraSpdT = G.time + 0.3; }
     }
     if (id === 'thunder' && (s.zap = (s.zap || 0) - dt) <= 0) { s.zap = 0.5; for (const e of enemiesIn(p.x, p.y, range)) { damage(e, 10 * p.st.dmg * s.k, p, { proc: true, elem: 'shock', color: '#ffe24a' }); applyStatus(e, 'hush', 0.3, { src: p }); fx({ k: 'bolt', pts: [{ x: p.x, y: p.y - 14 }, { x: e.x, y: e.y - 4 }], life: 0.12, color: '#ffe24a' }); } }
@@ -4348,7 +4350,7 @@ Object.assign(CHARS, {
       lob(p, tx, ty, 0.4, '#fff1a8', l => {
         glow(l.tx, l.ty, 40, '#fff1a8', 0.4); burst(l.tx, l.ty, '#fff6c8', 16, 80, 0.5, { glow: true });
         zone({ x: l.tx, y: l.ty, r: 40, life: 6, tick: 0.5, kind: 'storm', owner: p, onTick: z => {
-          for (const q of G.players) if (q.state === 'up' && d2(q.x, q.y, z.x, z.y) < z.r * z.r) { const h = q.maxHp * 0.025; q.hp = Math.min(q.maxHp, q.hp + h); if (!p.isBot) questEvent('heal', h); }
+          for (const q of G.players) if (q.state === 'up' && d2(q.x, q.y, z.x, z.y) < z.r * z.r) { const h = q.maxHp * 0.025; healAlly(p, q, h); if (!p.isBot) questEvent('heal', h); }
           for (const e of enemiesIn(z.x, z.y, z.r)) { damage(e, 6 * p.st.dmg, p, { proc: true, elem: 'radiant', color: '#fff1a8' }); if (hasGem(p, 's_lull')) applyStatus(e, 'hush', 0.6, { src: p }); }
           burst(z.x + rr(-z.r, z.r) * 0.7, z.y + rr(-z.r, z.r) * 0.5, '#fff1a8', 2, 15, 0.8, { glow: true, g: -30 });
         } });
@@ -4356,7 +4358,7 @@ Object.assign(CHARS, {
     } },
     super: { name: 'Coda of Life', short: 'Coda', cd: 120, desc: 'Heal every ally on the map by 50%. For 6s no one can fall below 1 health, and downed allies stand up at once.', cast(p) {
       G.codaT = G.time + (hasGem(p, 's_refrain') ? 9 : 6); let rev = 0;
-      for (const q of G.players) { if (q.state === 'downed') { q.state = 'up'; q.hp = q.maxHp * 0.5; q.invulnT = 1.5; q.revive = 0; rev++; } else if (q.state === 'up') q.hp = Math.min(q.maxHp, q.hp + q.maxHp * 0.5); if (q.state === 'up') { pillar(q.x, q.y, '#fff1a8', 90, 16, 0.9); burst(q.x, q.y - 10, '#fff6c8', 20, 80, 0.7, { glow: true, g: -40 }); } }
+      for (const q of G.players) { if (q.state === 'downed') { q.state = 'up'; q.hp = q.maxHp * 0.5; q.invulnT = 1.5; q.revive = 0; rev++; } else if (q.state === 'up') healAlly(p, q, q.maxHp * 0.5); if (q.state === 'up') { pillar(q.x, q.y, '#fff1a8', 90, 16, 0.9); burst(q.x, q.y - 10, '#fff6c8', 20, 80, 0.7, { glow: true, g: -40 }); } }
       if (rev && !p.isBot) questEvent('coda', rev);
       setBanner('Coda of Life', 'No one falls while the song plays.', 2.2, '#fff1a8');
     } },
@@ -8439,8 +8441,8 @@ function showResults() {
   $('r-title').className = 'result-title ' + (r.won ? 'won' : 'lost');
   $('r-sub').textContent = r.won ? `The ${ENEMY[G.lord].name} is no more. The Krystal is yours.` : `Fell during: ${r.reached}.`;
   $('r-facts').innerHTML = `<span><b>${fmtTime(r.time)}</b>Time</span><span><b>${G.castleKills || 0}/4</b>Labyrinth bosses</span><span><b>Act ${ROMAN[r.day]}</b>Reached</span><span><b>${Math.max(...G.players.map(p => p.level))}</b>Best level</span>`;
-  const rows = G.players.map(p => `<tr><td style="color:${CHARS[p.char].color}">${p.isBot ? p.name + ' (' + p.ai.pers + ')' : 'You · ' + CHARS[p.char].name}</td><td>${p.level}</td><td>${Math.round(p.stats.dmg).toLocaleString('en-US')}</td><td>${p.stats.kills}</td><td>${p.stats.revives}</td><td>${p.stats.downs}</td><td>${itemCount(p)}</td><td>${Math.round(p.stats.picked || 0).toLocaleString('en-US')}</td><td>${p.stats.deaths}</td></tr>`).join('');
-  $('r-table').innerHTML = `<thead><tr><th>Player</th><th>Level</th><th>Damage</th><th>Kills</th><th>Revives</th><th>Downs</th><th>Items</th><th>Gold found</th><th>Deaths</th></tr></thead><tbody>${rows}</tbody>`;
+  const rows = G.players.map(p => `<tr><td style="color:${CHARS[p.char].color}">${p.isBot ? p.name + ' (' + p.ai.pers + ')' : 'You · ' + CHARS[p.char].name}</td><td>${p.level}</td><td>${Math.round(p.stats.dmg).toLocaleString('en-US')}</td><td>${p.stats.kills}</td><td>${Math.round(p.stats.healed || 0).toLocaleString('en-US')}</td><td>${p.stats.revives}</td><td>${p.stats.downs}</td><td>${itemCount(p)}</td><td>${Math.round(p.stats.picked || 0).toLocaleString('en-US')}</td><td>${p.stats.deaths}</td></tr>`).join('');
+  $('r-table').innerHTML = `<thead><tr><th>Player</th><th>Level</th><th>Damage</th><th>Kills</th><th>Ally healing</th><th>Revives</th><th>Downs</th><th>Items</th><th>Gold found</th><th>Deaths</th></tr></thead><tbody>${rows}</tbody>`;
   $('b-again').hidden = !!G.watch;
   const gd = $('r-gems'); gd.innerHTML = ''; if (r.won && G.gemDrops) { const h = document.createElement('p'); h.className = 'eyebrow'; h.textContent = 'Gems found'; gd.appendChild(h); const row = document.createElement('div'); row.className = 'gemdrops'; for (const g of G.gemDrops) { const d = document.createElement('div'); d.className = 'gd'; d.style.setProperty('--gc', GEM_RAR[g.rarity].color); const img = document.createElement('img'); img.src = itemIcon(g, 56).toDataURL(); d.appendChild(img); const t = document.createElement('span'); t.textContent = g.name; d.appendChild(t); row.appendChild(d); } gd.appendChild(row); }
   showScreen('result');
