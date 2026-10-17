@@ -4277,7 +4277,8 @@ function updateLizardOrbs(p, dt) {
   const n = lizardCount(p), flare = p.flareT > 0, molten = p.molten > 0;
   if (!p.orbs || p.orbs.length !== n) p.orbs = Array.from({ length: n }, () => ({ x: p.x, y: p.y, hit: new Map() }));
   // same speed along the rim at any size: a wide ring turns slower, a tight one whips around
-  p.orbA = (p.orbA || 0) + dt * (150 / Math.max(LZ_MIN, p.ringR)) * (flare ? 1.6 : 1);
+  const rate = p.st.rate || 1; // attack speed spins the ring faster and lets each fireball re-hit sooner
+  p.orbA = (p.orbA || 0) + dt * (150 / Math.max(LZ_MIN, p.ringR)) * (flare ? 1.6 : 1) * Math.sqrt(rate);
   const base = molten ? 5 : 0, hitR = flare || molten ? 12 : 9, dmg = 9 * p.st.dmg * (flare ? 1.8 : 1) * (molten ? 1.4 : 1);
   p.orbs.forEach((o, i) => {
     const inner = molten && i >= base ? false : molten; // in Molten Shed half the orbs ride an inner ring
@@ -4286,7 +4287,7 @@ function updateLizardOrbs(p, dt) {
     o.x = p.x + Math.cos(a) * R0; o.y = p.y - 8 + Math.sin(a) * R0 * 0.62; o.big = flare || molten;
     for (const e of G.enemies) {
       if (e.dead || e.hidden || d2(e.x, e.y - 4, o.x, o.y) > (e.r + hitR) ** 2) continue;
-      const last = o.hit.get(e) || -9; if (G.time - last < 0.33) continue; o.hit.set(e, G.time);
+      const last = o.hit.get(e) || -9; if (G.time - last < 0.33 / rate) continue; o.hit.set(e, G.time);
       damage(e, dmg, p, { elem: 'fire', color: '#ffb070', kb: 30 });
       if (R() < 0.35) applyStatus(e, 'scorch', 2.5, { dps: 3 * p.st.dmg, src: p });
       burst(o.x, o.y, '#ffb030', 3, 40, 0.25, { glow: true });
@@ -4324,7 +4325,7 @@ Object.assign(CHARS, {
   lizard: {
     name: 'Red Lizard', role: 'Living sun', color: '#e05a46', hp: 128, spd: 86, range: 34, weapon: 'w_lizard', wx: 1, handColor: '#d8483a', runAtk: true,
     short: ['Widen', 'Dash', 'Flare'],
-    lmb: 'Sun Ring. Five fireballs always orbit you and burn whatever they touch. Hold LMB to widen the ring, hold RMB to draw it in. Position yourself so the ring sweeps through the enemies.',
+    lmb: 'Sun Ring. Five fireballs always orbit you and burn whatever they touch. Hold LMB to widen the ring, hold RMB to draw it in. Position yourself so the ring sweeps through the enemies. The fireballs are your basic attack: every on-hit relic, crit and lifesteal works with them, and attack speed spins the ring faster.',
     sp: 'Scorch Dash. Dart forward, leaving burning ground.',
     q: 'Solar Flare. For 5s the ring blazes: three extra fireballs, bigger and faster, dealing 80% more damage.',
     init(p) { p.ringR = 34; p.orbs = null; },
