@@ -5497,8 +5497,13 @@ function botControl(p, dt) {
     if (p.active.id === 'bomb' && tgt && (tgt.elite || tgt.boss || clusterAt(tgt.x, tgt.y, 40) >= 3) && dist(p, tgt) < 150) c.itemP = true;
   }
   // sprint between rooms and when fleeing at low health
-  const far = A.mode === 'goto' && A.goal && d2(A.goal.x, A.goal.y, p.x, p.y) > 220 * 220 && !A.nVis;
-  if ((far && p.stam > 0.45) || (p.hp < p.maxHp * 0.3 && A.nVis && p.stam > 0.2) || (G.everWait && p.stam > 0.3)) c.run = true;
+  // stamina like a player: start a sprint only with a good reserve, stop before running dry
+  // (hitting zero means waiting for a full refill), but spend it all when fleeing or racing to a downed ally
+  const st = p.stam ?? 1, far = A.mode === 'goto' && A.goal && d2(A.goal.x, A.goal.y, p.x, p.y) > 220 * 220 && !A.nVis;
+  const urgent = (p.hp < p.maxHp * 0.3 && A.nVis) || (A.mode === 'revive' && A.ally && d2(A.ally.x, A.ally.y, p.x, p.y) > 90 * 90) || (A.fleeing > G.time);
+  if (A.sprinting && (st < 0.12 || !(far || urgent || G.everWait))) A.sprinting = false;
+  if (!A.sprinting && !p.exhaust && (urgent ? st > 0.1 : (far || G.everWait) && st > 0.6)) A.sprinting = true;
+  if (A.sprinting && !p.exhaust && (c.mx || c.my)) { c.run = true; if (!urgent && st < 0.12) c.run = false; }
   return c;
 }
 function nextCircleR(ahead = 6) { return predictR(ahead); }
@@ -7623,11 +7628,20 @@ function drawLighting() {
   ctx.restore();
 }
 
+// Genshin-style stamina: a curved gauge beside the character, shown while it is not full
 function drawStamina(p) {
-  if (p.isBot || p.state !== 'up' || p.stam == null || p.stam >= 0.999) return;
-  const w = 20, x = p.x - w / 2, y = p.y + 4;
-  ctx.fillStyle = 'rgba(10,8,14,0.75)'; roundRect(ctx, x - 1, y - 1, w + 2, 3.6, 1.6); ctx.fill();
-  ctx.fillStyle = p.exhaust ? '#c86a4a' : '#e8d070'; roundRect(ctx, x, y, w * p.stam, 1.6, 0.8); ctx.fill();
+  if (p.state !== 'up' || p.stam == null) return;
+  const focus = camTarget(); if (p !== focus && !(G.watch && p === focus)) return;
+  if (p.stam >= 0.999) { p.stamFade = Math.max(0, (p.stamFade ?? 0) - 1 / 60 / 0.5); } else p.stamFade = 1;
+  const a = p.stamFade; if (a <= 0) return;
+  const cx = p.x + 2, cy = p.y - 10, r = 19, a0 = Math.PI * 0.32, a1 = -Math.PI * 0.32; // right side, bottom to top
+  ctx.save(); ctx.globalAlpha = a; ctx.lineCap = 'round';
+  ctx.strokeStyle = 'rgba(10,8,14,0.7)'; ctx.lineWidth = 4.2; ctx.beginPath(); ctx.arc(cx, cy, r, a1, a0); ctx.stroke();
+  const blink = p.exhaust ? 0.55 + 0.45 * Math.sin(G.time * 12) : 1;
+  ctx.strokeStyle = p.exhaust ? `rgba(230,96,70,${blink})` : p.stam < 0.3 ? '#f0a040' : '#f2e27a'; ctx.lineWidth = 2.4;
+  const end = a0 - (a0 - a1) * clamp(p.stam, 0, 1);
+  if (p.stam > 0.01) { ctx.beginPath(); ctx.arc(cx, cy, r, end, a0); ctx.stroke(); }
+  ctx.restore();
 }
 
 // ===== new Krystalkers: minions, souls, orbs, auras =====
