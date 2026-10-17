@@ -7720,11 +7720,9 @@ function portrait(p, x, y, size) {
 function stateLabel(p) { return p.state === 'downed' ? (G.bossFight ? 'DOWN!' : `DOWN ${Math.ceil(p.downT)}s`) : p.state === 'dead' ? `RESPAWN ${Math.ceil(p.respawnT)}` : ''; }
 function timelineText() {
   if (G.phase === 'day') {
-    const t = fmtTime(G.stageT);
-    if (G.dayStage === 'farm') return [`ACT ${ROMAN[G.day]}`, `The Wildfire ignites in ${t}`];
-    if (G.dayStage === 'shrink1') return ['WILDFIRE', `The flames spread · ${t}`];
-    if (G.dayStage === 'hold') return [`ACT ${ROMAN[G.day]}`, `The fire spreads again in ${t}`];
-    return ['WILDFIRE', `It closes on the Gatekeeper's lair · ${t}`];
+    // no countdown: nobody knows when the fire will move
+    if (G.dayStage === 'farm' || G.dayStage === 'hold') return [`ACT ${ROMAN[G.day]}`, ''];
+    return ['WILDFIRE', 'The flames spread'];
   }
   if (G.phase === 'night') return [`GATEKEEPER ${ROMAN[G.day]}`, ''];
   if (G.phase === 'embers') { const it = G.inter.find(i => i.kind === 'portal'); const left = it ? Math.max(0, EMBERS_MAX - (G.time - it.t0)) : 0; return ['EMBERS', labCleared() ? `Labyrinth conquered · portal closes in ${fmtTime(left)}` : `Raid the Labyrinth · portal closes in ${fmtTime(left)}`]; }
