@@ -2,7 +2,7 @@
 <title>Krystolen</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Lilita+One&family=Nunito:wght@600;700;800&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700;900&family=Alegreya+Sans:ital,wght@0,500;0,700;0,800;1,500&display=swap">
 <style>
 /* Layout: full-screen canvas game; menus are chunky mobile-game panels over a dimmed live dungeon. */
 :root {
@@ -155,11 +155,72 @@ th { color: var(--muted); font-family: var(--display); font-weight: 400; }
 .entry .ds { font-size: 13px; color: #fff3e0; line-height: 1.35; }
 .entry h5 { grid-column: 1 / -1; margin: 6px 0 0; font-family: var(--display); font-weight: 400; font-size: 18px; color: var(--gold); }
 .entries .group { grid-column: 1 / -1; font-family: var(--display); font-size: 18px; color: var(--gold); margin-top: 6px; }
+
+/* ===== Dark fantasy skin: iron, old gold and candle-light over a bruised violet dark ===== */
+:root {
+  --ink: #050306;
+  --panel: #151016;
+  --panel-2: #221a22;
+  --panel-hi: #33262a;
+  --text: #ece2d0;
+  --muted: #a8988a;
+  --gold: #d8b25a;
+  --gold-dk: #8a6a2a;
+  --bronze: #7a5a34;
+  --blood: #7a1a20;
+  --krystal: #8ff2ff;
+  --danger: #e05a5a;
+  --display: "Cinzel", "Trajan Pro", Georgia, serif;
+  --body: "Alegreya Sans", "Trebuchet MS", sans-serif;
+}
+body { background: #08060a; font-weight: 500; }
+#title-bg { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block; }
+.overlay { background: radial-gradient(ellipse at 50% 40%, rgba(10,6,12,0.35), rgba(4,2,6,0.82)); }
+.logo { font-family: var(--display); font-weight: 900; letter-spacing: 0.14em; -webkit-text-stroke: 0; color: #e8d4a0; background: linear-gradient(#f6e6b8, #c9a253 55%, #7a5a2a); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; filter: drop-shadow(0 3px 0 #000) drop-shadow(0 0 22px rgba(216,178,90,0.35)); text-shadow: none; }
+.logo .k { -webkit-text-fill-color: var(--krystal); filter: drop-shadow(0 0 14px rgba(143,242,255,0.8)); }
+.tag { font-style: italic; color: #c8b89a; letter-spacing: 0.02em; }
+.eyebrow { font-family: var(--display); letter-spacing: 0.24em; color: var(--gold); font-size: 13px; }
+h2, h3 { font-family: var(--display); font-weight: 700; -webkit-text-stroke: 0; color: #eadcbc; letter-spacing: 0.06em; text-shadow: 0 2px 0 #000, 0 0 18px rgba(216,178,90,0.18); }
+h2 { font-size: 32px; }
+.btn { font-family: var(--display); font-weight: 700; font-size: 16px; letter-spacing: 0.16em; text-transform: uppercase; color: #e8dcc4; background: linear-gradient(#2a2026, #140e12); border: 1px solid var(--bronze); border-radius: 3px; padding: 12px 28px; box-shadow: 0 0 0 1px #000, inset 0 1px 0 rgba(255,230,180,0.10), 0 8px 18px rgba(0,0,0,0.55); text-shadow: 0 1px 0 #000; transition: border-color .15s, color .15s, filter .15s; }
+.btn:hover { filter: none; border-color: var(--gold); color: #fff3d6; box-shadow: 0 0 0 1px #000, inset 0 1px 0 rgba(255,230,180,0.14), 0 0 18px rgba(216,178,90,0.25); }
+.btn:active { transform: translateY(1px); box-shadow: 0 0 0 1px #000, inset 0 2px 6px rgba(0,0,0,0.6); }
+.btn.primary { background: linear-gradient(#8a2228, #3e0c10); border-color: var(--gold); color: #f8e6c0; text-shadow: 0 1px 0 #000; }
+.btn.primary:hover { box-shadow: 0 0 0 1px #000, 0 0 22px rgba(200,40,50,0.45); }
+.btn.small { font-size: 13px; padding: 7px 14px; }
+.box, .card, .relic, .lord, .wt { background: linear-gradient(rgba(36,27,34,0.96), rgba(16,11,15,0.97)); border: 1px solid var(--bronze); border-radius: 4px; box-shadow: 0 0 0 1px #000, inset 0 1px 0 rgba(255,230,180,0.06), 0 12px 30px rgba(0,0,0,0.6); }
+.card.sel, .lord.sel, .wt.on { box-shadow: 0 0 0 1px #000, 0 0 0 2px var(--gold), 0 0 22px rgba(216,178,90,0.25); }
+.lord.final { background: linear-gradient(rgba(44,18,48,0.97), rgba(14,6,16,0.98)); }
+.card canvas, .lord canvas, .entry canvas, .entry img { background: radial-gradient(circle at 50% 72%, #3a2830, #0e080c 75%); border: 1px solid var(--bronze); border-radius: 3px; }
+.card .nm, .lord .nm, .relic .nm, .entry .nm, .gem .nm { font-family: var(--display); font-weight: 700; -webkit-text-stroke: 0; letter-spacing: 0.04em; text-shadow: 0 1px 0 #000; }
+.lord .nm { color: #f0e0b8; font-size: 18px; }
+.lord .wk { font-family: var(--display); font-weight: 700; font-size: 13px; letter-spacing: 0.06em; }
+.lord .rz { font-size: 11px; line-height: 1.35; color: #c8b8a0; text-align: left; }
+.lord .rz b { color: var(--gold); font-weight: 700; }
+.entry { background: rgba(10,6,10,0.55); border: 1px solid rgba(122,90,52,0.55); border-radius: 3px; }
+.entry .ds b, .rules b { color: var(--gold); }
+.entries .group, .entry h5, .gh { font-family: var(--display); color: var(--gold); letter-spacing: 0.1em; }
+.tabs button, .seg button { font-family: var(--display); font-weight: 700; font-size: 12.5px; letter-spacing: 0.1em; text-transform: uppercase; background: #120c10; color: var(--muted); border: 1px solid var(--bronze); border-radius: 2px; }
+.tabs button.on, .seg button.on { background: linear-gradient(#8a2228, #3e0c10); color: #f8e6c0; border-color: var(--gold); }
+.seg { border: 1px solid var(--bronze); border-radius: 2px; }
+.kit .k, .keybtn { font-family: var(--display); font-weight: 700; background: #d8c8a0; color: #1a1014; border: 1px solid #000; border-radius: 2px; box-shadow: none; }
+.keybtn.listen { background: var(--krystal); }
+.toggle .sw { background: #120c10; border: 1px solid var(--bronze); }
+.toggle[aria-pressed="true"] .sw { background: var(--blood); }
+.gem { background: rgba(10,6,10,0.5); border: 1px solid rgba(122,90,52,0.6); border-radius: 3px; }
+.gem.on { background: rgba(216,178,90,0.12); }
+.bind { border-bottom: 1px solid rgba(216,178,90,0.12); }
+th { font-family: var(--display); letter-spacing: 0.08em; }
+.result-title { font-family: var(--display); font-weight: 900; -webkit-text-stroke: 0; letter-spacing: 0.12em; text-shadow: 0 3px 0 #000, 0 0 26px currentColor; }
+.facts b { font-family: var(--display); }
+.kit .d, .relic .ds, .entry .ds, .gem .ds, .lord .ds, .rules { color: #e0d4c0; }
+
 .touchnote { display: none; text-align: center; color: var(--gold); font-size: 15px; }
 @media (hover: none) and (pointer: coarse) { .touchnote { display: block; } }
 </style>
 
 <canvas id="game" aria-label="Krystolen game view"></canvas>
+<canvas id="title-bg" aria-hidden="true" hidden></canvas>
 
 <div id="menu" class="overlay">
   <section id="scr-title" class="screen narrow" hidden>
@@ -170,6 +231,7 @@ th { color: var(--muted); font-family: var(--display); font-weight: 400; }
     <div class="btns" style="flex-direction:column;align-items:center">
       <button class="btn primary" id="b-hub" style="min-width:280px">Go to the Hub</button>
       <button class="btn" id="b-watch" style="min-width:280px">Watch the bots</button>
+      <button class="btn" id="b-gloss" style="min-width:280px">Glossary</button>
       <button class="btn" id="b-how" style="min-width:280px">How to play</button>
       <button class="btn" id="b-set" style="min-width:280px">Controls &amp; settings</button>
     </div>
@@ -194,7 +256,7 @@ th { color: var(--muted); font-family: var(--display); font-weight: 400; }
   </section>
 
   <section id="scr-archive" class="screen" hidden>
-    <div><p class="eyebrow">The Archive</p><h2>Everything we know</h2></div>
+    <div><p class="eyebrow">Glossary</p><h2>Everything we know</h2></div>
     <div class="box"><div class="tabs" id="arch-tabs"></div><div class="entries" id="arch-list"></div></div>
     <div class="btns"><button class="btn primary" id="b-archok">Close</button></div>
   </section>
@@ -2674,6 +2736,7 @@ function damage(target, amt, src, o = {}) {
   amt *= 1 + stAmt(target, 'sunder');
   const elem = o.elem || (o.elec ? 'shock' : null);
   let weakHit = false;
+  { const m = resMul(target, elem); if (m <= 0) return 0; amt *= m; }
   if (elem && target.def.weak === elem) { amt *= o.dot ? 2 : 1.5; weakHit = true; if (R() < 0.25) floatText(target.x, target.y - target.r - 22, 'WEAK!', ELEM[elem].color, 0.6, 1.1); }
   target.hp -= amt; target.hitT = 0.1;
   if (src && src.team === 'player' && !o.dot) sfx(crit ? 'crit' : 'hit', target.x, target.y, src.isBot ? 0.5 : 0.9);
@@ -3277,12 +3340,13 @@ function applyStatus(t, k, dur, o = {}) {
     if (t.def.weak && t.def.weak === ST_ELEM[k]) dur *= 1.5;
     if (o.src && o.src.team === 'player' && o.src.st && o.src.st.stDur) dur *= 1 + o.src.st.stDur;
     if (t.boss) dur *= hard ? 0.25 : 0.6; else if (t.champ) dur *= hard ? 0.5 : 0.85;
+    const rm = resStatus(t, k); if (rm <= 0) return; dur *= rm;
   }
   const S = t.sts || (t.sts = {});
   if (k !== 'chill' && dur <= 0.05) return;
   if (k === 'chill') {
     const c = S.chill || (S.chill = { t: 0, n: 0 }); c.t = 4; c.n += o.n || 1;
-    if (c.n >= 3) { c.n = 0; applyStatus(t, 'frozen', o.freeze || 1.1, o); }
+    if (c.n >= (t.team === 'player' ? 3 : chillNeed(t))) { c.n = 0; applyStatus(t, 'frozen', o.freeze || 1.1, o); }
     else if (t.team === 'player') floatText(t.x, t.y - 30, 'Chill ' + c.n + '/3', '#bff4ff', 0.6, 0.85);
     return;
   }
@@ -5328,6 +5392,67 @@ BOSS_AI.vesper = function (e, tg, dd, spd, dt) {
     [lantern, candles, spiral, shades, blink],
     [lantern, blink, candles, (e, t) => P.lines(e, t, 4, 260, 14, 0.75, 22, Math.PI / 2, { color: '#d8c0ff', st: ST('gloom', 2) }), spiral, shades, blink]);
 };
+// ===== Boss resistances: Gatekeepers resist, Dungeon Masters can be immune; every boss builds up statuses slowly =====
+// res: damage taken from that element is reduced; imm: no damage at all. stRes: shorter status; stImm: never affected.
+// build: how many status applications fill the meter before a status takes hold; chill: Chill hits needed to Freeze.
+const GK_BASE = { build: 2, chill: 5 }, DM_BASE = { build: 3, chill: 7 };
+const BOSS_RES = {
+  // Gatekeepers, Act I
+  gorehorn: { res: { fire: 0.3 }, stRes: { mire: 0.5 } },
+  chieftain: { res: { bleed: 0.3, shock: 0.25 }, stRes: { sunder: 0.5 } },
+  bramble: { res: { poison: 0.4, frost: 0.25 }, stRes: { mire: 0.6 } },
+  hivequeen: { res: { poison: 0.4 }, stRes: { hush: 0.5 } },
+  mudslug: { res: { poison: 0.3, frost: 0.3 }, stRes: { mire: 0.8 } },
+  // Gatekeepers, Act II
+  sporemother: { res: { poison: 0.5, shadow: 0.25 }, stRes: { wither: 0.6 } },
+  frostfang: { res: { frost: 0.5, bleed: 0.2 }, stRes: { frozen: 0.7 } },
+  emberdrake: { res: { fire: 0.5, shock: 0.2 }, stRes: { scorch: 0.7 } },
+  bonecolossus: { res: { bleed: 0.4, poison: 0.4 }, stRes: { mire: 0.4 } },
+  thundertoad: { res: { shock: 0.5, frost: 0.2 }, stRes: { hush: 0.6 } },
+  // Dungeon Masters
+  warden: { dm: true, imm: ['frost'], res: { poison: 0.35, bleed: 0.25 }, stImm: ['frozen'] },
+  shellback: { dm: true, res: { fire: 0.3, shock: 0.3, bleed: 0.3 }, stImm: ['sunder'], stRes: { mire: 0.5 } },
+  moth: { dm: true, res: { radiant: 0.4, shock: 0.25 }, stImm: ['gloom'], stRes: { mire: 0.5 } },
+  phoenix: { dm: true, imm: ['fire'], res: { radiant: 0.3 }, stImm: ['scorch'] },
+  rimehorn: { dm: true, imm: ['frost'], res: { shock: 0.3, bleed: 0.2 }, stImm: ['frozen'] },
+  stormcoil: { dm: true, imm: ['shock'], res: { frost: 0.3 }, stImm: ['hush'] },
+  vesper: { dm: true, imm: ['shadow'], res: { poison: 0.3 }, stImm: ['gloom', 'wither'] },
+  sovereign: { dm: true, res: { fire: 0.15, frost: 0.15, bleed: 0.15, poison: 0.15, shock: 0.15, shadow: 0.15, radiant: 0.15 }, stImm: ['frozen', 'hush', 'mire'] },
+};
+BOSS_RES.sovereign2 = BOSS_RES.sovereign;
+for (const k in BOSS_RES) { const R0 = BOSS_RES[k], B = R0.dm ? DM_BASE : GK_BASE; R0.res = R0.res || {}; R0.imm = R0.imm || []; R0.stRes = R0.stRes || {}; R0.stImm = R0.stImm || []; R0.build = R0.build || B.build; R0.chill = R0.chill || B.chill; }
+function bossRes(e) { return e && e.team === 'enemy' ? BOSS_RES[e.type] || null : null; }
+// damage multiplier for an element hit (0 = immune)
+function resMul(e, elem) {
+  const R0 = bossRes(e); if (!R0 || !elem) return 1;
+  if (R0.imm.includes(elem)) { if ((e.immT || 0) < G.time) { e.immT = G.time + 0.8; floatText(e.x, e.y - e.r - 20, 'IMMUNE', '#9aa4bd', 0.6, 1); } return 0; }
+  const r = R0.res[elem]; if (r) { if (R() < 0.08) floatText(e.x, e.y - e.r - 20, 'RESIST', '#c8c8d8', 0.5, 0.9); return 1 - r; }
+  return 1;
+}
+// status gate: returns the duration multiplier, or 0 when the status does not take hold (immune, or meter still filling)
+function resStatus(e, k) {
+  const R0 = bossRes(e); if (!R0) return 1;
+  const key = k === 'chill' ? 'frozen' : k;
+  if (R0.stImm.includes(key)) { if ((e.immT || 0) < G.time) { e.immT = G.time + 0.8; floatText(e.x, e.y - e.r - 20, `IMMUNE · ${STATUS[key] ? STATUS[key].name : key}`, '#9aa4bd', 0.6, 0.9); } return 0; }
+  if (k === 'chill') return 1;
+  const bu = e.bu || (e.bu = {}); bu[k] = (bu[k] || 0) + 1;
+  if (bu[k] < R0.build) return 0;
+  bu[k] = 0;
+  return 1 - (R0.stRes[key] || 0);
+}
+function chillNeed(e) { const R0 = bossRes(e); return R0 ? R0.chill : 3; }
+// readable summary for the Glossary and the Gate
+function resText(k) {
+  const R0 = BOSS_RES[k]; if (!R0) return '';
+  const el = e => `<span style="color:${ELEM[e].color}">${ELEM[e].name}</span>`, st = s => STATUS[s] ? STATUS[s].name : s;
+  const parts = [];
+  if (R0.imm.length) parts.push(`<b>Immune:</b> ${R0.imm.map(el).join(', ')} damage`);
+  const rs = Object.entries(R0.res); if (rs.length) parts.push(`<b>Resists:</b> ${rs.map(([e, v]) => `${el(e)} ${Math.round(v * 100)}%`).join(', ')}`);
+  if (R0.stImm.length) parts.push(`<b>Cannot be:</b> ${R0.stImm.map(st).join(', ')}`);
+  const ss = Object.entries(R0.stRes); if (ss.length) parts.push(`<b>Shrugs off:</b> ${ss.map(([s, v]) => `${st(s)} −${Math.round(v * 100)}%`).join(', ')}`);
+  parts.push(`<b>Build-up:</b> statuses take ${R0.build} applications, Freeze takes ${R0.chill} Chill hits`);
+  return parts.join(' · ');
+}
 // ===== Bot AI =====
 // one difficulty: allied Krystalkers always play as well as they can
 const BOT_SKILL = { err: 0.04, react: 0.11, dodge: 0.85, perfect: 0.85, lead: 1, heatSmart: 0.95 };
@@ -6079,7 +6204,7 @@ function startGame(charKey, watch, lord = 'warden', team = null) {
 }
 const GK_REC = [0, 5, 10], FINAL_REC = 15;
 // the later bosses are tuned for the recommended level: Gatekeeper II for Lv 10 with ultimates, the Dungeon Master for Lv 15
-const GK_HP = [0, 1, 1.7], GK_DMG = [0, 1, 1.2], FINAL_HP = 8, FINAL_DMG = 1.5;
+const GK_HP = [0, 1, 1.7], GK_DMG = [0, 1, 1.2], FINAL_HP = 4.5, FINAL_DMG = 1.5;
 function tuneBoss(e, hp, dmg) { e.hp *= hp; e.maxHp *= hp; e.dmgM *= dmg; return e; }
 function setBanner(title, sub, life = 4.5, color) { G.banner = { title, sub, t: 0, life, color }; if (!G.hub) sfx('bell'); }
 function circleFor(room) {
@@ -6883,8 +7008,8 @@ const HUB_HINT = {
 // ===== Rendering =====
 const cv = document.getElementById('game'), ctx = cv.getContext('2d');
 let W = 0, H = 0, ZOOM = 3, U = 1, DPR = 1, VIGNETTE = null;
-const FONT = '"Lilita One", "Arial Black", Impact, sans-serif';
-const FONT2 = '"Nunito", "Trebuchet MS", sans-serif';
+const FONT = '"Cinzel", Georgia, serif';
+const FONT2 = '"Alegreya Sans", "Trebuchet MS", sans-serif';
 function resize() {
   DPR = Math.min(2, window.devicePixelRatio || 1);
   W = cv.width = Math.floor(innerWidth * DPR); H = cv.height = Math.floor(innerHeight * DPR);
@@ -7689,18 +7814,18 @@ const SHORT = {
   reindeer: ['Arc Bolt', 'Charge', 'Tablet'], rabbit: ['Fish Dart', 'Flask', 'Bloom'], wolf: ['Ballista', 'Backstep', 'Fated'],
 };
 const ROOM_COL = { start: '#c8b48a', combat: '#5a7894', elite: '#c0505a', treasure: '#d6a640', shop: '#5aa86a', shrine: '#49c6e6', field: '#6aa85a', arena: '#7a68b8' };
-const UI = { panel: '#7a4a26', panel2: '#9a6232', edge: '#2a1608', gold: '#ffd44a', cyan: '#7ff0ff', text: '#fffaf0' };
+const UI = { panel: '#1e161c', panel2: '#2c2028', edge: '#050306', gold: '#d8b25a', cyan: '#8ff2ff', text: '#ece2d0' };
 function txt(s, x, y, size, color, align = 'left', font = FONT, stroke = true) {
   ctx.font = `${Math.round(size * U)}px ${font}`; ctx.textAlign = align; ctx.textBaseline = 'alphabetic';
   if (stroke) { ctx.lineJoin = 'round'; ctx.lineWidth = Math.max(2, size * U * 0.28); ctx.strokeStyle = UI.edge; ctx.strokeText(s, x, y); }
   ctx.fillStyle = color; ctx.fillText(s, x, y);
 }
 function panel(x, y, w, h, a = 0.9, r) {
-  r = r ?? 10 * U;
+  r = Math.min(r ?? 4 * U, 5 * U);
   ctx.fillStyle = UI.edge; ctx.beginPath(); ctx.roundRect(x - 2 * U, y - 2 * U, w + 4 * U, h + 5 * U, r + 2 * U); ctx.fill();
-  const g = ctx.createLinearGradient(0, y, 0, y + h); g.addColorStop(0, `rgba(160,104,54,${a})`); g.addColorStop(1, `rgba(104,62,30,${a})`);
+  const g = ctx.createLinearGradient(0, y, 0, y + h); g.addColorStop(0, `rgba(40,30,38,${a})`); g.addColorStop(1, `rgba(16,11,15,${a})`);
   ctx.fillStyle = g; ctx.beginPath(); ctx.roundRect(x, y, w, h, r); ctx.fill();
-  ctx.strokeStyle = 'rgba(255,220,160,0.28)'; ctx.lineWidth = 1.5 * U; ctx.beginPath(); ctx.roundRect(x + U, y + U, w - 2 * U, h - 2 * U, r); ctx.stroke();
+  ctx.strokeStyle = 'rgba(160,120,70,0.55)'; ctx.lineWidth = 1.5 * U; ctx.beginPath(); ctx.roundRect(x + U, y + U, w - 2 * U, h - 2 * U, r); ctx.stroke();
 }
 function bar(x, y, w, h, k, col, back = '#0e1a26') {
   ctx.fillStyle = UI.edge; ctx.beginPath(); ctx.roundRect(x - 2 * U, y - 2 * U, w + 4 * U, h + 4 * U, (h + 4 * U) / 2); ctx.fill();
@@ -8128,6 +8253,7 @@ function showScreen(name) {
   $('menu').hidden = !name;
   document.body.classList.toggle('menu-open', !!name);
   if (name) clearInputAll();
+  setTitleBg(!!name && (!G || G.attract) && name !== 'relic' && name !== 'result');
 }
 function startAttract() { startGame(pick(CHAR_KEYS), true, pick(NIGHTLORDS).id); G.attract = true; SIM_SPEED = 1; }
 function goTitle() { paused = false; startAttract(); showScreen('title'); }
@@ -8160,7 +8286,7 @@ function buildLords() {
     b.appendChild(c);
     const t = document.createElement('div'); t.style.display = 'grid'; t.style.gap = '4px';
     const wk = ENEMY[L.id].weak ? ELEM[ENEMY[L.id].weak] : null;
-    t.innerHTML = `<div class="nm">${L.name}</div><div class="ep">${L.epithet}</div><div class="wk" style="color:${wk ? wk.color : '#ff9ad8'}">${wk ? 'Weak to ' + wk.name : 'No weakness'}</div><div class="ds">${L.desc}</div><div class="ep">${L.unique || ''}${L.final ? ' · temporarily unlocked' : ''}</div>`;
+    t.innerHTML = `<div class="nm">${L.name}</div><div class="ep">${L.epithet}</div><div class="wk" style="color:${wk ? wk.color : '#ff9ad8'}">${wk ? 'Weak to ' + wk.name : 'No weakness'}</div><div class="rz">${resText(L.id)}</div><div class="ds">${L.desc}</div><div class="ep">${L.unique || ''}${L.final ? ' · temporarily unlocked' : ''}</div>`;
     b.appendChild(t);
     b.onclick = () => { chosenLord = L.id; refreshLords(); };
     wrap.appendChild(b);
@@ -8236,7 +8362,8 @@ function buildLoadout() {
 // ---------- Archive (glossary) ----------
 const ARCH_TABS = ['World', 'Krystalkers', 'Gems', 'Relics', 'Active items', 'Status & elements', 'Biomes', 'Monsters', 'Room bosses', 'Gatekeepers', 'Dungeon Masters'];
 let archTab = 'World';
-function openArchive() { paused = true; buildArchive(); showScreen('archive'); }
+let archFromTitle = false;
+function openArchive() { archFromTitle = false;  paused = true; buildArchive(); showScreen('archive'); }
 function entry(img, name, sub, desc, color) {
   const e = document.createElement('div'); e.className = 'entry';
   e.appendChild(img);
@@ -8265,8 +8392,8 @@ function buildArchive() {
   if (archTab === 'Biomes') for (const t of ROOM_POOL) { const top = Object.keys(t.mobs)[0]; const mobs = Object.keys(t.mobs).map(m => ENEMY[m].name).join(', '); const boss = t.boss ? `Room boss: ${CHAMPS[t.boss[0]].name} (Act II: ${CHAMPS[t.boss[1]].name}).${t.elem ? ` Drops ${ELEM[t.elem].name} relics more often.` : ''}` : 'No room boss. Often an ambush room.'; L.appendChild(entry(spriteCanvas(top, 128), t.name, mobs, boss, '#ffe6a0')); }
   if (archTab === 'Monsters') for (const k of ['grub', 'caster', 'boar', 'brute', 'shardling', 'bonewalker', 'wasp', 'slime', 'frostling', 'icebeetle', 'emberling', 'flamespitter', 'shade', 'hushling']) L.appendChild(entry(spriteCanvas(k, 128), ENEMY[k].name, `HP ${ENEMY[k].hp}`, ENEMY_INFO[k] || '', '#ff9a8a'));
   if (archTab === 'Room bosses') for (const t of ROOM_POOL) { if (!t.boss) continue; t.boss.forEach((id, i) => { const c = CHAMPS[id], base = ENEMY[c.base]; const st = base.hitSt || base.shotSt; L.appendChild(entry(spriteCanvas(c.base, 128, c.d2), c.name, `${t.name} · Act ${i ? 'II' : 'I'}${t.elem ? ' · drops ' + ELEM[t.elem].name + ' relics' : ''}`, `Attacks: ${c.kit.filter((v, j, a) => a.indexOf(v) === j).join(', ')}. Summons ${ENEMY[c.minion].name}s.${st ? ` Inflicts ${STATUS[st.k === 'chill' ? 'frozen' : st.k].name}.` : ''} Beat it to raise a Krystal Shrine.`, '#ffd44a')); }); }
-  if (archTab === 'Gatekeepers') { group(L, 'Act I'); for (const k of NIGHT1_POOL) L.appendChild(entry(spriteCanvas(ENEMY[k].sprite || k, 128, ENEMY[k].tint), ENEMY[k].name, 'Gatekeeper · Act I · 2 phases', weakTxt(k) + (BOSS_LORE[k] ? BOSS_LORE[k] + ' ' : '') + ENEMY_INFO[k], '#ff9ad8')); group(L, 'Act II'); for (const k of NIGHT2_POOL) L.appendChild(entry(spriteCanvas(k, 128), ENEMY[k].name, 'Gatekeeper · Act II · 2 phases', weakTxt(k) + (BOSS_LORE[k] ? BOSS_LORE[k] + ' ' : '') + ENEMY_INFO[k], '#ff9ad8')); }
-  if (archTab === 'Dungeon Masters') for (const D of NIGHTLORDS) L.appendChild(entry(spriteCanvas(D.id, 128), D.name, D.epithet, weakTxt(D.id) + (D.final ? '<b>No weakness.</b> ' : '') + BOSS_LORE[D.id] + '<br>' + ENEMY_INFO[D.id], '#7ff0ff'));
+  if (archTab === 'Gatekeepers') { group(L, 'Act I'); for (const k of NIGHT1_POOL) L.appendChild(entry(spriteCanvas(ENEMY[k].sprite || k, 128, ENEMY[k].tint), ENEMY[k].name, 'Gatekeeper · Act I · 2 phases', weakTxt(k) + (BOSS_LORE[k] ? BOSS_LORE[k] + ' ' : '') + ENEMY_INFO[k] + '<br>' + resText(k), '#ff9ad8')); group(L, 'Act II'); for (const k of NIGHT2_POOL) L.appendChild(entry(spriteCanvas(k, 128), ENEMY[k].name, 'Gatekeeper · Act II · 2 phases', weakTxt(k) + (BOSS_LORE[k] ? BOSS_LORE[k] + ' ' : '') + ENEMY_INFO[k] + '<br>' + resText(k), '#ff9ad8')); }
+  if (archTab === 'Dungeon Masters') for (const D of NIGHTLORDS) L.appendChild(entry(spriteCanvas(D.id, 128), D.name, D.epithet, weakTxt(D.id) + (D.final ? '<b>No weakness.</b> ' : '') + BOSS_LORE[D.id] + '<br>' + ENEMY_INFO[D.id] + '<br>' + resText(D.id), '#7ff0ff'));
 }
 // ---------- rewards & results ----------
 function showChoice(ch) {
@@ -8306,13 +8433,14 @@ function wireMenus() {
   $('b-hub').onclick = () => goHub();
   $('b-watch').onclick = () => openWatchSetup();
   $('b-how').onclick = () => showScreen('help');
+  $('b-gloss').onclick = () => { archFromTitle = true; buildArchive(); showScreen('archive'); };
   $('b-set').onclick = () => openSettings('title');
   $('b-back0').onclick = () => { if (gateMode === 'watch') { gateMode = 'run'; showScreen('title'); } else { paused = false; showScreen(null); } };
   $('b-lordok').onclick = () => { const w = gateMode === 'watch'; gateMode = 'run'; startRun(w); };
   $('b-back2').onclick = () => showScreen(G && G.hub ? null : 'title');
   $('b-back3').onclick = () => { Input.listening = null; if (settingsReturn === 'pause') showScreen('pause'); else showScreen('title'); };
   $('b-loadok').onclick = () => { paused = false; showScreen(null); };
-  $('b-archok').onclick = () => { paused = false; showScreen(null); };
+  $('b-archok').onclick = () => { if (archFromTitle) { archFromTitle = false; showScreen('title'); return; } paused = false; showScreen(null); };
   $('b-reset').onclick = () => { settings.binds = { ...DEFAULT_BINDS }; saveSettings(); buildSettings(); };
   $('t-quick').onclick = () => { settings.quickCast = !settings.quickCast; saveSettings(); buildSettings(); };
   $('t-shake').onclick = () => { settings.shake = !settings.shake; saveSettings(); buildSettings(); };
@@ -8359,6 +8487,7 @@ function inGame() { return G && !G.attract && !screen; }
 function togglePause() {
   if (!G || G.attract) return;
   if (screen === 'pause') { paused = false; showScreen(null); return; }
+  if (screen === 'archive' && archFromTitle) { archFromTitle = false; showScreen('title'); return; }
   if (screen === 'loadout' || screen === 'archive' || screen === 'lord' || (screen === 'help' && G.hub)) { paused = false; showScreen(null); return; }
   if (!screen && G.phase !== 'won' && G.phase !== 'lost') {
     paused = true; showScreen('pause');
@@ -8427,4 +8556,80 @@ async function boot() {
 }
 window.KRY = { get G() { return G; }, startGame, startHub, step, setSpeed: v => SIM_SPEED = v, showScreen, openLoadout, openArchive, openGate, talkTo, switchHero };
 boot();
+// ===== Title backdrop: the Krystalkers in front, the bosses behind them, and the final shadow looming over all =====
+const TBG = { c: null, layer: null, w: 0, h: 0, embers: [], raf: 0, on: false };
+function tbgSprite(x, key, cx, by, hgt, tone, flip) {
+  const S = SPR[key]; if (!S) return; const f = S.idle, s = hgt / f.h;
+  x.save(); x.translate(cx, by); if (flip) x.scale(-1, 1);
+  x.drawImage(f.c, -f.ox * s, -f.oy * s, f.w * s, f.h * s); x.restore();
+}
+// paint a sprite as a pure silhouette (for the looming shadow and the dimmed boss line)
+function tbgSilhouette(key, hgt, color, alpha) {
+  const S = SPR[key]; if (!S) return null; const f = S.idle, s = hgt / f.h;
+  const c = mkCanvas(Math.ceil(f.w * s) + 4, Math.ceil(f.h * s) + 4), x = c.getContext('2d');
+  x.drawImage(f.c, 2, 2, f.w * s, f.h * s);
+  x.globalCompositeOperation = 'source-atop'; x.globalAlpha = alpha; x.fillStyle = color; x.fillRect(0, 0, c.width, c.height);
+  return { c, ox: f.ox * s + 2, oy: f.oy * s + 2 };
+}
+function tbgBuild() {
+  const w = TBG.w, h = TBG.h, L = mkCanvas(w, h), x = L.getContext('2d');
+  // sky: a bruised violet dark, with a pale wound of light behind the shadow
+  const g = x.createLinearGradient(0, 0, 0, h); g.addColorStop(0, '#07050c'); g.addColorStop(0.55, '#140b18'); g.addColorStop(1, '#0a0608'); x.fillStyle = g; x.fillRect(0, 0, w, h);
+  const halo = x.createRadialGradient(w / 2, h * 0.38, 10, w / 2, h * 0.38, h * 0.7); halo.addColorStop(0, 'rgba(120,60,150,0.38)'); halo.addColorStop(0.4, 'rgba(70,24,80,0.22)'); halo.addColorStop(1, 'rgba(0,0,0,0)'); x.fillStyle = halo; x.fillRect(0, 0, w, h);
+  // the final Dungeon Master: an enormous shadow, nothing more
+  const big = tbgSilhouette('sovereign', h * 1.05, '#040208', 1);
+  if (big) {
+    x.save(); x.shadowColor = 'rgba(160,90,220,0.55)'; x.shadowBlur = 60 * DPR;
+    x.drawImage(big.c, w / 2 - big.ox, h * 0.93 - big.oy); x.restore();
+    // two cold eyes, barely there
+    for (const dx of [-1, 1]) { const ex = w / 2 + dx * h * 0.035, ey = h * 0.29; const eg = x.createRadialGradient(ex, ey, 0, ex, ey, h * 0.02); eg.addColorStop(0, 'rgba(160,250,255,0.9)'); eg.addColorStop(1, 'rgba(160,250,255,0)'); x.fillStyle = eg; x.fillRect(ex - h * 0.03, ey - h * 0.03, h * 0.06, h * 0.06); }
+  }
+  // distant mist between the shadow and the bosses
+  const mist = x.createLinearGradient(0, h * 0.45, 0, h * 0.8); mist.addColorStop(0, 'rgba(30,20,34,0)'); mist.addColorStop(1, 'rgba(30,20,34,0.75)'); x.fillStyle = mist; x.fillRect(0, h * 0.45, w, h * 0.35);
+  // the bosses, rim-lit in red, half lost in the dark
+  const lords = ['vesper', 'rimehorn', 'phoenix', 'warden', 'stormcoil', 'shellback', 'moth'];
+  const gks = ['frostfang', 'emberdrake', 'bonecolossus', 'chieftain', 'gorehorn', 'hivequeen'];
+  const row = (keys, y, hh, spread, shade) => keys.forEach((k, i) => {
+    const t = keys.length > 1 ? i / (keys.length - 1) : 0.5, cx = w / 2 + (t - 0.5) * spread, by = y + Math.abs(t - 0.5) * hh * 0.25;
+    const sil = tbgSilhouette(k, hh, '#0c0610', shade); if (!sil) return;
+    x.save(); x.shadowColor = 'rgba(200,40,50,0.45)'; x.shadowBlur = 18 * DPR; x.drawImage(sil.c, cx - sil.ox, by - sil.oy); x.restore();
+  });
+  row(gks, h * 0.66, h * 0.17, Math.min(w * 1.05, h * 2.0), 0.82);
+  row(lords, h * 0.74, h * 0.25, Math.min(w * 0.95, h * 1.75), 0.62);
+  // ground and the Krystalkers standing in front, lit warm from the camera
+  const gr = x.createLinearGradient(0, h * 0.78, 0, h); gr.addColorStop(0, 'rgba(10,6,8,0)'); gr.addColorStop(0.35, 'rgba(10,6,8,0.92)'); gr.addColorStop(1, '#050304'); x.fillStyle = gr; x.fillRect(0, h * 0.75, w, h * 0.25);
+  const heroes = CHAR_KEYS.slice(), hh = h * 0.13, span = Math.min(w * 0.94, h * 1.9);
+  heroes.forEach((k, i) => {
+    const t = heroes.length > 1 ? i / (heroes.length - 1) : 0.5, cx = w / 2 + (t - 0.5) * span, by = h * 0.985 - Math.abs(t - 0.5) * hh * 0.35;
+    const glow = x.createRadialGradient(cx, by - hh * 0.4, 2, cx, by - hh * 0.4, hh * 0.9); glow.addColorStop(0, 'rgba(255,170,90,0.18)'); glow.addColorStop(1, 'rgba(255,170,90,0)'); x.fillStyle = glow; x.fillRect(cx - hh, by - hh * 1.4, hh * 2, hh * 1.6);
+    x.save(); x.globalAlpha = 0.95; tbgSprite(x, k, cx, by, hh, null, t > 0.5); x.restore();
+    const W0 = SPR['w_' + k]; if (W0) { const s = hh / SPR[k].idle.h; x.save(); x.translate(cx, by - HAND_Y * s); if (t > 0.5) x.scale(-1, 1); x.drawImage(W0.c, -W0.ox * s, -W0.oy * s, W0.w * s, W0.h * s); x.restore(); }
+  });
+  // vignette
+  const vg = x.createRadialGradient(w / 2, h * 0.5, h * 0.3, w / 2, h * 0.5, Math.max(w, h) * 0.75); vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,0.75)'); x.fillStyle = vg; x.fillRect(0, 0, w, h);
+  TBG.layer = L;
+}
+function tbgFrame() {
+  if (!TBG.on) { TBG.raf = 0; return; }
+  const c = TBG.c, x = c.getContext('2d');
+  const w = Math.round(innerWidth * DPR), h = Math.round(innerHeight * DPR);
+  if (w !== TBG.w || h !== TBG.h) { TBG.w = c.width = w; TBG.h = c.height = h; tbgBuild(); }
+  x.drawImage(TBG.layer, 0, 0);
+  const t = performance.now() / 1000;
+  // drifting fog
+  for (let i = 0; i < 3; i++) { const fx = ((t * (8 + i * 5) + i * 400) % (w + 600)) - 300, fy = h * (0.62 + i * 0.08), r = h * 0.35; const fg = x.createRadialGradient(fx, fy, 0, fx, fy, r); fg.addColorStop(0, 'rgba(60,40,70,0.16)'); fg.addColorStop(1, 'rgba(60,40,70,0)'); x.fillStyle = fg; x.fillRect(fx - r, fy - r, r * 2, r * 2); }
+  // embers rising
+  if (TBG.embers.length < 70) TBG.embers.push({ x: Math.random() * w, y: h + 10, vy: (20 + Math.random() * 40) * DPR, vx: (Math.random() - 0.5) * 12 * DPR, a: Math.random() * 6, s: (0.8 + Math.random() * 1.6) * DPR });
+  x.save(); x.globalCompositeOperation = 'lighter';
+  for (const e of TBG.embers) { e.y -= e.vy / 60; e.x += e.vx / 60 + Math.sin(t + e.a) * 0.3 * DPR; const k = clamp(e.y / h, 0, 1); x.fillStyle = `rgba(255,${120 + 80 * k | 0},60,${0.65 * k})`; x.beginPath(); x.arc(e.x, e.y, e.s, 0, Math.PI * 2); x.fill(); }
+  x.restore();
+  TBG.embers = TBG.embers.filter(e => e.y > -10);
+  TBG.raf = requestAnimationFrame(tbgFrame);
+}
+function setTitleBg(on) {
+  if (!TBG.c) TBG.c = document.getElementById('title-bg');
+  if (!TBG.c) return;
+  TBG.on = on; TBG.c.hidden = !on;
+  if (on && !TBG.raf) TBG.raf = requestAnimationFrame(tbgFrame);
+}
 </script>
