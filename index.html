@@ -7930,7 +7930,13 @@ function drawInter(it) {
   if (it.kind === 'font') { drawFont(it); return; }
 
   if (it.kind === 'bosschest') { drawBossChest(it); return; }
-  if (it.kind === 'chest') { shadow(x, y, 8); drawFrame(it.used ? SPR.chestOpen : SPR.chest, x, y); if (!it.used) { ctx.fillStyle = it.free ? `rgba(255,220,120,${0.35 + 0.2 * Math.sin(G.time * 5)})` : `rgba(255,220,120,${0.25 + 0.15 * Math.sin(G.time * 4)})`; ctx.beginPath(); ctx.arc(x, y - 6, it.free ? 16 : 12, 0, Math.PI * 2); ctx.fill(); if (it.rare) { ctx.strokeStyle = 'rgba(192,112,255,0.8)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(x, y - 6, 10, 0, Math.PI * 2); ctx.stroke(); } } }
+  if (it.kind === 'chest') { shadow(x, y, 8); drawFrame(it.used ? SPR.chestOpen : SPR.chest, x, y); if (!it.used) { ctx.fillStyle = it.free ? `rgba(255,220,120,${0.35 + 0.2 * Math.sin(G.time * 5)})` : `rgba(255,220,120,${0.25 + 0.15 * Math.sin(G.time * 4)})`; ctx.beginPath(); ctx.arc(x, y - 6, it.free ? 16 : 12, 0, Math.PI * 2); ctx.fill(); if (it.rare) { ctx.strokeStyle = 'rgba(192,112,255,0.8)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(x, y - 6, 10, 0, Math.PI * 2); ctx.stroke(); }
+    // the price floats over the chest so it can be read from afar (red when you cannot afford it)
+    const H1 = human(), cost = chestCost(it, H1), ok = !H1 || H1.gold >= cost, t = it.free ? 'FREE' : String(cost);
+    ctx.font = `bold 7px ${FONT}`; ctx.textAlign = 'center'; const tw = ctx.measureText(t).width, bx = x + (it.free ? 0 : 3), by = y - 19;
+    ctx.lineWidth = 2.4; ctx.strokeStyle = OUTL; ctx.strokeText(t, bx, by); ctx.fillStyle = it.free ? '#7ae07a' : ok ? '#ffd44a' : '#ff7a6a'; ctx.fillText(t, bx, by);
+    if (!it.free) { const cx = bx - tw / 2 - 4, cy = by - 2.4; ctx.fillStyle = '#ffd44a'; ctx.strokeStyle = OUTL; ctx.lineWidth = 0.8; ctx.beginPath(); ctx.arc(cx, cy, 2.6, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); }
+  } }
   if (it.kind === 'keeper') { shadow(x, y, 7); drawFrame(SPR.keeper, x, y + Math.sin(G.time * 2) * 0.5); }
   if (it.kind === 'stand') { shadow(x, y, 7); drawFrame(SPR.pedestal, x, y); if (!it.used) { const s = 10, ic = itemIcon(it.item, 40); ctx.drawImage(ic, x - s / 2, y - 20 + Math.sin(G.time * 3 + x) * 1.2, s, s); } }
   if (it.kind === 'shrine') {
