@@ -5278,6 +5278,8 @@ function moveInRoom(e, tg, spd, dt, keep = 50) {
     if (!e.lockFace) e.face = tg.x >= e.x ? 1 : -1;
   }
   if (R0 && !inRoom(R0, e.x, e.y, -e.r)) { e.x = ox; e.y = oy; }
+  // bosses never camp in a corner: drift back toward open ground
+  if (R0 && e.boss) { const edge = Math.min(e.x - R0.x * TILE, (R0.x + R0.w) * TILE - e.x, e.y - R0.y * TILE, (R0.y + R0.h) * TILE - e.y); if (edge < 56) { const a = Math.atan2(R0.py - e.y, R0.px - e.x); moveEnt(e, Math.cos(a) * spd * 0.6 * dt, Math.sin(a) * spd * 0.6 * dt); e.moving = true; } }
   // stuck behind something: hop to open ground near the target
   if (dd > keep && Math.hypot(e.x - ox, e.y - oy) < spd * 0.15 * dt) { e.stuckT = (e.stuckT || 0) + dt; if (e.stuckT > 1.4 && R0) { e.stuckT = 0; const q = randomFloorIn(R0, [], 0, 2); for (let i = 0; i < 8; i++) { const a2 = R() * 6.28, x = tg.x + Math.cos(a2) * keep, y = tg.y + Math.sin(a2) * keep; if (inRoom(R0, x, y, -e.r - 4) && !hitsWall(x, y, e.r)) { q.x = x; q.y = y; break; } } smoke(e.x, e.y, 8, '#a89c88', 40, 0.6); e.x = q.x; e.y = q.y; smoke(e.x, e.y, 8, '#a89c88', 40, 0.6); } } else e.stuckT = 0;
 }
@@ -5357,6 +5359,7 @@ const AI = {
 function bossCycle(e, tg, dd, spd, dt, keep, gap, seq, rageSeq) {
   const rage = e.hp < e.maxHp * 0.5;
   if (rage && !e.raged) { e.raged = true; e.spd *= 1.1; phaseTwo(e, 'Phase 2: enraged'); }
+  if (bossTactics(e, tg, spd * (rage ? 1.2 : 1), dt, rage)) return;
   if (e.busy > 0) { e.busy -= dt; return; }
   moveInRoom(e, tg, spd * (rage ? 1.2 : 1), dt, keep);
   e.cd -= dt * (rage ? 1.3 : 1);
@@ -5521,15 +5524,18 @@ Object.assign(ENEMY_INFO, {
 });
 // ---------- moving hazards: fire walls and rotating lightning fences ----------
 function updateHazards(dt) {
+  updateBossFx(dt);
   if (G.walls) for (let i = G.walls.length - 1; i >= 0; i--) {
-    const w = G.walls[i]; w.t += dt; if (w.t < 0) continue; w.y += w.vy * dt;
+    const w = G.walls[i]; w.t += dt; if (w.t < 0) continue;
+    if (w.axis === 'x') { if (updateWallsX(w, dt)) G.walls.splice(i, 1); continue; }
+    w.y += w.vy * dt;
     for (const p of G.players) {
       if (p.state !== 'up' || Math.abs(p.y - w.y) > 6) continue;
       if (w.gaps.some(g => Math.abs(p.x - g.x) < g.w / 2 - 2)) continue;
       if ((p.wallHit || 0) > G.time) continue; p.wallHit = G.time + 0.6;
       damage(p, w.dmg, w.owner); applyStatus(p, 'scorch', 3, { dps: 6 * (w.owner ? w.owner.dmgM : 1), src: w.owner });
     }
-    if (w.y > w.y1) G.walls.splice(i, 1);
+    if (w.vy > 0 ? w.y > w.y1 : w.y < w.y1) G.walls.splice(i, 1);
   }
   if (G.beams) for (let i = G.beams.length - 1; i >= 0; i--) {
     const b = G.beams[i]; b.t += dt; b.a += b.va * dt;
@@ -5721,7 +5727,7 @@ NIGHTLORDS.splice(NIGHTLORDS.findIndex(n => n.id === 'sovereign'), 0,
   { id: 'vesper', name: 'Vesper, the Quiet Dark', epithet: 'Abbess of the Lightless Abbey', desc: 'When her bells toll, every light goes out: you see only an arm\'s length around you and every sound is smothered, while her shades hunt you in the dark. Stay together.', unique: 'Unique: blackout + shades', available: true });
 DM_IDS.splice(0, DM_IDS.length, ...NIGHTLORDS.map(n => n.id));
 Object.assign(ENEMY_INFO, {
-  vesper: 'Dungeon Master. Weak to Radiant. Lantern fans Hush, candle rain Gloom. Her bells toll before a Blackout: everyone becomes near-sighted, sound goes dull, and shades and hushlings rise from the dark. Phase 2: longer, more frequent blackouts, and whispers that follow you.',
+  vesper: 'Dungeon Master. Weak to Radiant. Lantern fans Hush, candle rain Gloom. Her bells toll before a Blackout: everyone becomes near-sighted, sound goes dull, and shades and hushlings rise from the dark. Blackouts strike only three times, at 75%, 50% and 25% health (longer in phase 2), with whispers that follow you.',
 });
 BOSS_LORE.vesper = 'Vesper kept the Lightless Abbey, where the monks believed a Krystal should never be found. She put out every candle in the valley so no seeker could see the way. Now she carries the last lantern, and its flame is black.';
 function startBlackout(e, dur) {
@@ -5732,7 +5738,7 @@ function startBlackout(e, dur) {
   const n = e.phase2 ? 3 : 2;
   for (const p of G.players.filter(q => q.state === 'up')) for (let i = 0; i < n; i++) {
     const a = R() * Math.PI * 2, d = rr(110, 160), x = p.x + Math.cos(a) * d, y = p.y + Math.sin(a) * d;
-    if (hitsWall(x, y, 6) || !inRoom(G.bossRoom, x, y, -10)) continue;
+    if (hitsWall(x, y, 6) || (homeRoom(e) && !inRoom(homeRoom(e), x, y, -10))) continue;
     queueSpawn(i % 2 ? 'hushling' : 'shade', x, y, 1.1, { aggro: true, extra: true, hpMul: 0.8 });
   }
 }
@@ -5745,8 +5751,10 @@ function updateBlackout(dt) {
 }
 BOSS_AI.vesper = function (e, tg, dd, spd, dt) {
   const frac = e.hp / e.maxHp;
-  if (!e.phase2 && frac < 0.5) { phaseTwo(e, 'The last lantern gutters…'); e.nightT = Math.min(e.nightT ?? 3, 3); }
-  e.nightT = (e.nightT ?? 10) - dt;
+  if (!e.phase2 && frac < 0.5) phaseTwo(e, 'The last lantern gutters…');
+  // three blackouts per fight at most: at 75%, 50% and 25% health
+  e.dark = e.dark || []; for (const th of [0.75, 0.5, 0.25]) if (frac < th && !e.dark.includes(th)) { e.dark.push(th); e.darkDue = (e.darkDue || 0) + 1; }
+  e.nightT = 1; if (e.darkDue > 0 && !G.blackout && !(e.toll > 0)) { e.darkDue--; e.nightT = 0; }
   if (e.toll > 0) {
     e.toll -= dt; e.busy = 0.2;
     if (R() < 0.5) burst(e.x + rr(-30, 30), e.y - rr(10, 50), '#2a1e44', 1, 30, 0.8, { g: -30, size: 2 });
@@ -5754,7 +5762,7 @@ BOSS_AI.vesper = function (e, tg, dd, spd, dt) {
     return;
   }
   if (e.nightT <= 0 && !G.blackout) {
-    e.nightT = e.phase2 ? 17 : 23; e.toll = 1.8;
+    e.nightT = 1; e.toll = 1.8;
     tele({ x: e.x, y: e.y, r: 120, life: 1.8, color: 'spore' }); setBanner('The bells toll…', 'The lanterns are going out!', 1.8, '#b48cff'); sfx('bell'); sfx('bell');
     return;
   }
@@ -5833,6 +5841,185 @@ function resText(k) {
   parts.push(`<b>Build-up:</b> statuses take ${R0.build} applications, Freeze takes ${R0.chill} Chill hits`);
   return parts.join(' · ');
 }
+// ===== Boss movement & arena hazards: bosses reposition, vanish, and fill the arena with things to dodge =====
+// Tentacles erupt from the ground (they are enemy zones, so bots step around them too); meteors fall from the sky;
+// fire walls can sweep across the arena in either direction.
+const HAZ_DMG = 0.7; // hazards are there to be dodged, not to delete you
+const TENT_COL = { vine: ['#5a8a3a', '#9ad86a'], bone: ['#d8d0b8', '#fff6e0'], ice: ['#7fb8d8', '#e8faff'], shadow: ['#3a2a5a', '#b48cff'], storm: ['#4a5a8a', '#ffe24a'], fungus: ['#a84a8a', '#ffb0e0'], mud: ['#6a5a3a', '#b8a070'], sand: ['#a8885a', '#f0d8a0'], fire: ['#8a2a1a', '#ffb030'], crystal: ['#3a6a8a', '#7ff0ff'] };
+// tentacles: a warning circle under every target, then a writhing tentacle that roots on the way up and hurts while it stays
+P.tentacles = function (e, perPlayer = 1, o = {}) {
+  const life = o.life || 4, delay = o.delay || 1.0, kind = o.kind || 'vine';
+  const pts = [];
+  for (const p of targets(e)) for (let k = 0; k < perPlayer; k++) { const a = R() * 6.28, d = k ? rr(30, 70) : rr(0, 10); pts.push({ x: p.x + Math.cos(a) * d, y: p.y + Math.sin(a) * d * 0.8 }); }
+  for (let k = 0; k < (o.extra || 0); k++) { const A = homeRoom(e); if (A) pts.push(randomFloorIn(A, [], 0, 2)); }
+  for (const q of pts) {
+    if (hitsWall(q.x, q.y, 6)) continue;
+    tele({ x: q.x, y: q.y, r: 16, life: delay, color: o.tele || 'spore' });
+    schedule(delay, () => {
+      if (e.dead) return;
+      hitPlayersCircle(q.x, q.y, 16, (o.dmg || 22) * e.dmgM * HAZ_DMG, e, 0, { st: ST('mire', 1.4, { amt: 0.7 }) });
+      burst(q.x, q.y, TENT_COL[kind][0], 12, 80, 0.5, { g: 200, vy: -70, size: 1.4 });
+      ezone({ x: q.x, y: q.y, r: 13, life, delay: 0, dmg: (o.tick || 6), dmgM: e.dmgM * HAZ_DMG, kind: 'tentacle', tent: kind, seed: R() * 6, src: e, st: o.st || ST('mire', 0.8) });
+    });
+  }
+  return 0.6;
+};
+// meteors: streaks from the sky, one right on each target and a few around them
+P.meteors = function (e, perPlayer = 2, o = {}) {
+  const r = o.r || 28, delay = o.delay || 1.4, col = o.color || '#ff8a2a';
+  for (const p of targets(e)) for (let k = 0; k < perPlayer; k++) {
+    const x = p.x + (k ? rr(-70, 70) : 0), y = p.y + (k ? rr(-55, 55) : 0), dl = delay + k * 0.25;
+    if (hitsWall(x, y, 4)) continue;
+    tele({ x, y, r, life: dl, color: o.tele || 'meteor' });
+    (G.fallers || (G.fallers = [])).push({ x, y, t: -dl + 0.45, dur: 0.45, col });
+    schedule(dl, () => { if (e.dead) return; hitPlayersCircle(x, y, r, (o.dmg || 26) * e.dmgM * HAZ_DMG, e, 12, { st: o.st }); fx({ k: 'boom', x, y, r, life: 0.35, color: col }); burst(x, y, col, 16, 120, 0.5, { glow: true }); smoke(x, y, 4, '#8a7a6a', 30, 0.8); decal(x, y, 'scorch', r * 0.6, 4); sfx('boom', x, y, 0.5); if (o.zone) ezone({ x, y, r: r * 0.8, life: o.zoneLife || 4, delay: 0, dmg: 6, dmgM: e.dmgM, kind: o.zone, src: e }); });
+  }
+  return 0.7;
+};
+// vanish: the boss disappears (immune) and bursts out under one of you a moment later
+P.vanish = function (e, dur = 2.2, o = {}) {
+  e.van = { t: dur, warned: false, o };
+  burst(e.x, e.y - 16, o.color || '#c8b898', 30, 120, 0.6, { glow: !!o.glow, g: o.glow ? -40 : 200 }); smoke(e.x, e.y, 10, o.smoke || '#a89c88', 50, 0.9);
+  floatText(e.x, e.y - 50, o.text || 'Vanished!', o.color || '#e8d8c0', 0.9);
+  return 0.1;
+};
+function updateVanish(e, dt) {
+  const V = e.van; if (!V) return false;
+  V.t -= dt; e.hidden = true; e.invT = 0.3; e.busy = 0.3; e.mover = null;
+  if (!V.warned && V.t <= 1.0) {
+    V.warned = true; const T = pick(targets(e)) || G.players.find(p => p.state === 'up');
+    const A = homeRoom(e); let x = T ? T.x : e.x, y = T ? T.y : e.y;
+    if (A && !inRoom(A, x, y, -e.r - 4)) { x = A.px; y = A.py; }
+    V.x = x; V.y = y; tele({ x, y, r: 54, life: 1.0, color: V.o.tele || 'red' });
+  }
+  if (V.t <= 0) {
+    e.van = null; e.hidden = false; e.invT = 0;
+    if (V.x != null && !hitsWall(V.x, V.y, e.r * 0.6)) { e.x = V.x; e.y = V.y; }
+    hitPlayersCircle(e.x, e.y, 54, 30 * e.dmgM * HAZ_DMG, e, 26, { st: V.o.st });
+    shock(e.x, e.y, 60, V.o.color || '#e8d8c0', 0.5); burst(e.x, e.y, V.o.color || '#c8b898', 30, 150, 0.7, { g: 240, vy: -90 }); decal(e.x, e.y, 'crack', 30, 5); shake(6);
+    if (V.o.ring) for (let i = 0; i < V.o.ring; i++) eShoot(e, i * Math.PI * 2 / V.o.ring, 85, 10, { color: V.o.color || '#ffb35a' });
+    e.busy = 0.6;
+  }
+  return true;
+}
+// reposition: a fast glide to fresh ground beside (or behind) the target, never into a corner
+P.reposition = function (e, tg, o = {}) {
+  const A = homeRoom(e); if (!A || !tg) return 0.2;
+  let best = null, bs = -1e9;
+  for (let i = 0; i < 14; i++) {
+    const a = R() * 6.28, d = rr(70, 140), x = tg.x + Math.cos(a) * d, y = tg.y + Math.sin(a) * d * 0.8;
+    if (!inRoom(A, x, y, -e.r - 20) || hitsWall(x, y, e.r)) continue;
+    const edge = Math.min(x - A.x * TILE, (A.x + A.w) * TILE - x, y - A.y * TILE, (A.y + A.h) * TILE - y), sc = Math.min(edge, 120) + Math.hypot(x - e.x, y - e.y) * 0.3;
+    if (sc > bs) { bs = sc; best = { x, y }; }
+  }
+  if (!best) best = { x: A.px, y: A.py };
+  const sx = e.x, sy = e.y, L = Math.hypot(best.x - sx, best.y - sy), T = clamp(L / 320, 0.25, 0.7);
+  tele({ kind: 'line', x: sx, y: sy - 4, ang: Math.atan2(best.y - sy, best.x - sx), len: L, w: e.r * 1.4, life: 0.35, color: o.tele });
+  let t = 0; const hit = new Set();
+  schedule(0.35, () => { if (e.dead || e.van) return; e.mover = (e2, dt) => {
+    t += dt; const k = Math.min(1, t / T), ox = e2.x, oy = e2.y; e2.x = lerp(sx, best.x, k); e2.y = lerp(sy, best.y, k); e2.moving = true; e2.face = best.x >= sx ? 1 : -1;
+    if (hitsWall(e2.x, e2.y, e2.r * 0.5)) { e2.x = ox; e2.y = oy; e2.mover = null; return; }
+    if (R() < 0.6) burst(e2.x, e2.y - 6, o.color || '#c8b898', 1, 20, 0.4, { shape: 'smoke', size: 2.4, drag: 0.2 });
+    for (const p of G.players) if (p.state === 'up' && !hit.has(p) && d2(p.x, p.y, e2.x, e2.y) < (e2.r + p.r + 2) ** 2) { hit.add(p); hitP(p, 18 * e2.dmgM, e2, {}); }
+    if (k >= 1) e2.mover = null;
+  }; });
+  return 0.35 + T;
+};
+// fire walls from any side: an obstacle course with gaps to slip through
+function fireCourse(e, waves, gap = 1.4) {
+  const A = homeRoom(e); if (!A) return 0;
+  G.walls = G.walls || [];
+  const x0 = A.x * TILE, x1 = (A.x + A.w) * TILE, y0 = A.y * TILE, y1 = (A.y + A.h) * TILE;
+  for (let k = 0; k < waves; k++) {
+    const side = pick(['n', 's', 'w', 'e']), gaps = [], ng = R() < 0.5 ? 2 : 1;
+    if (side === 'n' || side === 's') { for (let j = 0; j < ng; j++) gaps.push({ x: x0 + (x1 - x0) * rr(0.12, 0.88), w: 46 }); G.walls.push({ x0, x1, y: side === 'n' ? y0 : y1, y1: side === 'n' ? y1 : y0, vy: side === 'n' ? 78 : -78, gaps, dmg: 26 * e.dmgM, owner: e, t: -k * gap }); }
+    else { for (let j = 0; j < ng; j++) gaps.push({ y: y0 + (y1 - y0) * rr(0.15, 0.85), w: 42 }); G.walls.push({ axis: 'x', y0, y1, x: side === 'w' ? x0 : x1, xEnd: side === 'w' ? x1 : x0, vx: side === 'w' ? 90 : -90, gaps, dmg: 26 * e.dmgM, owner: e, t: -k * gap }); }
+  }
+  setBanner('Walls of fire!', 'Find the gaps!', 1.6, '#ffb070');
+  return 0.6;
+}
+function updateWallsX(w, dt) { // walls that sweep sideways
+  w.x += w.vx * dt;
+  for (const p of G.players) {
+    if (p.state !== 'up' || Math.abs(p.x - w.x) > 6) continue;
+    if (w.gaps.some(g => Math.abs(p.y - g.y) < g.w / 2 - 2)) continue;
+    if ((p.wallHit || 0) > G.time) continue; p.wallHit = G.time + 0.6;
+    damage(p, w.dmg, w.owner); applyStatus(p, 'scorch', 3, { dps: 6 * (w.owner ? w.owner.dmgM : 1), src: w.owner });
+  }
+  return w.vx > 0 ? w.x > w.xEnd : w.x < w.xEnd;
+}
+function drawWallX(w) {
+  if (w.t < 0) { const k = 1 + w.t / 1.6; if (k > 0) { ctx.fillStyle = `rgba(255,120,40,${0.15 * k})`; ctx.fillRect(w.x - 2, w.y0, 4, w.y1 - w.y0); } return; }
+  let y = w.y0; const segs = []; for (const g of w.gaps.slice().sort((a, b) => a.y - b.y)) { segs.push([y, g.y - g.w / 2]); y = g.y + g.w / 2; } segs.push([y, w.y1]);
+  ctx.save(); ctx.globalCompositeOperation = 'lighter';
+  for (const [a, b] of segs) { if (b <= a) continue; const g = ctx.createLinearGradient(w.x - 8, 0, w.x + 8, 0); g.addColorStop(0, 'rgba(255,60,20,0)'); g.addColorStop(0.5, 'rgba(255,150,40,0.85)'); g.addColorStop(1, 'rgba(255,60,20,0)'); ctx.fillStyle = g; ctx.fillRect(w.x - 8, a, 16, b - a); for (let fy = a; fy < b; fy += 8) { const hh = 8 + 5 * Math.sin(G.time * 10 + fy); ctx.fillStyle = 'rgba(255,200,80,0.55)'; ctx.beginPath(); ctx.moveTo(w.x - 4, fy + 8); ctx.quadraticCurveTo(w.x, fy + 4 - hh, w.x + 4, fy + 8); ctx.fill(); } }
+  ctx.restore();
+}
+// falling meteor streaks and tentacle sprites
+function updateBossFx(dt) {
+  if (G.fallers) { for (const f of G.fallers) f.t += dt; G.fallers = G.fallers.filter(f => f.t < f.dur); }
+  for (const z of G.ezones) if (z.kind === 'tentacle' && z.src && (z.src.dead || !G.bossFight && !z.src.castle && !z.src.chalB)) z.life = Math.min(z.life, z.t + 0.3);
+}
+function drawFaller(f) {
+  if (f.t < 0) return;
+  const k = f.t / f.dur, sx = f.x - 60 * (1 - k), sy = f.y - 160 * (1 - k);
+  ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.strokeStyle = f.col; ctx.lineWidth = 6; ctx.globalAlpha = 0.5; ctx.beginPath(); ctx.moveTo(sx - 30, sy - 80); ctx.lineTo(sx, sy); ctx.stroke();
+  ctx.globalAlpha = 1; ctx.fillStyle = '#fff2c0'; ctx.beginPath(); ctx.arc(sx, sy, 5, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+}
+function drawTentacle(z) {
+  const C = TENT_COL[z.tent] || TENT_COL.vine, rise = Math.min(1, z.t / 0.25) * Math.min(1, (z.life - z.t) / 0.35), h = 26 * rise;
+  if (h <= 0.5) return;
+  ctx.fillStyle = 'rgba(20,10,10,0.35)'; ctx.beginPath(); ctx.ellipse(z.x, z.y, 9, 3.5, 0, 0, Math.PI * 2); ctx.fill();
+  const pts = []; for (let i = 0; i <= 8; i++) { const k = i / 8; pts.push([z.x + Math.sin(G.time * 4 + z.seed + k * 3) * 5 * k, z.y - h * k]); }
+  ctx.lineCap = 'round';
+  for (const [w, c] of [[8, OUTL], [6, C[0]]]) { for (let i = 0; i < 8; i++) { ctx.strokeStyle = c; ctx.lineWidth = (w * (1 - i / 10)); ctx.beginPath(); ctx.moveTo(pts[i][0], pts[i][1]); ctx.lineTo(pts[i + 1][0], pts[i + 1][1]); ctx.stroke(); } }
+  ctx.fillStyle = C[1]; for (let i = 1; i < 7; i += 2) { ctx.beginPath(); ctx.arc(pts[i][0] + 1.5, pts[i][1], 1.1, 0, Math.PI * 2); ctx.fill(); }
+  ctx.fillStyle = C[1]; ctx.beginPath(); ctx.arc(pts[8][0], pts[8][1], 2, 0, Math.PI * 2); ctx.fill();
+}
+// what each boss throws at the arena between its normal attacks
+const BOSS_HAZ = {
+  gorehorn: [e => P.meteors(e, 2, { color: '#c8a070', tele: 'red', dmg: 24 })],
+  chieftain: [e => P.meteors(e, 3, { r: 20, color: '#e8e0cc', tele: 'red', dmg: 20, st: bleedSt })],
+  bramble: [e => P.tentacles(e, 2, { kind: 'vine' }), e => P.tentacles(e, 1, { kind: 'vine', extra: 4 })],
+  hivequeen: [e => P.vanish(e, 2.4, { text: 'Into the swarm!', color: '#ffd23a', glow: true, ring: 16 }), e => P.meteors(e, 2, { r: 20, color: '#ffd23a', tele: 'fire', dmg: 18 })],
+  mudslug: [e => P.vanish(e, 2.4, { text: 'Burrows!', color: '#9aaa4a', ring: 12 }), e => P.tentacles(e, 2, { kind: 'mud', tele: 'red' })],
+  sporemother: [e => P.tentacles(e, 2, { kind: 'fungus' }), e => P.meteors(e, 2, { color: '#ff8ad8', tele: 'spore', zone: 'spore', dmg: 18 })],
+  frostfang: [e => P.vanish(e, 2.2, { text: 'Lost in the blizzard!', color: '#bff4ff', glow: true, tele: 'crystal', st: ST('chill', 0, { n: 2 }) }), e => P.meteors(e, 3, { r: 22, color: '#bff4ff', tele: 'crystal', dmg: 20, st: ST('chill', 0) })],
+  emberdrake: [e => P.meteors(e, 2, { color: '#ff8a2a', tele: 'fire', zone: 'fire', dmg: 22 }), e => P.vanish(e, 2.4, { text: 'Takes to the sky!', color: '#ff8a2a', glow: true, tele: 'fire', ring: 14 })],
+  bonecolossus: [e => P.tentacles(e, 2, { kind: 'bone', tele: 'red', st: bleedSt }), e => P.meteors(e, 3, { r: 22, color: '#e8e0cc', tele: 'red', dmg: 20 })],
+  thundertoad: [e => P.meteors(e, 3, { r: 24, color: '#ffe24a', tele: 'crystal', dmg: 22, st: ST('hush', 1.5) })],
+  warden: [e => P.meteors(e, 3, { r: 22, color: '#7ff0ff', tele: 'crystal', dmg: 22 }), e => P.tentacles(e, 2, { kind: 'crystal', tele: 'crystal' })],
+  shellback: [e => P.tentacles(e, 2, { kind: 'sand', tele: 'red' }), e => P.vanish(e, 2.2, { text: 'Digs under the sand!', color: '#c8b890', ring: 16 })],
+  moth: [e => P.vanish(e, 2.2, { text: 'Fades into dust…', color: '#d8c8f0', glow: true, st: ST('gloom', 2) }), e => P.meteors(e, 3, { r: 22, color: '#ffd23f', tele: 'spore', dmg: 20, st: ST('hush', 1.2) })],
+  phoenix: [e => fireCourse(e, e.phase2 ? 3 : 2), e => P.meteors(e, 2, { color: '#ff8a2a', tele: 'fire', zone: 'fire', dmg: 22 }), e => P.vanish(e, 2.2, { text: 'Dives into the flames!', color: '#ff8a2a', glow: true, tele: 'fire', ring: 16, st: ST('scorch', 3, { dps: 5 }) })],
+  rimehorn: [e => P.meteors(e, 3, { r: 24, color: '#bff4ff', tele: 'crystal', dmg: 24, st: ST('chill', 0) }), e => P.tentacles(e, 2, { kind: 'ice', tele: 'crystal', st: ST('chill', 0) })],
+  stormcoil: [e => P.tentacles(e, 2, { kind: 'storm', tele: 'crystal', st: ST('hush', 1) }), e => P.meteors(e, 3, { r: 22, color: '#ffe24a', tele: 'crystal', dmg: 22 })],
+  vesper: [e => P.tentacles(e, 2, { kind: 'shadow', st: ST('gloom', 1.5) }), e => P.meteors(e, 2, { r: 24, color: '#b48cff', tele: 'spore', dmg: 20, st: ST('hush', 1.2) })],
+  sovereign: [e => P.tentacles(e, 2, { kind: 'crystal', tele: 'crystal' })],
+};
+// runs inside bossCycle: hazards on their own clock, a reposition every few seconds, and drifting while it attacks
+function bossTactics(e, tg, spd, dt, rage) {
+  if (updateVanish(e, dt)) return true;
+  const H = BOSS_HAZ[e.type];
+  if (H && tg) {
+    e.hazT = (e.hazT ?? 5) - dt;
+    if (e.hazT <= 0 && !e.mover && !(e.jumpT > 0) && e.state !== 'wind') { e.hazT = (rage ? rr(8.5, 10.5) : rr(11, 14)) * (e.castle ? 1.1 : 1); const f = H[e.hi = ((e.hi ?? -1) + 1) % H.length]; const b = f(e, tg); if (e.van) return true; e.busy = Math.max(e.busy, b * 0.5); }
+  }
+  e.repoT = (e.repoT ?? rr(4, 6)) - dt;
+  if (e.repoT <= 0 && e.busy <= 0.2 && tg && !e.mover && e.type !== 'shellback') { e.repoT = rage ? rr(4.5, 6.5) : rr(6, 8.5); e.busy = P.reposition(e, tg); return true; }
+  // keep moving while an attack plays out (not during charges, leaps or wind-ups)
+  if (e.busy > 0 && tg && !e.mover && !(e.jumpT > 0) && e.state !== 'wind' && e.state !== 'dash' && e.type !== 'shellback') { e.busy -= dt; moveInRoom(e, tg, spd * 0.45, dt, 80); return true; }
+  return false;
+}
+// what the Glossary says about each boss's arena hazards
+const HAZ_TEXT = {
+  gorehorn: 'Boulders fall around you.', chieftain: 'Spears rain down (Bleed).', bramble: 'Vines erupt under you and hold you in place.', hivequeen: 'Vanishes into the swarm and bursts out under someone; stingers rain down.',
+  mudslug: 'Burrows and erupts beneath you; mud tentacles grab.', sporemother: 'Fungal tentacles and spore bombs that leave clouds.', frostfang: 'Hides in the blizzard and pounces; icicles fall (Chill).', emberdrake: 'Meteors leave burning ground; dives from the sky.',
+  bonecolossus: 'Bone hands grab from below; bones rain down.', thundertoad: 'Lightning strikes from above (Hush).', warden: 'Krystal shards fall and crystal spikes erupt.', shellback: 'Sand spikes erupt; it digs under and bursts up.',
+  moth: 'Fades into dust and reappears on someone; moon motes fall (Hush).', phoenix: 'Walls of fire sweep in from any side: find the gaps. Fire meteors and flaming dives.', rimehorn: 'Icicles fall and ice spikes erupt (Chill).', stormcoil: 'Lightning coils erupt from the ground; bolts fall.',
+  vesper: 'Shadow hands rise and dark motes fall.', sovereign: 'Krystal spikes erupt under you.',
+};
+for (const k in HAZ_TEXT) if (ENEMY_INFO[k]) ENEMY_INFO[k] += ' Arena: ' + HAZ_TEXT[k] + ' It repositions often.';
 // ===== Bot AI =====
 // one difficulty: allied Krystalkers always play as well as they can
 const BOT_SKILL = { err: 0.04, react: 0.11, dodge: 0.85, perfect: 0.85, lead: 1, heatSmart: 0.95 };
@@ -7777,7 +7964,7 @@ function drawZones() {
     else if (z.kind === 'smoke') { ctx.fillStyle = `rgba(150,150,170,${0.25 * a})`; ctx.beginPath(); ctx.arc(z.x, z.y, z.r, 0, Math.PI * 2); ctx.fill(); }
   }
   for (const z of G.ezones) {
-    if (z.t < (z.delay || 0)) continue;
+    if (z.t < (z.delay || 0) || z.kind === 'tentacle') continue;
     const a = Math.min(1, (z.t - (z.delay || 0)) * 3) * Math.min(1, (z.life - z.t) * 2);
     const zc = { fire: [255, 120, 40], slime: [140, 160, 60], root: [110, 160, 60], frost: [150, 220, 255], shadow: [80, 50, 130] }[z.kind] || [200, 70, 160];
     ctx.fillStyle = `rgba(${zc[0]},${zc[1]},${zc[2]},${0.32 * a})`; ctx.beginPath(); ctx.arc(z.x, z.y, z.r, 0, Math.PI * 2); ctx.fill();
@@ -8015,6 +8202,8 @@ function render(dt) {
   for (const t of G.totems) objs.push({ y: t.y, d: () => { ctx.fillStyle = `rgba(160,230,255,${0.07 + 0.05 * Math.sin(G.time * 6)})`; ctx.beginPath(); ctx.arc(t.x, t.y, 85, 0, Math.PI * 2); ctx.fill(); shadow(t.x, t.y, 6); const w = SPR.w_reindeer; ctx.drawImage(w.c, t.x - 8, t.y - 22, w.w * 0.9, w.h * 0.9); if (R() < 0.2) burst(t.x + rr(-4, 4), t.y - 16, '#bff4ff', 1, 20, 0.2, { shape: 'spark', glow: true }); } });
   for (const e of G.enemies) objs.push({ y: e.y, d: () => drawEnemy(e) });
   for (const g of G.glaciers || []) objs.push({ y: g.y - 2, d: () => drawGlacier(g) });
+  for (const z of G.ezones) if (z.kind === 'tentacle') objs.push({ y: z.y, d: () => drawTentacle(z) });
+  for (const f of G.fallers || []) objs.push({ y: f.y + 999, d: () => drawFaller(f) });
   for (const d of G.drops) objs.push({ y: d.y, d: () => { shadow(d.x, d.y, 5); ctx.fillStyle = 'rgba(90,208,122,0.3)'; ctx.beginPath(); ctx.arc(d.x, d.y - 9, 9, 0, Math.PI * 2); ctx.fill(); ctx.drawImage(itemIcon(d.item, 40), d.x - 6, d.y - 15 + Math.sin(G.time * 3) * 1.2, 12, 12); } });
   for (const o of G.orbs) objs.push({ y: o.y, d: () => { const col = CHARS[o.owner.char].color; const g = ctx.createRadialGradient(o.x, o.y - 10, 1, o.x, o.y - 10, 14); g.addColorStop(0, '#ffffff'); g.addColorStop(0.4, col); g.addColorStop(1, 'rgba(255,255,255,0)'); ctx.fillStyle = g; ctx.beginPath(); ctx.arc(o.x, o.y - 10 + Math.sin(G.time * 4 + o.x) * 1.5, 14, 0, Math.PI * 2); ctx.fill(); ctx.font = `6px ${FONT}`; ctx.textAlign = 'center'; ctx.lineWidth = 2; ctx.strokeStyle = OUTL; ctx.strokeText(o.owner.name, o.x, o.y - 26); ctx.fillStyle = col; ctx.fillText(o.owner.name, o.x, o.y - 26); } });
   for (const t of G.healTotems) objs.push({ y: t.y, d: () => { ctx.fillStyle = `rgba(122,224,122,${0.1 + 0.05 * Math.sin(G.time * 5)})`; ctx.beginPath(); ctx.arc(t.x, t.y, 70, 0, Math.PI * 2); ctx.fill(); ctx.drawImage(itemIcon(ALL_ITEMS.totem, 40), t.x - 7, t.y - 18, 14, 14); } });
@@ -8085,6 +8274,7 @@ function drawSpeech() {
 
 function drawHazards() {
   if (G.walls) for (const w of G.walls) {
+    if (w.axis === 'x') { drawWallX(w); continue; }
     if (w.t < 0) { const k = 1 + w.t / 1.6; if (k > 0) { ctx.fillStyle = `rgba(255,120,40,${0.15 * k})`; ctx.fillRect(w.x0, w.y - 2, w.x1 - w.x0, 4); } continue; }
     let x = w.x0; const segs = []; const gs = w.gaps.slice().sort((a, b) => a.x - b.x);
     for (const g of gs) { segs.push([x, g.x - g.w / 2]); x = g.x + g.w / 2; } segs.push([x, w.x1]);
