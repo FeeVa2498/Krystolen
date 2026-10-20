@@ -9602,11 +9602,15 @@ async function netJoin() {
   NET.name = netName();
   const peer = new Peer(undefined, netPeerOpts());
   const fail = t => { netStatus(t, true); try { peer.destroy(); } catch (e) { } };
-  const timer = setTimeout(() => { if (NET.role !== 'client') fail('No answer from that room. Check the code, make sure the host is in the Hub, or add a TURN relay (Advanced).'); }, 20000);
+  let step = 'lobby'; const timer = setTimeout(() => { if (NET.role === 'client') return;
+    fail(step === 'lobby' ? '[1] Cannot reach the lobby server (0.peerjs.com). Check the internet, VPN, firewall or ad-blocker.'
+      : step === 'room' ? '[2] The lobby server answered, but the room did not. Check the code; the host must be in the Hub with the game tab open.'
+      : step === 'ice' ? '[3] Room found, but your two networks could not open a direct link (strict NAT / 4G). A TURN relay is needed: see Advanced.'
+      : '[4] The link opened but the host did not reply. Ask the host to press Ctrl+F5 so you both run the same version.'); }, 25000);
   peer.on('open', () => {
     const conn = peer.connect(NET_PREFIX + code, { reliable: true, serialization: 'raw' });
-    netStatus('Room server reached. Looking for room ' + code + '…');
-    netWatchIce(conn, () => { clearTimeout(timer); fail('Found the room, but your networks block a direct link (strict NAT / 4G). One of you needs a TURN relay: open Advanced below.'); }, st => { if (NET.role !== 'client' && st === 'checking') netStatus('Room found. Opening a direct link…'); });
+    step = 'room'; netStatus('Lobby server reached. Looking for room ' + code + '…');
+    netWatchIce(conn, () => { clearTimeout(timer); fail('[3] Found the room, but your networks block a direct link (strict NAT / 4G). One of you needs a TURN relay: open Advanced below.'); }, st => { if (NET.role === 'client') return; if (st === 'checking' || st === 'new') { if (step === 'room') { step = 'ice'; netStatus('Room found. Opening a direct link…'); } } else if (st === 'connected' || st === 'completed') { step = 'hello'; netStatus('Linked. Waiting for the host…'); } });
     conn.on('open', () => wire(conn, { t: 'hello', name: NET.name, char: LOADOUT.char, gems: PROFILE.equipped[LOADOUT.char] || [] }));
     conn.on('data', raw => { const m = unwire(conn, raw); if (!m) return; if (m.t === 'deny') { clearTimeout(timer); fail(m.why); return; } if (m.t === 'welcome') { clearTimeout(timer); Object.assign(NET, { role: 'client', peer, host: conn, code, slot: m.slot, party: m.party, lastSnap: performance.now() }); netWrapCosmetics(); netEnterHub(m.char); } netClientMsg(m); });
     conn.on('close', () => netHostGone());
