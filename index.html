@@ -292,7 +292,7 @@ th { font-family: var(--display); letter-spacing: 0.08em; }
         <li><b>Challenges.</b> The biome seals: nobody inside can leave, but allies can still walk in to help. Monsters keep pouring in and the biome's boss rises in one of its rooms. Inside and outside cannot see each other. Beat the boss and the altar becomes a <b>Krystal Shrine</b> for levelling. If everyone inside falls, the challenge fails. The Wildfire burns seals open.</li>
         <li><b>Boss chests.</b> Every boss drops a chest. Each player opens it once and picks 1 of 3 relics. Bosses with a higher recommended level give better odds. Unopened chests stay marked on your map.</li>
         <li><b>Gold</b> flies straight to your purse and is shared by the whole team. Rooms slowly refill with monsters to farm; a conquered biome only gets a few scattered stragglers. Two linked <b>teleporter rooms</b> (◎) connect far corners of the map.</li>
-        <li><b>The Wildfire</b> ignites twice per Act and closes on a <b>Gatekeeper</b>; its last ring always holds the whole Gatekeeper arena. When the Gatekeeper falls the doors open and the fire calms, so you can walk out and heal on the way. Act II is longer and has stronger monsters. After Gatekeeper II a <b>portal</b> opens to <b>The Bazaar</b>. Its northern portal leads to the Dungeon Master's own arena.</li>
+        <li><b>The Wildfire</b> ignites twice per Act and closes on a <b>Gatekeeper</b>; its last ring always holds the whole Gatekeeper arena. When Gatekeeper I falls the doors open and the fire calms, so you can walk out and heal on the way. After Gatekeeper II the fire keeps burning outside the ring. Act II is longer and has stronger monsters. After Gatekeeper II a <b>portal</b> opens to <b>The Bazaar</b>. Its northern portal leads to the Dungeon Master's own arena.</li>
         <li><b>The Labyrinth.</b> The whole castle is one great lair that sleeps until its altar is restored. Then every hall wakes at once (its monsters never come back once slain) and three tower guardians rise (Lv 10). Beat all three and the Keep's master rises in its wide throne hall (Lv 13). While its challenge runs, the Wildfire cannot burn its seal or reach anyone inside, and the night waits up to 3 minutes for the battle to end. Clearing it is the surest way to max level (15). Plan for it in Act II with a full team.</li>
         <li><b>Dead?</b> Press 1, 2 or 3 to watch a teammate. If they are sealed in a challenge, you only see what is right around them.</li>
         <li><b>Recommended level.</b> Bosses and Labyrinth monsters have a recommended level (Gatekeeper I: 5, Gatekeeper II: 10, Dungeon Master: 15). Every level you are below it, you deal 8% less damage and take 12% more. Cleared rooms slowly refill with monsters to farm.</li>
@@ -7022,7 +7022,8 @@ function onBossDead(e) {
   setBanner(`Gatekeeper ${ROMAN[G.day]} defeated`, '', 3, '#ffe6a0');
   dropBossChest(e.x, e.y, GK_REC[G.day] + 1, e.def.name, null);
   G.phase = 'dawn'; G.dawnT = 0;
-  setRoomLocked(G.bossRoom, false); if (G.circle) G.circle.calm = true; feed('The doors open and the Wildfire calms: you can leave the ring.', '#ffe6a0');
+  setRoomLocked(G.bossRoom, false);
+  if (G.day === 1) { if (G.circle) G.circle.calm = true; feed('The doors open and the Wildfire calms: you can leave the ring.', '#ffe6a0'); } // after Gatekeeper II the fire keeps burning outside
   if (G.day === 2) { G.portalOpened = true; setRoomLocked(G.bossRoom, false); openPortal(G.bossRoom.px, G.bossRoom.py - 40, 'bazaar'); }
 }
 // after Gatekeeper II a portal opens; everyone steps in → The Bazaar → portal → the Everfield
