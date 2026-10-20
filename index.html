@@ -220,6 +220,7 @@ th { font-family: var(--display); letter-spacing: 0.08em; }
 .mpbox { display: grid; gap: 12px; }
 .mpf { display: grid; grid-template-columns: 130px 1fr; align-items: center; gap: 12px; font-family: var(--display); }
 .mpf input { font: 600 20px var(--body, sans-serif); padding: 8px 12px; border-radius: 10px; border: 2px solid var(--ink); background: rgba(10,8,16,0.85); color: var(--text); min-width: 0; }
+.mpadv { margin-top: 10px; font-size: 13px; } .mpadv summary { cursor: pointer; opacity: 0.8; } .mpadv code { font-size: 12px; }
 .mphr { border: 0; border-top: 1px solid rgba(255,255,255,0.12); width: 100%; }
 .card.taken { opacity: 0.45; filter: grayscale(0.7); cursor: not-allowed; }
 .card .takenby { font-size: 12px; color: #ff9a8a; }
@@ -255,6 +256,10 @@ th { font-family: var(--display); letter-spacing: 0.08em; }
       <label class="mpf"><span>Room code</span><input id="mp-code" maxlength="6" autocomplete="off" spellcheck="false" placeholder="ABCDE" style="text-transform:uppercase;letter-spacing:0.2em"></label>
       <div class="btns" style="justify-content:center"><button class="btn" id="b-mpjoin">Join a party</button></div>
       <p class="hint" id="mp-status" style="text-align:center;min-height:1.4em"></p>
+      <details class="mpadv"><summary>Advanced: TURN relay (if friends cannot connect)</summary>
+        <p class="hint">Some networks (4G, school or office Wi-Fi) block direct links. A TURN relay forwards the traffic. Get a free one at metered.ca (Open Relay), then paste its credentials URL here, or lines of <code>turn:host:port user password</code>. Usually it is enough for the host to set it; set it on both sides if it still fails.</p>
+        <textarea id="mp-turn" rows="2" spellcheck="false" autocomplete="off" placeholder="https://yourapp.metered.live/api/v1/turn/credentials?apiKey=..." style="width:100%;font:12px monospace;background:#0b0d14;color:#cfe;border:1px solid #334;border-radius:6px;padding:6px"></textarea>
+      </details>
     </div>
     <div class="btns" style="justify-content:center"><button class="btn" id="b-mpback">Back</button></div>
   </section>
@@ -9373,7 +9378,35 @@ function netLoadPeer() {
 function netPeerOpts() { // ?peerhost=localhost&peerport=9000 points at a private PeerServer (used for local testing)
   const q = new URLSearchParams(location.search), o = { debug: 1 };
   if (q.get('peerhost')) { o.host = q.get('peerhost'); o.port = +(q.get('peerport') || 9000); o.path = q.get('peerpath') || '/'; o.secure = q.get('peersecure') === '1'; }
+  o.config = { iceServers: NET_ICE.concat(NET.turn || []), sdpSemantics: 'unified-plan' };
   return o;
+}
+// STUN finds a direct route; TURN relays the traffic when both sides sit behind strict NAT (common on 4G / CGNAT)
+const NET_ICE = [
+  { urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302', 'stun:stun2.l.google.com:19302'] },
+  { urls: 'stun:stun.cloudflare.com:3478' },
+  { urls: ['turn:eu-0.turn.peerjs.com:3478', 'turn:us-0.turn.peerjs.com:3478'], username: 'peerjs', credential: 'peerjsp' },
+];
+function netTurnText() { const el = $('mp-turn'); const v = (el ? el.value : '').trim(); try { localStorage.setItem('kry_turn', v); } catch (e) { } return v; }
+// accepts a Metered credentials URL (https://<app>.metered.live/api/v1/turn/credentials?apiKey=...) or lines of "turn:host:port user pass"
+async function netLoadTurn() {
+  const v = netTurnText(); NET.turn = [];
+  if (!v) return;
+  if (/^https:\/\//i.test(v)) {
+    try { const r = await fetch(v); const j = await r.json(); NET.turn = Array.isArray(j) ? j : j.iceServers || []; netStatus('TURN relay loaded (' + NET.turn.length + ' servers).'); }
+    catch (e) { netStatus('Could not load the TURN relay; trying without it.', true); }
+    return;
+  }
+  NET.turn = v.split(/\n+/).map(l => l.trim().split(/\s+/)).filter(a => /^turns?:/.test(a[0])).map(a => ({ urls: a[0], username: a[1] || '', credential: a[2] || '' }));
+}
+// watch the P2P link itself, so a blocked route says so instead of timing out silently
+function netWatchIce(conn, onFail, onStep) {
+  let tries = 0; const iv = setInterval(() => {
+    const pc = conn.peerConnection; if (!pc) { if (++tries > 40) clearInterval(iv); return; }
+    const st = pc.iceConnectionState; if (onStep) onStep(st);
+    if (st === 'connected' || st === 'completed' || st === 'closed') clearInterval(iv);
+    if (st === 'failed') { clearInterval(iv); onFail(); }
+  }, 250);
 }
 function netCode() { const A = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'; let s = ''; for (let i = 0; i < 5; i++) s += A[Math.floor(Math.random() * A.length)]; return s; }
 function netStatus(t, bad) { const el = $('mp-status'); if (el) { el.textContent = t; el.style.color = bad ? '#ff8a8a' : ''; } }
@@ -9384,14 +9417,14 @@ function netBroadcast(m) { for (const E of NET.party) if (E.conn && E.conn.open)
 function partyInfo() { return NET.party.map(e => ({ slot: e.slot, name: e.name, char: e.char })); }
 // ---------- hosting ----------
 async function netHost() {
-  try { netStatus('Opening the room…'); await netLoadPeer(); } catch (e) { netStatus(e.message, true); return; }
+  try { netStatus('Opening the room…'); await netLoadPeer(); await netLoadTurn(); } catch (e) { netStatus(e.message, true); return; }
   NET.name = netName(); const code = netCode();
   const peer = new Peer(NET_PREFIX + code, netPeerOpts());
   peer.on('open', () => {
     Object.assign(NET, { role: 'host', peer, code, slot: 0, party: [{ slot: 0, name: NET.name, char: LOADOUT.char, gems: PROFILE.equipped[LOADOUT.char] || [] }], inp: {}, acc: {} });
     netWrapCosmetics(); goHub(); feed(`Party room ${code} is open. Send the code to your friends.`, '#7ff0ff');
   });
-  peer.on('connection', conn => { conn.on('data', raw => { const m = unwire(conn, raw); if (m) netHostMsg(conn, m); }); conn.on('close', () => netDrop(conn)); conn.on('error', () => netDrop(conn)); });
+  peer.on('connection', conn => { feed('Someone is joining…', '#9fd8ff'); netWatchIce(conn, () => feed('A friend could not reach you: your networks block a direct link. Add a TURN relay (Online → Advanced) and host again.', '#ff8a8a')); conn.on('data', raw => { const m = unwire(conn, raw); if (m) netHostMsg(conn, m); }); conn.on('close', () => netDrop(conn)); conn.on('error', () => netDrop(conn)); });
   peer.on('error', err => { if (!NET.role) netStatus('Could not open a room: ' + (err.type || err), true); else feed('Network: ' + (err.type || err), '#ff8a8a'); });
   peer.on('disconnected', () => { if (NET.role === 'host' && !peer.destroyed) peer.reconnect(); });
 }
@@ -9565,19 +9598,21 @@ function netHostTick() {
 // ---------- joining ----------
 async function netJoin() {
   const code = ($('mp-code').value || '').trim().toUpperCase(); if (code.length < 4) { netStatus('Enter the room code from your host.', true); return; }
-  try { netStatus('Connecting…'); await netLoadPeer(); } catch (e) { netStatus(e.message, true); return; }
+  try { netStatus('Connecting to the lobby server…'); await netLoadPeer(); await netLoadTurn(); } catch (e) { netStatus(e.message, true); return; }
   NET.name = netName();
   const peer = new Peer(undefined, netPeerOpts());
   const fail = t => { netStatus(t, true); try { peer.destroy(); } catch (e) { } };
-  const timer = setTimeout(() => { if (NET.role !== 'client') fail('No answer from that room. Check the code, or the host may be offline.'); }, 15000);
+  const timer = setTimeout(() => { if (NET.role !== 'client') fail('No answer from that room. Check the code, make sure the host is in the Hub, or add a TURN relay (Advanced).'); }, 20000);
   peer.on('open', () => {
     const conn = peer.connect(NET_PREFIX + code, { reliable: true, serialization: 'raw' });
+    netStatus('Room server reached. Looking for room ' + code + '…');
+    netWatchIce(conn, () => { clearTimeout(timer); fail('Found the room, but your networks block a direct link (strict NAT / 4G). One of you needs a TURN relay: open Advanced below.'); }, st => { if (NET.role !== 'client' && st === 'checking') netStatus('Room found. Opening a direct link…'); });
     conn.on('open', () => wire(conn, { t: 'hello', name: NET.name, char: LOADOUT.char, gems: PROFILE.equipped[LOADOUT.char] || [] }));
     conn.on('data', raw => { const m = unwire(conn, raw); if (!m) return; if (m.t === 'deny') { clearTimeout(timer); fail(m.why); return; } if (m.t === 'welcome') { clearTimeout(timer); Object.assign(NET, { role: 'client', peer, host: conn, code, slot: m.slot, party: m.party, lastSnap: performance.now() }); netWrapCosmetics(); netEnterHub(m.char); } netClientMsg(m); });
     conn.on('close', () => netHostGone());
     conn.on('error', () => netHostGone());
   });
-  peer.on('error', err => { if (NET.role !== 'client') { clearTimeout(timer); fail(err.type === 'peer-unavailable' ? 'No room with that code.' : 'Network error: ' + (err.type || err)); } });
+  peer.on('error', err => { if (NET.role !== 'client') { clearTimeout(timer); fail(err.type === 'peer-unavailable' ? 'No room with that code. Check the code; the host must keep the game open (tab in front) while you join.' : err.type === 'network' || err.type === 'server-error' || err.type === 'socket-error' ? 'Cannot reach the lobby server (0.peerjs.com). Check your internet, VPN or ad-blocker.' : 'Network error: ' + (err.type || err)); } });
 }
 let NET_GONE_T = 0;
 function netHostGone() { if (NET.role !== 'client') return; netReset(); goTitle(); if (performance.now() - NET_GONE_T > 3000) { NET_GONE_T = performance.now(); setTimeout(() => alert('The host closed the party.'), 50); } }
@@ -9731,7 +9766,7 @@ function mpTaken() { // Krystalkers other people in the party already play
   return m;
 }
 function wireNet() {
-  try { $('mp-name').value = localStorage.getItem('kry_name') || ''; } catch (e) { }
+  try { $('mp-name').value = localStorage.getItem('kry_name') || ''; } catch (e) { } try { $('mp-turn').value = localStorage.getItem('kry_turn') || ''; } catch (e) { }
   $('b-mp').onclick = () => { netStatus(''); showScreen('mp'); setTimeout(() => $('mp-name').focus(), 50); };
   $('b-mpback').onclick = () => showScreen('title');
   $('b-mphost').onclick = () => netHost();
