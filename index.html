@@ -3990,7 +3990,7 @@ function updatePlayer(p, c, dt) {
   } else if (!(p.ball > 0)) {
     // sprint (Shift): +55% speed, drains stamina; it refills after a short pause
     if (p.stam == null) p.stam = 1;
-    const wantRun = c.run && L > 0 && !p.raise && !p.exhaust && p.stam > 0 && p.fated <= 0 && !(p.barrage > 0) && !(p.channel > 0);
+    const wantRun = c.run && L > 0 && !p.raise && !p.exhaust && p.stam > 0 && !(p.fated > 0) && !(p.barrage > 0) && !(p.channel > 0);
     p.running = wantRun;
     if (wantRun) { p.stam = Math.max(0, p.stam - dt / 3.2); p.stamT = 0.9; if (p.stam <= 0) { p.exhaust = true; if (!p.isBot) floatText(p.x, p.y - 30, 'Out of breath', '#ffe6a0', 0.7); } if (R() < 0.25) burst(p.x - mx * 5, p.y, '#b8a888', 1, 10, 0.4, { shape: 'smoke', size: 1.4 }); }
     else { p.stamT = (p.stamT || 0) - dt; if (p.stamT <= 0) p.stam = Math.min(1, p.stam + dt / 4); if (p.exhaust && p.stam >= 1) p.exhaust = false; }
