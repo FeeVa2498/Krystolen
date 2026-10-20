@@ -277,7 +277,7 @@ th { font-family: var(--display); letter-spacing: 0.08em; }
       </ol>
       <p><b>Elements and weaknesses:</b> Fire, Frost, Bleed, Poison, Shock, Shadow. Bosses list their weakness: matching hits deal +50%, matching damage over time deals double. A frozen boss is freeze-immune for 12s.</p>
       <p><b>Death.</b> Only during a Gatekeeper or Dungeon Master fight can a fallen ally be revived. Anywhere else, falling means death: you respawn at a shrine one level lower, and <b>all your gold</b> (plus that level's cost) stays where you fell. The spot is marked on your map and by an arrow at the edge of the screen. Die again before you get back and it is gone.</p>
-      <p><b>Flasks.</b> You start with 2 flasks (R): each heals 20% of your health. Standing at a Krystal Shrine with no enemies near refills your flasks and health. Six small rooms hold <b>Krystal Fonts</b> (⚱): your map shows where they are, but not how to get there. Channel one for 5 seconds (taking damage breaks it) and the whole team gets +1 flask and stronger flasks. All six give 8 flasks that heal 65% each.</p>
+      <p><b>Flasks.</b> You start with 2 flasks (R): each heals 20% of your health. Standing at a Krystal Shrine with no enemies near refills your flasks and health. Six small rooms hold <b>Krystal Fonts</b> (⚱): your map shows where they are, but not how to get there. Channel one for 5 seconds (taking damage breaks it) and <b>your own</b> flasks get +1 flask and heal more; every Krystalker must channel each Font themselves. All six give 8 flasks that heal 65% each.</p>
       <p><b>Downed during a boss:</b> teammates can revive you; each down makes the next revive slower (up to the third). Beating a Gatekeeper or Dungeon Master revives everyone on the spot. If the whole team is down, the expedition fails.</p>
       <p><b>Controls:</b> LMB attack · RMB secondary (melee) attack · Space movement skill · Q character skill · E ultimate (unlocks at level 10) · R drink a flask · T active item · F interact / revive · Shift sprint · G stickers.</p>
       <p><b>Sprint</b> drains stamina (the bar under your feet). Run it dry and you must wait until it is completely full again. Most Krystalkers cannot attack while sprinting; Crow, Rabbit, Serpent and Red Lizard can.</p>
@@ -2967,7 +2967,7 @@ function interPrompt(it, p) {
       return { text: `Level up to ${p.level + 1}`, cost: c, sub: '+8% health, +7% damage, full heal' };
     }
     case 'seal': return null;
-    case 'font': { if (it.used) return null; const ch = G.players.find(q => q.fchan && q.fchan.it === it); if (ch) return { text: ch === p ? 'Channelling… (do not get hit)' : `${ch.isBot ? ch.name : 'An ally'} is channelling`, locked: true }; return { text: `Channel the Krystal Font (${FONT_CHANNEL}s)`, sub: `Every ally gets +1 flask and stronger flasks (${flaskMax()} → ${flaskMax() + 1}, heal ${Math.round(flaskPct() * 100)}% → ${Math.round((flaskPct() + 0.075) * 100)}%)` }; }
+    case 'font': { if (fontTaken(it, p)) return null; if (p.fchan && p.fchan.it === it) return { text: 'Channelling… (do not get hit)', locked: true }; return { text: `Channel the Krystal Font (${FONT_CHANNEL}s)`, sub: `Only your own flasks: +1 flask and stronger (${flaskMax(p)} → ${flaskMax(p) + 1}, heal ${Math.round(flaskPct(p) * 100)}% → ${Math.round((flaskPct(p) + 0.075) * 100)}%). Each ally must channel it themselves.` }; }
     case 'altar': { const B = it.B, rec = chalRec(B); if (B.chal) return { text: `${B.name}: challenge in progress`, locked: true }; if (B.retryT > G.time) return { text: 'The altar is still cooling…', locked: true }; return { text: `Restore the altar: challenge the ${B.name}`, sub: `Recommended Lv ${rec} · the biome seals until its boss falls`, danger: rec > p.level }; }
     case 'bosschest': return it.taken.has(p) ? null : { text: `Open ${it.label}'s chest: choose 1 of 3 relics`, sub: oddsText(it.odds) };
     case 'portal': { if (it.opening) return null; const n = G.players.filter(q => q.state === 'up').length, k = [...it.ready].filter(q => q.state === 'up').length; return it.ready.has(p) ? { text: `Ready · waiting for the team (${k}/${n})`, locked: true } : { text: it.to === 'bazaar' ? `Step into the portal: The Bazaar (${k}/${n} ready)` : `Step into the portal: the Everfield (${k}/${n} ready)` }; }
@@ -3612,7 +3612,7 @@ const CHARS = {
         if (p.flurry <= 0) { p.flurry = 0; p.over = false; p.heat = 0; smoke(muzzle(p, 18).x, muzzle(p, 18).y, 8, '#e8e8f0', 30, 1); }
         p.bashT -= dt; return;
       }
-      if (p.fired <= 0) p.heat = Math.max(0, p.heat - (p.over ? 0.3 : 0.55) * dt);
+      if (p.fired <= 0) p.heat = Math.max(0, p.heat - (p.over ? 0.18 : 0.55) * dt); // an overheated gun takes ~5.5s to cool
       p.bashT -= dt;
       if (p.over && p.heat <= 0) p.over = false;
     },
@@ -4484,7 +4484,7 @@ Object.assign(CHARS, {
   owl: {
     name: 'Owl', role: 'Pirate gunner', color: '#8a5a34', hp: 104, spd: 80, range: 150, weapon: 'w_owl', wx: 1, handColor: '#6a5a8c',
     short: ['Cannon', 'Feather', 'Starshell'],
-    lmb: 'Ship Cannon. Click to fire a fan of five pellets. Hold to charge a huge shell (release to fire early; at full charge it fires by itself): shorter range, it ploughs through enemies and explodes at the end of its flight.',
+    lmb: 'Ship Cannon. Click to fire four pellets in quick succession, straight ahead. Hold to charge a huge shell (release to fire early; at full charge it fires by itself): shorter range, it ploughs through enemies and explodes at the end of its flight.',
     sp: 'Feather Step. A short dash with two charges.',
     q: 'Starshell. Lob a flare that bursts over an area: it damages and Marks every enemy there for 6s (Marked enemies take 25% more damage from everyone).',
     init(p) { p.fsCharges = 2; p.fsT = 0; },
@@ -4492,10 +4492,11 @@ Object.assign(CHARS, {
     update(p, c, dt) {
       if (p.fsCharges < 2) { p.fsT += dt; if (p.fsT >= 4) { p.fsT = 0; p.fsCharges++; } }
       const can = !busy(p) && !p.running && !(p.drinkT > 0), held = !!c.atk && can;
-      if (held && !p.owPrev && p.atkCd <= 0) { // a tap fires a fan of five pellets
-        const m = muzzle(p, 16); p.atkCd = 0.32 / p.st.rate;
-        for (let k = 0; k < 5; k++) shoot(p, m.x, m.y, p.aimA + (k - 2) * 0.09 + rr(-0.02, 0.02), 340, 5 * p.st.dmg, { life: 0.55, r: 2.4, color: '#e8dcc0', elem: 'shadow', silent: k > 0, st: hasGem(p, 'o_moonless') ? { k: 'gloom', t: 2, ch: 0.25 } : null });
-        muzzleFlash(m.x, m.y, p.aimA, '#ffe6a0', 1.1); p.chg = 0;
+      if (held && !p.owPrev && p.atkCd <= 0) { p.atkCd = 0.42 / p.st.rate; p.owBurst = 4; p.owBT = 0; p.chg = 0; } // a click fires a quick string of pellets straight ahead
+      if (p.owBurst > 0 && (p.owBT -= dt) <= 0 && !busy(p)) {
+        p.owBurst--; p.owBT = 0.055; const m = muzzle(p, 16);
+        shoot(p, m.x, m.y, p.aimA + rr(-0.015, 0.015), 360, 6 * p.st.dmg, { life: 0.6, r: 2.4, color: '#e8dcc0', elem: 'shadow', silent: p.owBurst < 3, st: hasGem(p, 'o_moonless') ? { k: 'gloom', t: 2, ch: 0.25 } : null });
+        muzzleFlash(m.x, m.y, p.aimA, '#ffe6a0', 0.9);
       }
       if (held && !p.owLock) { p.chg = (p.chg || 0) + dt * p.st.rate; if (p.chg > 0.3 && R() < 0.5) { const m = muzzle(p, 16); burst(m.x, m.y, p.chg > 0.9 ? '#c8b0ff' : '#8a7ac8', 1, 20, 0.3, { glow: true, size: 1 + Math.min(1, p.chg) }); } }
       const full = held && !p.owLock && (p.chg || 0) >= 1.6; // a full charge fires by itself
@@ -4661,38 +4662,41 @@ function addNewcomerDialogue() {
   });
   for (const ch of ['goat', 'lizard', 'serpent', 'beaver', 'owl', 'monkey']) for (const k in DIALOGUE[ch].to) if (!DIALOGUE[ch].to[k].length) delete DIALOGUE[ch].to[k];
 }
-// ===== Krystal flasks: R drinks, shrines refill, six hidden Krystal Fonts strengthen the whole team =====
+// ===== Krystal flasks: R drinks, shrines refill, six hidden Krystal Fonts: each Krystalker must channel a Font to upgrade their own flasks =====
 const FONT_COUNT = 6, FONT_CHANNEL = 5;
-function flaskMax() { return 2 + (G.flaskUp || 0); }
-function flaskPct() { return 0.2 + 0.075 * (G.flaskUp || 0); }
-function refillFlasks(p) { p.flasks = flaskMax(); }
+function flaskMax(p) { return 2 + ((p && p.flaskUp) || 0); }
+function flaskPct(p) { return 0.2 + 0.075 * ((p && p.flaskUp) || 0); }
+function fontTaken(it, p) { return !!(it.usedBy && it.usedBy.has(p)); }
+function refillFlasks(p) { p.flasks = flaskMax(p); }
 function drinkFlask(p) {
   if (p.state !== 'up' || p.drinkT > 0 || !(p.flasks > 0) || p.hp >= p.maxHp || p.fchan) return false;
   p.flasks--; p.drinkT = 0.55; sfx('revive', p.x, p.y, p.isBot ? 0.3 : 0.6);
-  burst(p.x, p.y - 14, '#ff7a8a', 6, 30, 0.5, { glow: true, g: -30 });
+  burst(p.x, p.y - 14, '#ff7a8a', 6, 30, 0.5, { glow: true, g: -30 }); glow(p.x, p.y - 12, 18, '#ff6a7a', 0.25);
   return true;
 }
 function updateFlask(p, dt) {
-  if (p.flasks == null) p.flasks = flaskMax();
+  if (p.flasks == null) p.flasks = flaskMax(p);
   if (p.drinkT > 0) {
     p.drinkT -= dt;
+    if (R() < 0.6) { const a = G.time * 9 + R() * 0.6; burst(p.x + Math.cos(a) * 9, p.y - 10 + Math.sin(a) * 4, pick(['#ff7a8a', '#ffb0b8', '#7ae07a']), 1, 14, 0.5, { glow: true, g: -50, size: 1.3 }); }
     if (p.drinkT <= 0) {
       p.drinkT = 0; if (p.state !== 'up') return;
-      const h = p.maxHp * flaskPct(); p.hp = Math.min(p.maxHp, p.hp + h);
-      floatText(p.x, p.y - 30, `+${Math.round(h)}`, '#7ae07a', 0.8); burst(p.x, p.y - 10, '#7ae07a', 14, 60, 0.6, { glow: true, g: -40 });
+      const h = p.maxHp * flaskPct(p); p.hp = Math.min(p.maxHp, p.hp + h);
+      floatText(p.x, p.y - 30, `+${Math.round(h)}`, '#7ae07a', 0.8); burst(p.x, p.y - 10, '#7ae07a', 18, 70, 0.7, { glow: true, g: -50 });
+      fx({ k: 'ring', x: p.x, y: p.y, r: 22, life: 0.45, color: '#7ae07a' }); glow(p.x, p.y - 12, 30, '#7ae07a', 0.45); pillar(p.x, p.y, '#9af0a0', 36, 9, 0.45);
+      for (let i = 0; i < 6; i++) G.parts.push({ x: p.x + rr(-8, 8), y: p.y - rr(2, 18), vx: rr(-6, 6), vy: rr(-50, -30), t: 0, life: 0.9, color: '#7ae07a', size: 1.6, g: 0, shape: 'plus', glow: true, drag: 0.5 });
     }
   }
   const F = p.fchan;
   if (F) {
-    if (p.state !== 'up' || F.it.used || d2(p.x, p.y, F.it.x, F.it.y) > 40 * 40) { cancelFont(p, false); return; }
+    if (p.state !== 'up' || fontTaken(F.it, p) || d2(p.x, p.y, F.it.x, F.it.y) > 40 * 40) { cancelFont(p, false); return; }
     F.t -= dt; p.channel = Math.max(p.channel || 0, 0.05);
     if (R() < 0.5) burst(F.it.x + rr(-10, 10), F.it.y - rr(4, 26), '#7ff0ff', 1, 20, 0.6, { glow: true, g: -40 });
     if (F.t <= 0) finishFont(p, F.it);
   }
 }
 function startFont(it, p) {
-  if (it.used || p.fchan) return false;
-  for (const q of G.players) if (q.fchan && q.fchan.it === it) return false;
+  if (fontTaken(it, p) || p.fchan) return false;
   p.fchan = { it, t: FONT_CHANNEL }; p.channel = 0.05;
   if (!p.isBot) feed('Channelling the Krystal Font… taking damage breaks it.', '#bff4ff');
   return true;
@@ -4702,12 +4706,13 @@ function cancelFont(p, hit) {
   if (hit) floatText(p.x, p.y - 34, 'Interrupted!', '#ff8a8a', 0.8);
 }
 function finishFont(p, it) {
-  p.fchan = null; p.channel = 0; it.used = true;
-  G.flaskUp = (G.flaskUp || 0) + 1;
-  for (const q of G.players) q.flasks = Math.min(flaskMax(), (q.flasks || 0) + 1);
-  pillar(it.x, it.y, '#7ff0ff', 120, 18, 1); burst(it.x, it.y - 16, '#bff4ff', 30, 120, 0.8, { glow: true }); sfx('bell', it.x, it.y);
-  setBanner('Krystal Font restored', `${flaskMax()} flasks · each heals ${Math.round(flaskPct() * 100)}%`, 3, '#7ff0ff');
-  if (p.isBot) botAnnounce(p, 'Font restored: our flasks are stronger!', 'fontdone' + it.x);
+  p.fchan = null; p.channel = 0; (it.usedBy || (it.usedBy = new Set())).add(p);
+  if (G.players.every(q => it.usedBy.has(q))) it.used = true;
+  p.flaskUp = (p.flaskUp || 0) + 1; G.flaskUp = Math.max(G.flaskUp || 0, p.flaskUp);
+  p.flasks = Math.min(flaskMax(p), (p.flasks || 0) + 1);
+  pillar(it.x, it.y, '#7ff0ff', 120, 18, 1); burst(it.x, it.y - 16, '#bff4ff', 30, 120, 0.8, { glow: true }); sfx('bell', it.x, it.y, p.isBot ? 0.4 : 1);
+  if (!p.isBot) setBanner('Krystal Font restored', `Your flasks: ${flaskMax(p)} · each heals ${Math.round(flaskPct(p) * 100)}%`, 3, '#7ff0ff');
+  else botAnnounce(p, 'Font channelled: my flasks are stronger!', 'fontdone' + it.x);
 }
 // ---- map generation: six tiny side rooms, each budding off an existing room ----
 function genFonts() {
@@ -4744,7 +4749,7 @@ function genFonts() {
 }
 function placeFonts() { for (const fr of G.fontRooms || []) if (!G.inter.some(i => i.kind === 'font' && i.room === fr)) addInter({ kind: 'font', room: fr, x: fr.px, y: fr.py + 6, r: 12 }); }
 function drawFont(it) {
-  const x = it.x, y = it.y, on = !it.used, ch = G.players.find(q => q.fchan && q.fchan.it === it);
+  const H0 = human(), x = it.x, y = it.y, on = H0 ? !fontTaken(it, H0) : !it.used, ch = G.players.find(q => q.fchan && q.fchan.it === it && (!H0 || q === H0)) || G.players.find(q => q.fchan && q.fchan.it === it);
   shadow(x, y, 9);
   ctx.fillStyle = '#5a5668'; ctx.strokeStyle = OUTL; ctx.lineWidth = 1;
   ctx.beginPath(); ctx.ellipse(x, y, 10, 4.5, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
@@ -6512,21 +6517,19 @@ function altarPlan(p, A) {
   A.goal = { x: al.x + rr(-40, 40), y: al.y + rr(10, 40), near: 50 }; A.camp = null; return 'goto';
 }
 
-// one bot at a time walks to an unclaimed Krystal Font and channels it
+// every bot channels each Krystal Font itself (the upgrade is personal); it goes to the nearest one it has not taken
 function fontPlan(p, A, vis) {
   if (G.phase !== 'day' || (vis.length && vis[0].d < 220)) return null;
-  const fonts = G.inter.filter(i => i.kind === 'font' && !i.used); if (!fonts.length) return null;
-  if (G.fontBot && (G.fontBot.state === 'dead' || !G.fontTgt || G.fontTgt.used || G.time > G.fontUntil)) G.fontBot = null;
-  if (!G.fontBot) {
+  if (A.fontTgt && (fontTaken(A.fontTgt, p) || G.time > A.fontUntil)) { if (G.time > A.fontUntil && !fontTaken(A.fontTgt, p)) A.fontSkip = A.fontTgt; A.fontTgt = null; }
+  if (!A.fontTgt) {
+    if (G.players.some(q => q !== p && q.ai && q.ai.fontTgt && q.state === 'up')) return null; // one font trip at a time keeps the team farming
     const here = bmAt(p.x, p.y), sealed = here >= 0 && sealHolds(G.biomes[here]);
-    let best = null, bd = 1700 * 1700;
-    for (const it of fonts) { const ib = bmAt(it.x, it.y); if (sealed && ib !== here) continue; if (!sealed && ib >= 0 && sealHolds(G.biomes[ib])) continue; if (!campSafe(p, it.x, it.y, 40, 20)) continue; const dd = d2(it.x, it.y, p.x, p.y); if (dd < bd) { bd = dd; best = it; } }
+    let best = null, bd = 1300 * 1300;
+    for (const it of G.inter) { if (it.kind !== 'font' || fontTaken(it, p) || it === A.fontSkip) continue; const ib = bmAt(it.x, it.y); if (sealed && ib !== here) continue; if (!sealed && ib >= 0 && sealHolds(G.biomes[ib])) continue; if (!campSafe(p, it.x, it.y, 40, 20)) continue; const dd = d2(it.x, it.y, p.x, p.y); if (dd < bd) { bd = dd; best = it; } }
     if (!best) return null;
-    if (G.players.some(q => q !== p && q.isBot && q.state === 'up' && d2(q.x, q.y, best.x, best.y) < bd * 0.8)) return null; // someone closer can take it
-    G.fontBot = p; G.fontTgt = best; G.fontUntil = G.time + 60;
+    A.fontTgt = best; A.fontUntil = G.time + 50;
   }
-  if (G.fontBot !== p) return null;
-  const it = G.fontTgt;
+  const it = A.fontTgt;
   botAnnounce(p, 'Going for a Krystal Font', 'font' + it.x);
   A.goal = { x: it.x, y: it.y, near: 18, use: true, it }; return 'goto';
 }
@@ -6743,7 +6746,7 @@ function updateShrineRest(dt) {
     const threat = G.enemies.some(e => !e.dead && !e.def.objective && e.type !== 'dummy' && d2(e.x, e.y, it.x, it.y) < 150 * 150);
     it.calm = !threat;
     if (threat) continue;
-    for (const p of near) { if (p.flasks < flaskMax()) { refillFlasks(p); floatText(p.x, p.y - 34, 'Flasks refilled', '#ff8a9a', 0.8); } if (p.hp < p.maxHp) { p.hp = Math.min(p.maxHp, p.hp + p.maxHp * 0.3 * dt); if (R() < 0.3) burst(p.x + rr(-5, 5), p.y - rr(4, 20), '#7ff0ff', 1, 14, 0.6, { glow: true, g: -30 }); } if (anyStatus(p)) clearStatus(p); }
+    for (const p of near) { if (p.flasks < flaskMax(p)) { refillFlasks(p); floatText(p.x, p.y - 34, 'Flasks refilled', '#ff8a9a', 0.8); } if (p.hp < p.maxHp) { p.hp = Math.min(p.maxHp, p.hp + p.maxHp * 0.3 * dt); if (R() < 0.3) burst(p.x + rr(-5, 5), p.y - rr(4, 20), '#7ff0ff', 1, 14, 0.6, { glow: true, g: -30 }); } if (anyStatus(p)) clearStatus(p); }
   }
 }
 function startNight() {
@@ -7392,7 +7395,7 @@ function stepHub(dt) {
   const c = humanControl(H0);
   updatePlayer(H0, c, dt);
   H0.stam = 1; H0.exhaust = false; // sprinting is free at home
-  if (HUB_OPT.noCd) { H0.cd.skill = H0.cd.ult = H0.cd.super = 0; H0.altCd = Math.min(H0.altCd, 0); H0.activeCd = 0; if (H0.char === 'beaver') H0.tCharges = Math.max(H0.tCharges, 2); if (H0.char === 'owl') H0.fsCharges = 2; if (H0.char === 'monkey') H0.souls = Math.max(H0.souls, 10); if (H0.flasks != null) H0.flasks = flaskMax(); }
+  if (HUB_OPT.noCd) { H0.cd.skill = H0.cd.ult = H0.cd.super = 0; H0.altCd = Math.min(H0.altCd, 0); H0.activeCd = 0; if (H0.char === 'beaver') H0.tCharges = Math.max(H0.tCharges, 2); if (H0.char === 'owl') H0.fsCharges = 2; if (H0.char === 'monkey') H0.souls = Math.max(H0.souls, 10); if (H0.flasks != null) H0.flasks = flaskMax(H0); }
   if (H0.state !== 'up') { H0.state = 'up'; H0.hp = H0.maxHp; }
   H0.hp = Math.min(H0.maxHp, H0.hp + H0.maxHp * 0.3 * dt);
   for (const e of G.enemies) updateEnemy(e, dt);
@@ -7572,6 +7575,7 @@ function drawPlayer(p) {
   p.y -= dy;
   if (p.aurora > 0) { for (const [ox, oy, r] of [[-10, -46, 9], [0, -50, 11], [11, -46, 8], [4, -42, 8]]) { ctx.fillStyle = 'rgba(70,80,110,0.85)'; ctx.beginPath(); ctx.arc(p.x + ox, p.y + oy, r, 0, Math.PI * 2); ctx.fill(); } ctx.fillStyle = 'rgba(200,230,255,0.25)'; ctx.beginPath(); ctx.arc(p.x, p.y - 50, 12, 0, Math.PI * 2); ctx.fill(); }
   drawBearShield(p);
+  if (p.drinkT > 0) { const k = 1 - p.drinkT / 0.55; ctx.save(); ctx.translate(p.x + p.face * 7, p.y - 22 - Math.sin(k * Math.PI) * 3); ctx.rotate(p.face * (0.3 + k * 1.6)); drawFlaskIcon(0, 0, 0.85, true); ctx.restore(); const g = ctx.createRadialGradient(p.x, p.y - 12, 1, p.x, p.y - 12, 20); g.addColorStop(0, `rgba(255,120,140,${0.35 * (1 - k)})`); g.addColorStop(1, 'rgba(255,120,140,0)'); ctx.fillStyle = g; ctx.beginPath(); ctx.arc(p.x, p.y - 12, 20, 0, Math.PI * 2); ctx.fill(); }
   if (p.guardT > 0) { ctx.strokeStyle = 'rgba(255,232,192,0.8)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(p.x, p.y - 8, 13, p.guardA - 1.1, p.guardA + 1.1); ctx.stroke(); }
   if (p.shieldHp > 1) { ctx.strokeStyle = 'rgba(120,230,140,0.55)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(p.x, p.y - 12, 14, 0, Math.PI * 2); ctx.stroke(); }
   if (p.groundT > 0) { ctx.strokeStyle = 'rgba(191,244,255,0.45)'; ctx.lineWidth = 0.8; ctx.beginPath(); ctx.arc(p.x, p.y - 12, 12, 0, Math.PI * 2); ctx.stroke(); }
@@ -7872,6 +7876,7 @@ function drawFx() {
     if (!q.glow) continue; const a = 1 - q.t / q.life;
     ctx.globalAlpha = a; ctx.fillStyle = q.color;
     if (q.shape === 'spark') { ctx.strokeStyle = q.color; ctx.lineWidth = q.size; ctx.beginPath(); ctx.moveTo(q.x, q.y); ctx.lineTo(q.x - q.vx * 0.035, q.y - q.vy * 0.035); ctx.stroke(); }
+    else if (q.shape === 'plus') { const z = q.size * 1.6; ctx.fillRect(q.x - z, q.y - z * 0.35, z * 2, z * 0.7); ctx.fillRect(q.x - z * 0.35, q.y - z, z * 0.7, z * 2); }
     else { ctx.beginPath(); ctx.arc(q.x, q.y, q.size * 1.2, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = a * 0.3; ctx.beginPath(); ctx.arc(q.x, q.y, q.size * 3, 0, Math.PI * 2); ctx.fill(); }
   }
   ctx.restore(); ctx.globalAlpha = 1;
@@ -8408,7 +8413,7 @@ function drawSkillBar(p) {
     { key: settings.binds.ult, name: (SHORT[p.char] || CHARS[p.char].short)[2], cd: p.cd.ult, max: CHARS[p.char].ult.cd * (1 - p.st.cdr), flash: G.cdFlash && G.cdFlash.slot === 'ult', aiming: p.aiming === 'ult', gemSlot: 'q' },
     ...(CHARS[p.char].super ? [{ key: settings.binds.super, name: CHARS[p.char].super.short || 'Ultimate', cd: p.level < ULT_LEVEL && !G.hub ? 0 : p.cd.super, max: CHARS[p.char].super.cd * (1 - p.st.cdr), flash: G.cdFlash && G.cdFlash.slot === "super", aiming: p.aiming === "super", locked: p.level < ULT_LEVEL && !G.hub, ult: true }] : []),
     ...(CHARS[p.char].alt ? [{ key: settings.binds.alt, name: CHARS[p.char].alt.short || 'Melee', cd: Math.max(0, p.altCd), max: CHARS[p.char].alt.cd, small: true }] : []),
-    { key: settings.binds.flask, name: `Flask ${p.flasks ?? 0}/${flaskMax()}`, cd: p.drinkT > 0 ? p.drinkT : 0, max: 0.55, flask: true, empty: !(p.flasks > 0) },
+    { key: settings.binds.flask, name: `Flask ${p.flasks ?? 0}/${flaskMax(p)}`, cd: p.drinkT > 0 ? p.drinkT : 0, max: 0.55, flask: true, empty: !(p.flasks > 0) },
     { key: settings.binds.item, name: p.active ? p.active.name.split(' ')[0] : 'Empty', cd: p.activeCd > 0 ? p.activeCd : 0, max: p.active ? p.active.cd * (1 - p.st.cdr) : 1, empty: !p.active, icon: p.active },
   ];
   const total = slots.length * sz + (slots.length - 1) * gap; let x = cx - total / 2; const y = H - Math.round(20 * s) - sz;
@@ -8506,7 +8511,7 @@ function drawMinimap(big) {
       if (big && it.kind === 'tpad' && it.link && seen(it.link.x, it.link.y)) { ctx.setLineDash([4 * s, 4 * s]); ctx.strokeStyle = 'rgba(127,240,255,0.45)'; ctx.lineWidth = 1.5 * s; ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(X(it.link.x / TILE), Y(it.link.y / TILE)); ctx.stroke(); ctx.setLineDash([]); } }
   }
   // Krystal Fonts show through the fog (the way there does not)
-  for (const it of G.inter) { if (it.kind !== 'font') continue; const px = X(it.x / TILE), py = Y(it.y / TILE); ctx.save(); ctx.globalAlpha = it.used ? 0.45 : 1; drawFlaskIcon(px, py, (big ? 1.5 : 1.1) * s, !it.used); ctx.restore(); }
+  for (const it of G.inter) { if (it.kind !== 'font') continue; const px = X(it.x / TILE), py = Y(it.y / TILE); ctx.save(); const tk = human() ? fontTaken(it, human()) : it.used; ctx.globalAlpha = tk ? 0.45 : 1; drawFlaskIcon(px, py, (big ? 1.5 : 1.1) * s, !tk); ctx.restore(); }
   // boss chests the viewer has not opened yet are always marked
   { const H1 = human(); for (const it of G.inter) { if (it.kind !== 'bosschest' || it.used || (H1 && it.taken.has(H1))) continue; const px = X(it.x / TILE), py = Y(it.y / TILE), k = big ? 1.5 : 1.1; ctx.fillStyle = '#ffd44a'; ctx.strokeStyle = UI.edge; ctx.lineWidth = 1.4 * s; ctx.fillRect(px - 4 * s * k, py - 3 * s * k, 8 * s * k, 6 * s * k); ctx.strokeRect(px - 4 * s * k, py - 3 * s * k, 8 * s * k, 6 * s * k); const pr = (5 + 2 * Math.sin(G.time * 5)) * s * k; ctx.strokeStyle = 'rgba(255,212,74,0.7)'; ctx.beginPath(); ctx.arc(px, py, pr + 3 * s, 0, Math.PI * 2); ctx.stroke(); } }
   for (const B of G.biomes || []) { if (!B.chal) continue; const bs = B.lab ? G.castle.rooms.filter(r => r.boss && !r.boss.dead).map(r => r.boss) : [B.chal.boss].filter(e => e && !e.dead); for (const e of bs) txt('☠', X(e.x / TILE), Y(e.y / TILE) + 5 * s, big ? 16 : 12, '#ff5a6a', 'center'); }
