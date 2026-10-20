@@ -256,7 +256,7 @@ th { font-family: var(--display); letter-spacing: 0.08em; }
       <label class="mpf"><span>Room code</span><input id="mp-code" maxlength="6" autocomplete="off" spellcheck="false" placeholder="ABCDE" style="text-transform:uppercase;letter-spacing:0.2em"></label>
       <div class="btns" style="justify-content:center"><button class="btn" id="b-mpjoin">Join a party</button></div>
       <p class="hint" id="mp-status" style="text-align:center;min-height:1.4em"></p>
-      <details class="mpadv"><summary>Advanced: TURN relay (if friends cannot connect)</summary>
+      <details class="mpadv"><summary>Advanced: extra TURN relay (a shared one is built in)</summary>
         <p class="hint">Some networks (4G, school or office Wi-Fi) block direct links. A TURN relay forwards the traffic. Get a free one at metered.ca (Open Relay), then paste its credentials URL here, or lines of <code>turn:host:port user password</code>. Usually it is enough for the host to set it; set it on both sides if it still fails.</p>
         <textarea id="mp-turn" rows="2" spellcheck="false" autocomplete="off" placeholder="https://yourapp.metered.live/api/v1/turn/credentials?apiKey=..." style="width:100%;font:12px monospace;background:#0b0d14;color:#cfe;border:1px solid #334;border-radius:6px;padding:6px"></textarea>
       </details>
@@ -9385,6 +9385,9 @@ function netPeerOpts() { // ?peerhost=localhost&peerport=9000 points at a privat
 const NET_ICE = [
   { urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302', 'stun:stun2.l.google.com:19302'] },
   { urls: 'stun:stun.cloudflare.com:3478' },
+  // the party's own Metered relay (free plan): used by everyone automatically
+  { urls: 'stun:stun.relay.metered.ca:80' },
+  { urls: ['turn:global.relay.metered.ca:80', 'turn:global.relay.metered.ca:80?transport=tcp', 'turn:global.relay.metered.ca:443', 'turns:global.relay.metered.ca:443?transport=tcp'], username: '1c7ebc58593c8e872920f81a', credential: 'BBlP4u8LK7Uh4fJJ' },
   { urls: ['turn:eu-0.turn.peerjs.com:3478', 'turn:us-0.turn.peerjs.com:3478'], username: 'peerjs', credential: 'peerjsp' },
 ];
 function netTurnText() { const el = $('mp-turn'); const v = (el ? el.value : '').trim(); try { localStorage.setItem('kry_turn', v); } catch (e) { } return v; }
