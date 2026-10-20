@@ -8399,8 +8399,17 @@ function drawCursorRes(p, mx, my, r, s) {
       ctx.strokeStyle = Rl.jam || Rl.tried ? '#8a4a4a' : '#ffd36a'; ctx.lineWidth = 3 * s; ctx.beginPath(); ctx.arc(mx, my, R0, a0 + span * ZONE0, a0 + span * ZONE1); ctx.stroke();
       const k = clamp(Rl.t / SWEEP, 0, 1); arc(k, 'rgba(255,255,255,0.35)', 3 * s);
       const a = a0 + span * k; ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2 * s; ctx.beginPath(); ctx.moveTo(mx + Math.cos(a) * (R0 - 4 * s), my + Math.sin(a) * (R0 - 4 * s)); ctx.lineTo(mx + Math.cos(a) * (R0 + 4 * s), my + Math.sin(a) * (R0 + 4 * s)); ctx.stroke();
-      txt(Rl.jam ? 'MISSED' : 'CLICK!', mx, my + R0 + 14 * s, 9, Rl.jam ? '#ff8a8a' : '#ffe6a0', 'center');
     }
+    // a plain horizontal reload bar under the cursor, same as the one over Wolf's head
+    const bw = 64 * s, bh = 8 * s, bx = mx - bw / 2, by = my + R0 + 8 * s;
+    ctx.fillStyle = UI.edge; ctx.beginPath(); ctx.roundRect(bx - 2 * s, by - 2 * s, bw + 4 * s, bh + 4 * s, 4 * s); ctx.fill();
+    ctx.fillStyle = '#3a2010'; ctx.beginPath(); ctx.roundRect(bx, by, bw, bh, 3 * s); ctx.fill();
+    if (Rl) {
+      ctx.fillStyle = Rl.jam || Rl.tried ? '#8a4a4a' : '#ffd36a'; ctx.fillRect(bx + bw * ZONE0, by, bw * (ZONE1 - ZONE0), bh);
+      const k = clamp(Rl.t / SWEEP, 0, 1); ctx.fillStyle = 'rgba(255,255,255,0.3)'; ctx.fillRect(bx, by, bw * k, bh);
+      ctx.fillStyle = '#ffffff'; ctx.fillRect(bx + bw * k - 1.2 * s, by - 3 * s, 2.4 * s, bh + 6 * s);
+      txt(Rl.jam ? 'MISSED' : 'CLICK in the gold zone!', mx, by + bh + 14 * s, 9, Rl.jam ? '#ff8a8a' : '#ffe6a0', 'center');
+    } else txt('RELOADING', mx, by + bh + 14 * s, 9, '#ffe6a0', 'center');
   }
   if (p.char === 'wolf' && hasGem(p, 'w_double') && p.loaded) for (let i = 0; i < 2; i++) { ctx.fillStyle = i < p.ammo ? '#ffd36a' : 'rgba(60,40,20,0.9)'; ctx.strokeStyle = UI.edge; ctx.lineWidth = 1.5 * s; ctx.beginPath(); ctx.arc(mx - 4 * s + i * 8 * s, my + R0 + 2 * s, 2.6 * s, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); }
   ctx.restore();
@@ -8627,6 +8636,7 @@ function drawHubHUD() {
     const mx = Input.mx * DPR, my = Input.my * DPR, r = 9 * s;
     ctx.strokeStyle = UI.edge; ctx.lineWidth = 4.5 * s; ctx.beginPath(); ctx.arc(mx, my, r, 0, Math.PI * 2); ctx.stroke();
     ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2 * s; ctx.stroke();
+    drawCursorRes(H0, mx, my, r, s);
   }
 }
 
