@@ -9392,6 +9392,7 @@ function netTurnText() { const el = $('mp-turn'); const v = (el ? el.value : '')
 async function netLoadTurn() {
   const v = netTurnText(); NET.turn = [];
   if (!v) return;
+  if (/^[\[{]/.test(v)) { try { const j = JSON.parse(v.replace(/^[^\[{]*/, '')); NET.turn = (Array.isArray(j) ? j : j.iceServers || [j]).filter(x => x && x.urls); } catch (e) { netStatus('The TURN list is not valid JSON; trying without it.', true); } return; }
   if (/^https:\/\//i.test(v)) {
     try { const r = await fetch(v); const j = await r.json(); NET.turn = Array.isArray(j) ? j : j.iceServers || []; netStatus('TURN relay loaded (' + NET.turn.length + ' servers).'); }
     catch (e) { netStatus('Could not load the TURN relay; trying without it.', true); }
