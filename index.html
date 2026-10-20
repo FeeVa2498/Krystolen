@@ -5667,6 +5667,7 @@ Object.assign(BOSS_AI, {
     if (!e.phase2 && frac < 0.5) { phaseTwo(e); e.crossT = 1.5; }
     if (sovChannel(e, dt)) return;
     if (e.phase2 && (e.crossT -= dt) <= 0 && e.busy <= 0) { e.crossT = 14; sovBlink(e, 'center'); beamFence(e, 2, 7, R() < 0.5 ? 0.55 : -0.55, sovRange(e)); e.chan = 7.4; return; }
+    if ((e.hazT = (e.hazT ?? 7) - dt) <= 0 && e.busy <= 0.4) { e.hazT = e.phase2 ? rr(9, 11) : rr(12, 14); P.tentacles(e, e.phase2 ? 2 : 1, { kind: 'crystal', tele: 'crystal', extra: e.phase2 ? 3 : 0 }); }
     sovMove(e, tg, spd, dt, e.phase2 ? [1.5, 2.5] : [2.2, 3.4]);
     const volley = (e, t) => { for (let k = 0; k < 6; k++) schedule(k * 0.22, () => { if (e.dead) return; const a = Math.atan2(t.y - e.y, t.x - e.x) + (k - 2.5) * 0.25; for (let j = -2; j <= 2; j++) eShoot(e, a + j * 0.07, 125, 10, { color: '#bff4ff' }); }); return 1.4; };
     const homing = (e) => { for (let k = 0; k < 6; k++) { const a = k * Math.PI / 3; const b = eShoot(e, a, 60, 14, { color: '#ff5ad0', r: 4, life: 6 }); b.home = 1.2; } return 0.7; };
@@ -5683,6 +5684,7 @@ Object.assign(BOSS_AI, {
     if (e.p4 && (e.rainT = (e.rainT || 0) - dt) <= 0) { e.rainT = 2.2; meteors(e, 1); }
     // the army: waves of servants keep coming
     if ((e.armyT = (e.armyT ?? 6) - dt) <= 0) { e.armyT = e.p4 ? 9 : 12; sovArmy(e, e.p4 ? 6 : 4); }
+    if ((e.hazT = (e.hazT ?? 6) - dt) <= 0 && e.busy <= 0.4) { e.hazT = e.p4 ? rr(8, 10) : rr(10, 12); e.hz = !e.hz; if (e.hz || e.p4) P.tentacles(e, 2, { kind: 'shadow', tele: 'spore', extra: 3, st: ST('gloom', 1.5) }); else P.meteors(e, 2, { color: '#d8a0ff', tele: 'meteor', dmg: 24 }); }
     sovMove(e, tg, spd, dt, e.p4 ? [1.0, 1.7] : [1.3, 2.2]);
     if (!e.p4 && (e.crossT = (e.crossT ?? 8) - dt) <= 0 && e.busy <= 0) { e.crossT = 15; sovBlink(e, 'center'); beamFence(e, 2, 6, R() < 0.5 ? 0.6 : -0.6, sovRange(e)); e.chan = 6.4; return; }
     const homing = (e) => { for (let k = 0; k < 8; k++) { const b = eShoot(e, k * Math.PI / 4, 60, 14, { color: '#ff5ad0', r: 4, life: 6 }); b.home = 1.4; } return 0.7; };
@@ -6017,7 +6019,7 @@ const HAZ_TEXT = {
   mudslug: 'Burrows and erupts beneath you; mud tentacles grab.', sporemother: 'Fungal tentacles and spore bombs that leave clouds.', frostfang: 'Hides in the blizzard and pounces; icicles fall (Chill).', emberdrake: 'Meteors leave burning ground; dives from the sky.',
   bonecolossus: 'Bone hands grab from below; bones rain down.', thundertoad: 'Lightning strikes from above (Hush).', warden: 'Krystal shards fall and crystal spikes erupt.', shellback: 'Sand spikes erupt; it digs under and bursts up.',
   moth: 'Fades into dust and reappears on someone; moon motes fall (Hush).', phoenix: 'Walls of fire sweep in from any side: find the gaps. Fire meteors and flaming dives.', rimehorn: 'Icicles fall and ice spikes erupt (Chill).', stormcoil: 'Lightning coils erupt from the ground; bolts fall.',
-  vesper: 'Shadow hands rise and dark motes fall.', sovereign: 'Krystal spikes erupt under you.',
+  vesper: 'Shadow hands rise and dark motes fall.', sovereign: 'Krystal spikes erupt under you.', sovereign2: 'Shadow tentacles grab and violet meteors fall, on top of its own meteor storm.',
 };
 for (const k in HAZ_TEXT) if (ENEMY_INFO[k]) ENEMY_INFO[k] += ' Arena: ' + HAZ_TEXT[k] + ' It repositions often.';
 // ===== Bot AI =====
