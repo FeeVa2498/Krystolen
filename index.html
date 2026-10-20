@@ -3618,7 +3618,7 @@ const CHARS = {
       if (p.over) { if (c.atk && p.atkCd <= 0) { p.atkCd = 0.42 / p.st.rate; p.bashT = 0.24; sfx('swing', p.x, p.y, p.isBot ? 0.5 : 1); sfx('fire', p.x, p.y, p.isBot ? 0.5 : 1); heatBash(p); } return; }
       if (c.atk && p.atkCd <= 0) {
         this.quill(p, p.aimA + rr(-0.11, 0.11), 340, 5.5 * p.st.dmg);
-        p.atkCd = 0.075 / p.st.rate; p.heat += 0.015; p.fired = 0.15;
+        p.atkCd = 0.075 / p.st.rate; p.heat += 0.022; p.fired = 0.15; /* ~3.4s of fire to overheat (was 5s) */
         if (p.heat >= 1) { p.heat = 1; p.over = true; floatText(p.x, p.y - 26, 'OVERHEAT', '#ff8a5a'); smoke(muzzle(p, 18).x, muzzle(p, 18).y, 8, '#e8e8e8', 30, 1); }
       }
     },
