@@ -5133,7 +5133,7 @@ function spawnEnemy(type, x, y, o = {}) {
     team: 'enemy', type, def: d, x, y, hx: x, hy: y, r: d.r, hp: d.hp * hpM, maxHp: d.hp * hpM, spd: d.spd, kvx: 0, kvy: 0, dmgM,
     goldM: (1 + 0.3 * (dg - 1)) * (d2x ? 1.9 : 1), room, sts: {}, hitSt: d.hitSt || null, shotSt: d.shotSt || null,
     stunT: 0, poison: null, charged: 0, hitT: 0, cd: rr(0.6, 1.6), state: 'move', st: 0, t: 0, dead: false,
-    boss: !!d.boss, champ: !!d.champ, lord: !!d.lord, kbRes: d.kbRes ?? 1, contactCd: 0, face: 1, tgt: null, tgtT: 0, spin: 0, moving: false, walkT: rr(0, 3),
+    boss: !!d.boss, champ: !!d.champ, lord: !!d.lord, kbRes: d.boss || d.champ ? 0 : d.kbRes ?? 1, contactCd: 0, face: 1, tgt: null, tgtT: 0, spin: 0, moving: false, walkT: rr(0, 3),
     aggro: !!(d.boss || o.aggro), invT: 0, busy: 0, extra: !!o.extra, sprite: d.sprite || type, scale: d.scale || 1, tint: !!d.tint, nid: ++NID_SEQ,
   };
   if (room && !d.objective && !o.extra) room.alive++;
