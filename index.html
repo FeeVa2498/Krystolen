@@ -293,7 +293,7 @@ th { font-family: var(--display); letter-spacing: 0.08em; }
         <li><b>Boss chests.</b> Every boss drops a chest. Each player opens it once and picks 1 of 3 relics. Bosses with a higher recommended level give better odds. Unopened chests stay marked on your map.</li>
         <li><b>Gold</b> flies straight to your purse and is shared by the whole team. Rooms slowly refill with monsters to farm; a conquered biome only gets a few scattered stragglers. Two linked <b>teleporter rooms</b> (◎) connect far corners of the map.</li>
         <li><b>The Wildfire</b> ignites twice per Act and closes on a <b>Gatekeeper</b>; its last ring always holds the whole Gatekeeper arena. When a Gatekeeper falls its doors open, but the fire keeps burning outside the ring until the next Act is announced. Brave the flames to set off early and get a head start on Act II. Act II is longer and has stronger monsters. After Gatekeeper II a <b>portal</b> opens to <b>The Bazaar</b>. Its northern portal leads to the Dungeon Master's own arena.</li>
-        <li><b>The Labyrinth.</b> The whole castle is one great lair that sleeps until its altar is restored. Then every hall wakes at once (its monsters never come back once slain) and three tower guardians rise (Lv 10). Beat all three and the Keep's master rises in its wide throne hall (Lv 13). While its challenge runs, the Wildfire cannot burn its seal or reach anyone inside, and the night waits up to 3 minutes for the battle to end. Clearing it is the surest way to max level (15). Plan for it in Act II with a full team.</li>
+        <li><b>The Labyrinth.</b> The whole castle is one great lair that sleeps until its altar is restored. Then every hall wakes at once (its monsters never come back once slain) and three tower guardians rise (Lv 10). Beat all three and the Keep's master rises in its wide throne hall (Lv 13). Clearing it is the surest way to max level (15). Plan for it in Act II with a full team.</li>
         <li><b>Dead?</b> Press 1, 2 or 3 to watch a teammate. If they are sealed in a challenge, you only see what is right around them.</li>
         <li><b>Recommended level.</b> Bosses and Labyrinth monsters have a recommended level (Gatekeeper I: 5, Gatekeeper II: 10, Dungeon Master: 15). Every level you are below it, you deal 8% less damage and take 12% more. Cleared rooms slowly refill with monsters to farm.</li>
       </ol>
@@ -2650,7 +2650,7 @@ function updateChallenges(dt) {
     const C = B.chal; if (!C) continue;
     C.t += dt;
     // the Wildfire burns through the seal
-    if (!C.broken && c && !B.lab && B.seals.some(S => S.tiles.some(([tx, ty]) => Math.hypot((tx + 0.5) * TILE - c.x, (ty + 0.5) * TILE - c.y) > c.r))) {
+    if (!C.broken && c && B.seals.some(S => S.tiles.some(([tx, ty]) => Math.hypot((tx + 0.5) * TILE - c.x, (ty + 0.5) * TILE - c.y) > c.r))) {
       C.broken = true; setBanner('The seal burns', '', 2, '#ffb070');
       for (const S of B.seals) for (const [tx, ty] of S.tiles) burst((tx + 0.5) * TILE, (ty + 0.5) * TILE, '#ff8a2a', 8, 60, 0.6, { glow: true });
     }
@@ -6235,7 +6235,7 @@ function botControl(p, dt) {
 }
 function nextCircleR(ahead = 6) { return predictR(ahead); }
 // a spot is safe if the fire will not have reached it in `ahead` seconds
-function safeAt(x, y, margin = 30, ahead = 6) { const c = G.circle; if (!c || G.phase !== 'day') return true; if (G.lab && G.lab.chal && bmAt(x, y) === G.lab.id) return true; /* the fire cannot enter a Labyrinth under challenge */ return Math.hypot(x - c.x, y - c.y) < nextCircleR(ahead) - margin; }
+function safeAt(x, y, margin = 30, ahead = 6) { const c = G.circle; if (!c || G.phase !== 'day') return true;  return Math.hypot(x - c.x, y - c.y) < nextCircleR(ahead) - margin; }
 // worth walking to: still safe by the time we get there and have fought a while
 function campSafe(p, x, y, margin = 40, stay = 14) { const t = Math.hypot(x - p.x, y - p.y) / 85; return safeAt(x, y, margin, Math.min(40, t + stay)); }
 // nearest point the fire will not reach soon: step inward along the line to the centre, not all the way
@@ -6339,7 +6339,7 @@ function decideMode(p, A, vis) {
   if (c) { A.goal = { x: c.x + rr(-60, 60), y: c.y + rr(-50, 50), near: 50 }; return 'goto'; }
   return 'idle';
 }
-function nearestShrineNow(p) { const c = G.circle, sb = bmAt(p.x, p.y), sealed = sb >= 0 && sealHolds(G.biomes[sb]); let best = null, bd = 1e12; for (const it of G.inter) { if (it.kind !== 'shrine') continue; if (sealed && bmAt(it.x, it.y) !== sb) continue; if (!sealed && G.chalOn) { const ib = bmAt(it.x, it.y); if (ib >= 0 && sealHolds(G.biomes[ib])) continue; } if (c && Math.hypot(it.x - c.x, it.y - c.y) > c.r - 60 && !(sealed && G.biomes[sb].lab)) continue; const dd = d2(it.x, it.y, p.x, p.y); if (dd < bd) { bd = dd; best = it; } } return best; }
+function nearestShrineNow(p) { const c = G.circle, sb = bmAt(p.x, p.y), sealed = sb >= 0 && sealHolds(G.biomes[sb]); let best = null, bd = 1e12; for (const it of G.inter) { if (it.kind !== 'shrine') continue; if (sealed && bmAt(it.x, it.y) !== sb) continue; if (!sealed && G.chalOn) { const ib = bmAt(it.x, it.y); if (ib >= 0 && sealHolds(G.biomes[ib])) continue; } if (c && Math.hypot(it.x - c.x, it.y - c.y) > c.r - 60) continue; const dd = d2(it.x, it.y, p.x, p.y); if (dd < bd) { bd = dd; best = it; } } return best; }
 function nearestShrine(p, safe) {
   let best = null, bd = 1e12;
   for (const it of G.inter) { if (it.kind !== 'shrine') continue; if (safe && !safeAt(it.x, it.y, 40)) continue; const dd = d2(it.x, it.y, p.x, p.y); if (dd < bd) { bd = dd; best = it; } }
@@ -7187,7 +7187,6 @@ function circleDamage(dt) {
   const c = G.circle; if (!c || c.calm) return; // after a Gatekeeper falls the fire calms: walk out and heal on the way
   for (const p of G.players) {
     if (p.state !== 'up') continue;
-    if (G.lab && G.lab.chal && bmAt(p.x, p.y) === G.lab.id) { p.outside = false; continue; } // the Labyrinth's walls keep the fire out
     const out = Math.hypot(p.x - c.x, p.y - c.y) > c.r;
     p.outside = out;
     if (!out) continue;
@@ -7215,7 +7214,7 @@ function step(dt) {
       if (i < STAGES.length - 1) {
         G.dayStage = STAGES[i + 1][0]; G.stageT = stageDur(STAGES[i + 1][0]);
         if (G.dayStage === 'shrink1' || G.dayStage === 'shrink2') setBanner('The Wildfire spreads', '', 2.5, '#ffb070');
-      } else if (labHolding()) { G.stageT = 0.5; G.labHold = (G.labHold || 0) + 0.5; if (!G.labHoldMsg) { G.labHoldMsg = true; setBanner('The Labyrinth holds the night back', 'The Gatekeeper waits until the Labyrinth battle ends.', 3.5, '#c8c8ff'); } }
+      } else if (false && labHolding()) { G.stageT = 0.5; G.labHold = (G.labHold || 0) + 0.5; if (!G.labHoldMsg) { G.labHoldMsg = true; setBanner('The Labyrinth holds the night back', 'The Gatekeeper waits until the Labyrinth battle ends.', 3.5, '#c8c8ff'); } }
       else { c.r = c.rf; startNight(); }
     }
     G.ambushT -= dt; if (G.ambushT <= 0) { G.ambushT = 0.2; updateAmbush(); }
