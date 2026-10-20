@@ -6829,12 +6829,16 @@ const GK_HP = [0, 1, 1.7], GK_DMG = [0, 1, 1.2], FINAL_HP = 4.5, FINAL_DMG = 1.5
 const BOSS_HP_NERF = 0.75; // every Gatekeeper, Labyrinth guardian and Dungeon Master
 function tuneBoss(e, hp, dmg) { e.hp *= hp; e.maxHp *= hp; e.dmgM *= dmg; return e; }
 function setBanner(title, sub, life = 4.5, color) { G.banner = { title, sub, t: 0, life, color }; if (!G.hub) sfx('bell'); }
-function circleFor(room) {
-  const mapW = GW * CW * TILE, mapH = GH * CH * TILE;
-  const far = Math.max(...[[0, 0], [mapW, 0], [0, mapH], [mapW, mapH]].map(([x, y]) => Math.hypot(x - room.px, y - room.py)));
+function circleFor(room, centre) {
+  const mapW = GW * CW * TILE, mapH = GH * CH * TILE, cx = centre ? centre.x : room.px, cy = centre ? centre.y : room.py;
+  const far = Math.max(...[[0, 0], [mapW, 0], [0, mapH], [mapW, mapH]].map(([x, y]) => Math.hypot(x - cx, y - cy)));
   const half = Math.hypot(room.w, room.h) * TILE / 2, r0 = far + 40, rf = Math.max(196, half + 56); // the final ring always holds the whole Gatekeeper arena
-  return { x: room.px, y: room.py, r: r0, r0, rf, rmid: Math.max(rf * 3, r0 * 0.45) };
+  const c = { x: cx, y: cy, r: r0, r0, rf, rmid: Math.max(rf * 3, r0 * 0.45) };
+  if (centre) { c.fx = cx; c.fy = cy; c.tx = room.px; c.ty = room.py; c.rmid = Math.min(r0 - 40, Math.max(c.rmid, Math.hypot(cx - room.px, cy - room.py) + rf + 80, Math.hypot(90, 48) * TILE / 2 + 48)); } /* the whole Labyrinth stays inside until the last closing */ // the ring drifts onto the Gatekeeper only in the last closing
+  return c;
 }
+// Act II: the Wildfire closes around the Labyrinth first, so it is the last place the fire swallows
+function labCentre() { const C = G.castle; if (!C || !G.lab || G.lab.bossKilled) return null; const a = labArea(); return { x: a.px, y: a.py }; }
 function rollMob(tpl) { const tot = Object.values(tpl.mobs).reduce((a, b) => a + b, 0); let r = R() * tot; for (const k in tpl.mobs) if ((r -= tpl.mobs[k]) < 0) return k; return 'grub'; }
 function populateRooms() {
   G.inter = G.inter.filter(i => i.kind === 'shrine' || i.kind === 'tpad' || i.kind === 'font' || (i.kind === 'bosschest' && !i.used));
@@ -6942,7 +6946,7 @@ function startDay(n) {
   if (G.bossRoom) setRoomLocked(G.bossRoom, false);
   G.bossRoom = null;
   G.nightRoom = G.nightRooms[n - 1];
-  G.circle = circleFor(G.nightRoom);
+  G.circle = circleFor(G.nightRoom, n === 2 ? labCentre() : null);
   for (const p of G.players) { if (p.state !== 'up') { p.state = 'up'; p.invulnT = 2; } p.hp = p.maxHp; p.fightDowns = 0; p.phoenixUsed = false; clearStatus(p); }
   if (n > 1) { const old = G.inter.filter(i => i.kind === 'shrine' && (i.day || 0) < n && !(i.room && i.room.biome && i.room.biome.bossKilled)); /* conquered biomes keep their shrine */ for (const s of old) burst(s.x, s.y - 14, '#7ff0ff', 14, 60, 0.6, { glow: true }); G.inter = G.inter.filter(i => !old.includes(i)); }
   populateRooms();
@@ -6978,7 +6982,7 @@ function updateShrineRest(dt) {
 function startNight() {
   const room = G.nightRoom;
   G.phase = 'night'; G.bossFight = true; G.bossRoom = room; G.bossT = 2.6;
-  G.circle.r = G.circle.rf;
+  G.circle.r = G.circle.rf; if (G.circle.tx != null) { G.circle.x = G.circle.tx; G.circle.y = G.circle.ty; }
   for (const B of G.biomes || []) if (B.chal) endChallenge(B, false); // night falls: every seal breaks
   for (const p of G.players) { p.sealB = null; p.inX = p.inY = null; }
   revealRoom(room);
@@ -7209,6 +7213,7 @@ function step(dt) {
   if (G.phase === 'day') {
     G.stageT -= dt; const c = G.circle;
     c.r = circleRadiusAt(G.dayStage, G.stageT);
+    if (c.tx != null) { const k = G.dayStage === 'shrink2' ? 1 - clamp(G.stageT / stageDur('shrink2'), 0, 1) : 0; c.x = lerp(c.fx, c.tx, k); c.y = lerp(c.fy, c.ty, k); }
     if (G.stageT <= 0) {
       const i = STAGES.findIndex(s => s[0] === G.dayStage);
       if (i < STAGES.length - 1) {
