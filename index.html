@@ -308,7 +308,7 @@ th { font-family: var(--display); letter-spacing: 0.08em; }
       <p><b>Krystal Shrines</b> restore you to full health while no monsters are nearby. If you die while exploring, you return at the nearest shrine that the Wildfire will not reach.</p>
       <p><b>Ping</b> with the middle mouse button, or click anywhere on the full map (M). Pinging an enemy calls your bots to attack it; pinging a spot sends them there.</p>
       <p><b>Play with friends:</b> on the title screen pick <i>Play with friends</i>. One player hosts and gets a 5-letter room code; the others join with it (up to 4 players). Everyone meets in the Hub, each Krystalker can only be picked once, and only the host can start the expedition from the Gate. Empty slots are filled with bots, and a bot takes over if someone disconnects. Win or lose, the host brings everyone back to the Hub. The game runs on the host's computer: give that job to the player with the best connection.</p>
-      <p><b>Gems:</b> win a run to find 5 random gems. Each Krystalker also has 3 legendary gems unlocked by personal quests.</p>
+      <p><b>Gems:</b> win a run to find 5 random gems. A lost run still gives a few, mostly common: 1 if you fall in Act I, 2 in Act II, 3 at the Dungeon Master. Each Krystalker also has 3 legendary gems unlocked by personal quests.</p>
     </div>
     <div class="btns"><button class="btn" id="b-back2">Back</button></div>
   </section>
@@ -4126,10 +4126,11 @@ function setGems(p, ids) { p.gems = ids.slice(); p.gemSet = new Set(ids); recalc
 function hasGem(p, id) { return !!(p.gemSet && p.gemSet.has(id)); }
 function gemOnHit() { }
 // gems found after a won run
-const GEM_ODDS = { common: 60, rare: 30, epic: 10 };
-function rollGemDrops(n = 5) {
+const GEM_ODDS = { common: 60, rare: 30, epic: 10 }, GEM_ODDS_LOSS = { common: 80, rare: 17, epic: 3 };
+// a lost run still pays a little: 1 gem for falling in Act I, 2 in Act II, 3 at the Dungeon Master (more commons, rarely an epic)
+function rollGemDrops(n = 5, lost) {
   const out = [];
-  for (let i = 0; i < n; i++) { const r = rollRarity(GEM_ODDS); const g = pick(GEM_LIST.filter(x => x.rarity === r)); PROFILE.gems[g.id] = (PROFILE.gems[g.id] || 0) + 1; out.push(g); }
+  for (let i = 0; i < n; i++) { const r = rollRarity(lost ? GEM_ODDS_LOSS : GEM_ODDS); const g = pick(GEM_LIST.filter(x => x.rarity === r)); PROFILE.gems[g.id] = (PROFILE.gems[g.id] || 0) + 1; out.push(g); }
   saveLoadout(); return out;
 }
 // ---- quests ----
@@ -7136,9 +7137,10 @@ function updateIntro(dt) {
   }
 }
 function endMatch(won) {
+  const finalFight = G.phase === 'final' || !!G.inVoid;
   G.phase = won ? 'won' : 'lost'; G.endT = 0;
-  if (won && !G.watch && !G.attract) { questEvent('win'); PROFILE.wins++; G.gemDrops = rollGemDrops(5); }
-  G.result = { won, time: G.time, day: G.day, reached: won ? 'Defeated the Dungeon Master' : G.bossFight ? (G.boss ? G.boss.def.name : 'boss fight') : `Act ${ROMAN[G.day]}` };
+  G.result = { won, time: G.time, day: G.day, final: finalFight, reached: won ? 'Defeated the Dungeon Master' : G.bossFight ? (G.boss ? G.boss.def.name : 'boss fight') : `Act ${ROMAN[G.day]}` };
+  if (!G.watch && !G.attract) { if (won) { questEvent('win'); PROFILE.wins++; } G.gemDrops = won ? rollGemDrops(5) : rollGemDrops(finalFight ? 3 : G.day >= 2 ? 2 : 1, true); }
   setTimeout(() => showResults(), 1800);
 }
 const NO_CTL = { mx: 0, my: 0, ax: 0, ay: 0, atk: false, skP: false, skD: false, skR: false, ultP: false, ultD: false, ultR: false, supP: false, supD: false, supR: false, altD: false, altP: false, itemP: false, intD: false, intP: false, relP: false };
@@ -9112,7 +9114,7 @@ function showResults() {
   const rows = G.players.map(p => `<tr><td style="color:${CHARS[p.char].color}">${p.isBot ? (p.ai && p.ai.pers !== 'Friend' && !p.remote ? p.name + ' (' + p.ai.pers + ')' : p.name + ' · ' + CHARS[p.char].name) : 'You · ' + CHARS[p.char].name}</td><td>${p.level}</td><td>${Math.round(p.stats.dmg).toLocaleString('en-US')}</td><td>${p.stats.kills}</td><td>${Math.round(p.stats.healed || 0).toLocaleString('en-US')}</td><td>${p.stats.revives}</td><td>${p.stats.downs}</td><td>${itemCount(p)}</td><td>${Math.round(p.stats.picked || 0).toLocaleString('en-US')}</td><td>${p.stats.deaths}</td></tr>`).join('');
   $('r-table').innerHTML = `<thead><tr><th>Player</th><th>Level</th><th>Damage</th><th>Kills</th><th>Ally healing</th><th>Revives</th><th>Downs</th><th>Items</th><th>Gold found</th><th>Deaths</th></tr></thead><tbody>${rows}</tbody>`;
   $('b-again').hidden = !!G.watch || !!NET.role; $('b-change').hidden = NET.role === 'client'; $('b-change').textContent = NET.role === 'host' ? 'Return to the hub (everyone)' : 'Return to the hub'; $('b-title').textContent = NET.role ? 'Leave the party' : 'Title';
-  const gd = $('r-gems'); gd.innerHTML = ''; if (r.won && G.gemDrops) { const h = document.createElement('p'); h.className = 'eyebrow'; h.textContent = 'Gems found'; gd.appendChild(h); const row = document.createElement('div'); row.className = 'gemdrops'; for (const g of G.gemDrops) { const d = document.createElement('div'); d.className = 'gd'; d.style.setProperty('--gc', GEM_RAR[g.rarity].color); const img = document.createElement('img'); img.src = itemIcon(g, 56).toDataURL(); d.appendChild(img); const t = document.createElement('span'); t.textContent = g.name; d.appendChild(t); row.appendChild(d); } gd.appendChild(row); }
+  const gd = $('r-gems'); gd.innerHTML = ''; if (G.gemDrops && G.gemDrops.length) { const h = document.createElement('p'); h.className = 'eyebrow'; h.textContent = r.won ? 'Gems found' : 'Gems found (consolation)'; gd.appendChild(h); const row = document.createElement('div'); row.className = 'gemdrops'; for (const g of G.gemDrops) { const d = document.createElement('div'); d.className = 'gd'; d.style.setProperty('--gc', GEM_RAR[g.rarity].color); const img = document.createElement('img'); img.src = itemIcon(g, 56).toDataURL(); d.appendChild(img); const t = document.createElement('span'); t.textContent = g.name; d.appendChild(t); row.appendChild(d); } gd.appendChild(row); }
   showScreen('result');
 }
 function wireMenus() {
@@ -9688,7 +9690,7 @@ function clientStep(dt) {
   // the run is over: my own rewards and the results screen
   if ((G.phase === 'won' || G.phase === 'lost') && !NET.endShown && G.result) {
     NET.endShown = true; G.endT = 0;
-    if (G.phase === 'won') { questEvent('win'); PROFILE.wins++; G.gemDrops = rollGemDrops(5); saveLoadout(); }
+    if (G.phase === 'won') { questEvent('win'); PROFILE.wins++; } G.gemDrops = G.phase === 'won' ? rollGemDrops(5) : rollGemDrops(G.result.final ? 3 : G.day >= 2 ? 2 : 1, true); saveLoadout();
     setTimeout(() => showResults(), 1800);
   }
   if (G.endT != null) G.endT += dt;
