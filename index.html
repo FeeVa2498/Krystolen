@@ -273,7 +273,6 @@ th { font-family: var(--display); letter-spacing: 0.08em; }
   <section id="scr-lord" class="screen" hidden>
     <div class="row"><div><p class="eyebrow" id="gate-eyebrow">Expedition Gate</p><h2 id="gate-title">Which Dungeon Master will you hunt?</h2></div>
       </div>
-    <div class="fireopt"><span class="fo-l">Rules</span><button class="btn fo" id="mode-classic">Classic<small>A ring of fire closes on the Gatekeeper · the night comes when the Act ends</small></button><button class="btn fo" id="mode-new">Krystolen rules <em>NEW</em><small>Gatekeeper Bell · monsters grow stronger · Act I time carries over · Crossroads before Act II</small></button></div>
     <div class="fireopt" id="watch-rand" hidden><span class="fo-l">Bots</span><button class="btn fo" id="rand-off">Pick the team<small>Choose the Krystalkers and the Dungeon Master below</small></button><button class="btn fo" id="rand-on">Random team &amp; boss<small>A new team and Dungeon Master every run</small></button></div>
     <div class="wteam" id="watch-team" hidden></div>
     <div class="lords" id="lords"></div>
@@ -6908,6 +6907,7 @@ function baseG(extra) {
 function startGame(charKey, watch, lord = 'warden', team = null, mp = null) {
   setMuffle(false);
   G = baseG({ watch: !!watch, lord, night1: pick(NIGHT1_POOL), night2: pick(NIGHT2_POOL) });
+  if (!G.watch && !G.dev) setRules(true);
   G.actStretch = 1; G.fireMode = FIRE_MODE; G.bellMode = BELL_MODE; G.crossMode = CROSS_MODE; G.hazard = 'fire'; G.cross = null;
   newMap(); generateDungeon();
   const start = G.startRoom;
@@ -8208,7 +8208,7 @@ function drawXroad(it) {
   const n = [...it.ready].filter(q => q.state === 'up').length; if (n) { ctx.font = `6px ${FONT}`; ctx.strokeText(n + ' vote' + (n > 1 ? 's' : ''), x, y + 16); ctx.fillStyle = '#fff'; ctx.fillText(n + ' vote' + (n > 1 ? 's' : ''), x, y + 16); }
 }
 
-setRules(BELL_MODE || CROSS_MODE || FIRE_MODE === 'spread'); // older saves could mix the switches
+setRules(true); // one rule set now: closing ring + Gatekeeper Bell + rising danger + shared time + Crossroads
 // ===== Rendering =====
 const cv = document.getElementById('game'), ctx = cv.getContext('2d');
 let W = 0, H = 0, ZOOM = 3, U = 1, DPR = 1, VIGNETTE = null;
@@ -9571,7 +9571,7 @@ function buildLords() {
   refreshLords();
 }
 function refreshLords() {
-  const NEW = BELL_MODE; $('mode-classic').classList.toggle('sel', !NEW); $('mode-new').classList.toggle('sel', NEW);
+  
   $('watch-rand').hidden = gateMode !== 'watch'; { const dim = gateMode === 'watch' && WATCH_RAND ? '0.35' : ''; $('watch-team').style.opacity = dim; $('lords').style.opacity = dim; } $('rand-off').classList.toggle('sel', !WATCH_RAND); $('rand-on').classList.toggle('sel', WATCH_RAND);
   for (const L of NIGHTLORDS) $('lord-' + L.id).classList.toggle('sel', L.id === chosenLord);
   buildWatchTeam();
@@ -9717,7 +9717,6 @@ function wireMenus() {
   $('b-gloss').onclick = () => { archFromTitle = true; buildArchive(); showScreen('archive'); };
   $('b-set').onclick = () => openSettings('title');
   $('b-back0').onclick = () => { if (gateMode === 'watch') { gateMode = 'run'; showScreen('title'); } else { paused = false; showScreen(null); } };
-  $('mode-classic').onclick = () => { setRules(false); refreshLords(); }; $('mode-new').onclick = () => { setRules(true); refreshLords(); };
   $('rand-off').onclick = () => { WATCH_RAND = false; try { localStorage.setItem('kry_wrand', '0'); } catch (e) { } refreshLords(); };
   $('rand-on').onclick = () => { WATCH_RAND = true; try { localStorage.setItem('kry_wrand', '1'); } catch (e) { } refreshLords(); };
   $('b-lordok').onclick = () => { const w = gateMode === 'watch'; gateMode = 'run'; startRun(w); };
