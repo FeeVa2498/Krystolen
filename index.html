@@ -2108,7 +2108,7 @@ function generateDungeon() {
   for (const r of G.rooms) if (r.type === 'themed') shapeRoom(r);
   if (cg) buildCastle(cg);
   for (const r of G.rooms) decorateRoom(r);
-  genFonts();
+  genFonts(start);
   buildBiomeMask();
   G.startRoom = G.grid[start[0]][start[1]];
   G.nightRooms = best.map(c => G.grid[c[0]][c[1]]);
@@ -4766,9 +4766,11 @@ function finishFont(p, it) {
   else botAnnounce(p, 'Font channelled: my flasks are stronger!', 'fontdone' + it.x);
 }
 // ---- map generation: six tiny side rooms, each budding off an existing room ----
-function genFonts() {
+function genFonts(start) {
   G.fontRooms = [];
-  const hosts = shuffle(G.rooms.filter(r => (r.type === 'themed' || r.type === 'shop' || r.type === 'tele' || r.type === 'start') && r.gx != null));
+  // never at the spawn or right next to it: a Font should be worth the trip (at least 2 cells away from the start)
+  const far = r => !start || Math.abs(r.gx - start[0]) + Math.abs(r.gy - start[1]) >= 2;
+  const hosts = shuffle(G.rooms.filter(r => (r.type === 'themed' || r.type === 'shop' || r.type === 'tele') && r.gx != null && far(r)));
   const S = 5;
   const tryAt = (R0, side, L, off, minGap) => {
     let x, y, cor = [];
