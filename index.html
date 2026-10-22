@@ -6969,16 +6969,19 @@ function startDay(n) {
 // the dead come back at the nearest Krystal Shrine that the Wildfire will not reach; failing that, somewhere safe inside the ring
 function respawnPoint(p) {
   if (G.bossFight && G.bossRoom) return { x: G.bossRoom.px + rr(-40, 40), y: G.bossRoom.py + 60 };
-  const c = G.circle, safe = (x, y, m) => !c || (c.spread ? !fireOut(x, y, m, G.phase === 'day' ? 10 : 0) : Math.hypot(x - c.x, y - c.y) < (G.phase === 'day' ? Math.min(c.r, predictR(10)) : c.r) - m);
-  let best = null, bd = 1e12;
-  for (const it of G.inter) {
-    if (it.kind !== 'shrine' || !safe(it.x, it.y, 40)) continue;
-    const dd = d2(it.x, it.y, p.deathX ?? p.x, p.deathY ?? p.y); if (dd < bd) { bd = dd; best = it; }
+  const c = G.circle, fx = p.deathX ?? p.x, fy = p.deathY ?? p.y;
+  // come back where the fire will not arrive for a good while (not just "not burning yet"); relax the margin only if nothing qualifies
+  for (const ahead of G.phase === 'day' ? (c && c.spread ? [45, 25, 10] : [25, 10]) : [0]) {
+    const safe = (x, y, m) => !c || (c.spread ? !fireOut(x, y, m, ahead) : Math.hypot(x - c.x, y - c.y) < (ahead > 0 ? Math.min(c.r, predictR(ahead)) : c.r) - m);
+    let best = null, bd = 1e12;
+    for (const it of G.inter) {
+      if (it.kind !== 'shrine' || !safe(it.x, it.y, 40)) continue;
+      const dd = d2(it.x, it.y, fx, fy); if (dd < bd) { bd = dd; best = it; }
+    }
+    if (best) return { x: best.x, y: best.y + 24 };
+    for (const r of G.rooms) { if (!(r.type === 'start' || r.type === 'shop' || r.type === 'tele' || r.type === 'field' || (r.type === 'themed' && r.cleared)) || !safe(r.px, r.py, 50)) continue; const dd = d2(r.px, r.py, fx, fy); if (dd < bd) { bd = dd; best = r; } }
+    if (best) return { x: best.px, y: best.py + 20 };
   }
-  if (best) return { x: best.x, y: best.y + 24 };
-  bd = 1e12;
-  for (const r of G.rooms) { if (!(r.type === 'start' || r.type === 'shop' || r.type === 'tele' || r.type === 'field' || (r.type === 'themed' && r.cleared)) || !safe(r.px, r.py, 50)) continue; const dd = d2(r.px, r.py, p.deathX ?? p.x, p.deathY ?? p.y); if (dd < bd) { bd = dd; best = r; } }
-  if (best) return { x: best.px, y: best.py + 20 };
   return { x: G.nightRoom.px, y: G.nightRoom.py };
 }
 // standing at a shrine with no monsters around restores you fully
