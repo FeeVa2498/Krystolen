@@ -6806,6 +6806,13 @@ function updateBotPlan() {
   if (best !== was) { G.labGo = false; G.labGather = null; }
   if (best && best.lab && best !== was) { const caller = G.players.filter(q => q.isBot && q.state === 'up').sort((a, b) => b.level - a.level)[0]; if (caller) { feed(`${caller.name}: To the Labyrinth! Everyone, meet at its gate.`, CHARS[caller.char].color); caller.sticker = { text: 'Labyrinth!', t: 2 }; } }
 }
+// can this bot walk there right now? (another biome's seal can cut the way; cached for 3s)
+function canReach(p, A, x, y) {
+  const key = Math.floor(x / TILE) + ',' + Math.floor(y / TILE);
+  if (A.reachKey === key && A.reachT > G.time) return A.reachOk;
+  pathRules(p, x, y); const path = findPath(Math.floor(p.x / TILE), Math.floor(p.y / TILE), Math.floor(x / TILE), Math.floor(y / TILE)); PF.stay = -1; PF.avoid = null;
+  A.reachKey = key; A.reachT = G.time + 3; A.reachOk = !!(path && path.length) || d2(p.x, p.y, x, y) < 60 * 60; return A.reachOk;
+}
 function labGate() { const C = G.castle; return C ? clearSpot((C.x0 + 44.5) * TILE, (C.y0 + 50) * TILE, 10) : null; }
 function altarOf(B) { return G.inter.find(i => i.kind === 'altar' && i.B === B); }
 function altarPlan(p, A) {
@@ -6825,6 +6832,7 @@ function altarPlan(p, A) {
     if (ready) { G.labGo = true; feed('The team is together: into the Labyrinth!', '#c8c8ff'); }
     else {
       if (d2(p.x, p.y, gate.x, gate.y) < 150 * 150) { botAnnounce(p, `Waiting at the Labyrinth gate (${atGate.length}/${live.length})`, 'gate' + B.id); A.goal = { x: gate.x + rr(-40, 40), y: gate.y + rr(-10, 30), near: 40 }; return d2(p.x, p.y, gate.x, gate.y) < 60 * 60 ? 'idle' : 'goto'; }
+      if (!canReach(p, A, gate.x, gate.y)) { botAnnounce(p, 'The way to the Labyrinth is sealed off: I will come when it opens', 'noway' + B.id); return null; } // a seal blocks the road: do something useful meanwhile
       botAnnounce(p, 'Heading to the Labyrinth gate', 'togate' + B.id); A.goal = { x: gate.x + rr(-30, 30), y: gate.y + rr(0, 30), near: 40 }; A.camp = null; return 'goto';
     }
   }
