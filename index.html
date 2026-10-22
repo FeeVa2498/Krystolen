@@ -5548,7 +5548,8 @@ function castleBossDead(e) {
   setBanner(`${room.cname} conquered`, e.def.lord ? 'The Keep falls! Legendary rewards await.' : 'A Labyrinth boss falls.', 3, '#ffd44a');
   dropBossChest(e.x, e.y, room.rec, e.def.name, ENEMY[e.type].weak ? null : null);
   dropGold(e.x, e.y, room.sub === 'keep' ? 1200 : 600);
-  if (room.sub === 'tower') { spawnShrine(room); const sh = G.inter.find(i => i.kind === 'shrine' && i.room === room); if (sh) sh.day = 9; }
+  // a Krystal Shrine rises where the guardian fell: rest to heal fully, level up (the Keep too)
+  { spawnShrine(room, { x: e.x + 52, y: e.y + 6 }); const sh = G.inter.find(i => i.kind === 'shrine' && i.room === room); if (sh) sh.day = 9; floatText(e.x + 52, e.y - 30, 'A Krystal Shrine rises', '#7ff0ff', 1.4, 1.1); }
   for (const o of G.enemies) if (o.room === room || ((o.type === 'pylon' || o.decoy) && inRoom(room, o.x, o.y))) o.dead = true;
   if (G.beams) G.beams = G.beams.filter(b => b.owner !== e); if (G.walls) G.walls = G.walls.filter(w => w.owner !== e);
   for (const p of G.players) if (p.state === 'downed') { p.state = 'up'; p.hp = Math.round(p.maxHp * 0.6); }
@@ -7014,9 +7015,10 @@ function updateRefill(dt) {
     }
   }
 }
-function spawnShrine(room) {
+function spawnShrine(room, at) {
   if (!room || G.inter.some(i => i.kind === 'shrine' && i.room === room)) return;
-  const sh = addInter({ kind: 'shrine', x: room.px, y: room.py + 4, room, r: 16, day: G.day, born: G.time });
+  const q = at ? clearSpot(at.x, at.y, 12) : { x: room.px, y: room.py + 4 };
+  const sh = addInter({ kind: 'shrine', x: q.x, y: q.y, room, r: 16, day: G.day, born: G.time });
   pillar(sh.x, sh.y, '#7ff0ff', 110, 22, 1.2); glow(sh.x, sh.y - 20, 60, '#7ff0ff', 0.8); burst(sh.x, sh.y - 10, '#bff4ff', 30, 120, 0.8, { shape: 'spark', glow: true }); shake(4);
 }
 function roomCleared(room) {
@@ -9840,7 +9842,7 @@ async function boot() {
   startAttract(); showScreen('title');
   requestAnimationFrame(frame);
 }
-window.KRY = { get G() { return G; }, startGame, startHub, step, setSpeed: v => SIM_SPEED = v, showScreen, openLoadout, openArchive, openGate, talkTo, switchHero, setFire: m => { FIRE_MODE = m; }, dbg: { startDay: n => startDay(n), startChallenge: (B, p) => startChallenge(B, p), recalcStats: p => recalcStats(p), relics: () => Object.values(ALL_ITEMS).filter(i => i.relic), giveItem: (p, i) => giveItem(p, i, true), fireCourse: (e, n) => fireCourse(e, n), fireWalls: (e, n) => fireWalls(e, n) }, setBell: v => { BELL_MODE = !!v; }, setCross: v => { CROSS_MODE = !!v; }, get fireMode() { return FIRE_MODE; } };
+window.KRY = { get G() { return G; }, startGame, startHub, step, setSpeed: v => SIM_SPEED = v, showScreen, openLoadout, openArchive, openGate, talkTo, switchHero, setFire: m => { FIRE_MODE = m; }, kill: (e, p) => killEnemy(e, p), dbg: { startDay: n => startDay(n), startChallenge: (B, p) => startChallenge(B, p), recalcStats: p => recalcStats(p), relics: () => Object.values(ALL_ITEMS).filter(i => i.relic), giveItem: (p, i) => giveItem(p, i, true), fireCourse: (e, n) => fireCourse(e, n), fireWalls: (e, n) => fireWalls(e, n) }, setBell: v => { BELL_MODE = !!v; }, setCross: v => { CROSS_MODE = !!v; }, get fireMode() { return FIRE_MODE; } };
 boot();
 // ===== Title backdrop: the Krystalkers in front, the bosses behind them, and the final shadow looming over all =====
 const TBG = { c: null, layer: null, w: 0, h: 0, embers: [], raf: 0, on: false };
