@@ -2450,8 +2450,8 @@ const TIER_REC = [0, 1, 3, 5, 8];
 const TIER_HP = [1, 0.8, 1, 1.3, 1.65], TIER_DMG = [1, 0.85, 1, 1.15, 1.3];
 const TIER_NAME = ['', 'Easy', 'Normal', 'Hard', 'Deadly'];
 // the Labyrinth: its halls hold the strongest monsters in the realm
-const LAB_HP = 1.25, LAB_DMG = 1.15, LAB_GOLD = 1.2; // the whole castle wakes at once, so its monsters are a little softer
-const LAB_BOSS_HP = 1.33, /* tower Gatekeepers: was 1.9, −30% */ LAB_BOSS_DMG = 1.3, KEEP_HP = 2.2, KEEP_DMG = 1.3;
+const LAB_HP = 0.85, LAB_DMG = 0.75, LAB_GOLD = 1.2; // the whole castle wakes at once, so its monsters are a little softer
+const LAB_BOSS_HP = 1.0, /* tower Gatekeepers: 1.9 → 1.33 → 1.0 */ LAB_BOSS_DMG = 1.3, KEEP_HP = 1.65, /* 2.2 → 1.65 */ KEEP_DMG = 1.3;
 const TIER_COL = ['', '#7ae07a', '#ffe06a', '#ff9a4a', '#ff5a6a'];
 const CASTLE_TPL = { id: 'castle', name: 'The Labyrinth', floor: 'castle', elem: null, mobs: { bonewalker: 3, shardling: 2, brute: 1, hushling: 2, frostling: 1, emberling: 1, shade: 1, boar: 1 }, boss: null };
 // west half + centre; the east half is mirrored (x' = 89 - x - w, point x' = 88 - x)
@@ -2483,7 +2483,7 @@ function buildCastle(cg) {
   G.castle = { x0: ox, y0: oy, rooms: [] };
   for (const [id, x, y, w, h, sub, name] of defs) {
     const r = makeRoom(null, null, 'castle', { x: ox + x, y: oy + y, w, h, th: sub === 'chamber' || sub === 'hall' ? TH.castlehall : TH.castle, tpl: CASTLE_TPL });
-    Object.assign(r, { castle: true, sub, key: id, cname: name, danger: 4, rec: sub === 'keep' ? 13 : 10, cleared: false, hasBoss: false });
+    Object.assign(r, { castle: true, sub, key: id, cname: name, danger: 4, rec: sub === 'keep' ? 11 : 10, cleared: false, hasBoss: false });
     G.castle.rooms.push(r); G.castle[id] = r;
   }
   const paths = [];
@@ -3207,7 +3207,7 @@ function recalcStats(p) {
   if (p.gems) for (const id of p.gems) { const g = GEM_BY_ID[id]; if (g && g.apply) g.apply(s); }
   s.armor = Math.min(0.6, s.armor); s.cdr = Math.min(0.6, s.cdr); s.crit = Math.min(1, s.crit); s.dodge = Math.min(0.4, s.dodge); s.statusRes = Math.min(0.7, s.statusRes); s.itemCdr = Math.min(0.6, s.itemCdr);
   passiveStats(p, s);
-  if (p.siegeT > (G ? G.time : 0)) { s.hpMul += 0.6; s.dmgAdd += 0.6; } // The Siege: 30s of fury on entering the Labyrinth
+  if (p.siegeT > (G ? G.time : 0)) { s.hpMul += 1; s.dmgAdd += 1; } // The Siege: 30s of fury on entering the Labyrinth
   const oldMax = p.maxHp || 0, L = p.level || 1;
   s.dmg = (1 + s.dmgAdd) * (1 + 0.07 * (L - 1));
   s.rateBase = s.rate; s.spdBase = s.spd;
@@ -8026,7 +8026,7 @@ const XROADS = {
   flood: { name: 'The Flood', col: '#4aa8ff', hazard: 'flood', desc: 'Water rises instead of fire: it slows, hurts less · extra chests everywhere' },
   blizzard: { name: 'Blizzard', col: '#bff4ff', hazard: 'frost', desc: 'Frost spreads: it Chills, then Freezes · the Gatekeeper leaves an extra relic chest' },
   night: { name: 'The Long Night', col: '#b48cff', hazard: 'dark', desc: 'Darkness spreads: you see almost nothing in it · the Gatekeeper pays double gold' },
-  siege: { name: 'The Siege', col: '#c8c8ff', hazard: 'fire', desc: 'Start at the Labyrinth altar, its challenge begins at once · +60% health and damage for 30s · the fire outside runs fast', spread: [0.33, 0.85] },
+  siege: { name: 'The Siege', col: '#c8c8ff', hazard: 'fire', desc: 'Start at the Labyrinth altar, its challenge begins at once · +100% health and damage for 30s · the fire outside runs fast', spread: [0.33, 0.85] },
 };
 function openCrossroads() {
   if (!G.crossMode || G.day !== 1 || G.inter.some(i => i.kind === 'xroad')) return;
@@ -9728,7 +9728,7 @@ async function boot() {
   startAttract(); showScreen('title');
   requestAnimationFrame(frame);
 }
-window.KRY = { get G() { return G; }, startGame, startHub, step, setSpeed: v => SIM_SPEED = v, showScreen, openLoadout, openArchive, openGate, talkTo, switchHero, setFire: m => { FIRE_MODE = m; }, setBell: v => { BELL_MODE = !!v; }, setCross: v => { CROSS_MODE = !!v; }, get fireMode() { return FIRE_MODE; } };
+window.KRY = { get G() { return G; }, startGame, startHub, step, setSpeed: v => SIM_SPEED = v, showScreen, openLoadout, openArchive, openGate, talkTo, switchHero, setFire: m => { FIRE_MODE = m; }, dbg: { startDay: n => startDay(n), startChallenge: (B, p) => startChallenge(B, p), recalcStats: p => recalcStats(p), relics: () => Object.values(ALL_ITEMS).filter(i => i.relic), giveItem: (p, i) => giveItem(p, i, true) }, setBell: v => { BELL_MODE = !!v; }, setCross: v => { CROSS_MODE = !!v; }, get fireMode() { return FIRE_MODE; } };
 boot();
 // ===== Title backdrop: the Krystalkers in front, the bosses behind them, and the final shadow looming over all =====
 const TBG = { c: null, layer: null, w: 0, h: 0, embers: [], raf: 0, on: false };
