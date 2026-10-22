@@ -8911,7 +8911,9 @@ function render(dt) {
   drawFxText();
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.drawImage(VIGNETTE, 0, 0);
-  const H0 = human(); if (H0 && !G.watch && H0.state === 'up') drawGloomOverlay(H0); else if (G.watch) { const ct = camTarget(); if (ct && (ct.blind > 0 || ct.darkT > G.time)) drawGloomOverlay(ct); }
+  // the darkness (Long Night, Vesper's blackout, Gloom) is shown for whoever the camera follows: you, a teammate you spectate after dying, or a watched bot
+  const H0 = human();
+  { const ct = H0 && !G.watch && H0.state === 'up' ? H0 : camTarget(); if (ct && (ct === H0 || ct.blind > 0 || ct.darkT > G.time || hasSt(ct, 'gloom'))) drawGloomOverlay(ct); }
   // spectating a teammate who is sealed inside a challenge: you only see what is right around them
   if (H0 && H0.state === 'dead') { const ct = camTarget(); const B = ct && ct !== H0 ? biomeAt(ct.x, ct.y) : null; if (B && sealHolds(B)) { const sp = worldToScreen(ct.x, ct.y - 8), r = 58 * ZOOM, g = ctx.createRadialGradient(sp.x, sp.y, r * 0.45, sp.x, sp.y, r * 1.15); g.addColorStop(0, 'rgba(6,2,14,0)'); g.addColorStop(0.7, 'rgba(6,2,14,0.8)'); g.addColorStop(1, 'rgba(6,2,14,0.97)'); ctx.fillStyle = g; ctx.fillRect(0, 0, W, H); } }
   if (G.hurtFlash > 0) { ctx.fillStyle = `rgba(255,40,60,${G.hurtFlash * 0.45})`; ctx.fillRect(0, 0, W, H); }
