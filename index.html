@@ -220,6 +220,12 @@ th { font-family: var(--display); letter-spacing: 0.08em; }
 .mpbox { display: grid; gap: 12px; }
 .mpf { display: grid; grid-template-columns: 130px 1fr; align-items: center; gap: 12px; font-family: var(--display); }
 .mpf input { font: 600 20px var(--body, sans-serif); padding: 8px 12px; border-radius: 10px; border: 2px solid var(--ink); background: rgba(10,8,16,0.85); color: var(--text); min-width: 0; }
+.fireopt { display: flex; gap: 10px; justify-content: center; align-items: stretch; flex-wrap: wrap; margin: 6px 0 2px; }
+.fireopt .fo-l { font-family: var(--display); align-self: center; opacity: 0.85; }
+.fireopt .fo { display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 5px 12px; font-size: 13px; opacity: 0.6; }
+.fireopt .fo small { font: 12px var(--body, sans-serif); opacity: 0.8; text-transform: none; letter-spacing: 0; }
+.fireopt .fo em { font-style: normal; color: #ffb070; font-size: 0.8em; }
+.fireopt .fo.sel { opacity: 1; outline: 2px solid #ffb070; }
 .mpadv { margin-top: 10px; font-size: 13px; } .mpadv summary { cursor: pointer; opacity: 0.8; } .mpadv code { font-size: 12px; }
 .mphr { border: 0; border-top: 1px solid rgba(255,255,255,0.12); width: 100%; }
 .card.taken { opacity: 0.45; filter: grayscale(0.7); cursor: not-allowed; }
@@ -267,6 +273,7 @@ th { font-family: var(--display); letter-spacing: 0.08em; }
   <section id="scr-lord" class="screen" hidden>
     <div class="row"><div><p class="eyebrow" id="gate-eyebrow">Expedition Gate</p><h2 id="gate-title">Which Dungeon Master will you hunt?</h2></div>
       </div>
+    <div class="fireopt"><span class="fo-l">Wildfire</span><button class="btn fo" id="fire-ring">Closing ring<small>Classic: a ring of fire closes on the Gatekeeper</small></button><button class="btn fo" id="fire-spread">Spreading rooms <em>NEW</em><small>Fire catches room by room along the corridors</small></button></div>
     <div class="wteam" id="watch-team" hidden></div>
     <div class="lords" id="lords"></div>
     <p class="hint" id="lord-team" style="text-align:center"></p>
@@ -2655,7 +2662,7 @@ function updateChallenges(dt) {
     const C = B.chal; if (!C) continue;
     C.t += dt;
     // the Wildfire burns through the seal
-    if (!C.broken && c && B.seals.some(S => S.tiles.some(([tx, ty]) => Math.hypot((tx + 0.5) * TILE - c.x, (ty + 0.5) * TILE - c.y) > c.r))) {
+    if (!C.broken && c && B.seals.some(S => S.tiles.some(([tx, ty]) => c.spread ? fireOut((tx + 0.5) * TILE, (ty + 0.5) * TILE) : Math.hypot((tx + 0.5) * TILE - c.x, (ty + 0.5) * TILE - c.y) > c.r))) {
       C.broken = true; setBanner('The seal burns', '', 2, '#ffb070');
       for (const S of B.seals) for (const [tx, ty] of S.tiles) burst((tx + 0.5) * TILE, (ty + 0.5) * TILE, '#ff8a2a', 8, 60, 0.6, { glow: true });
     }
@@ -6240,11 +6247,11 @@ function botControl(p, dt) {
 }
 function nextCircleR(ahead = 6) { return predictR(ahead); }
 // a spot is safe if the fire will not have reached it in `ahead` seconds
-function safeAt(x, y, margin = 30, ahead = 6) { const c = G.circle; if (!c || G.phase !== 'day') return true;  return Math.hypot(x - c.x, y - c.y) < nextCircleR(ahead) - margin; }
+function safeAt(x, y, margin = 30, ahead = 6) { const c = G.circle; if (!c || G.phase !== 'day') return true; if (c.spread) return !fireOut(x, y, margin, ahead);  return Math.hypot(x - c.x, y - c.y) < nextCircleR(ahead) - margin; }
 // worth walking to: still safe by the time we get there and have fought a while
 function campSafe(p, x, y, margin = 40, stay = 14) { const t = Math.hypot(x - p.x, y - p.y) / 85; return safeAt(x, y, margin, Math.min(40, t + stay)); }
 // nearest point the fire will not reach soon: step inward along the line to the centre, not all the way
-function safePoint(p) { const c = G.circle, R0 = nextCircleR(12) - 110; const d = Math.hypot(p.x - c.x, p.y - c.y) || 1; if (R0 <= 40) return { x: c.x, y: c.y }; const k = Math.min(1, R0 / d); let x = c.x + (p.x - c.x) * k, y = c.y + (p.y - c.y) * k; if (hitsWall(x, y, 6)) { let best = null, bd = 1e12; for (const r of G.rooms) { if (Math.hypot(r.px - c.x, r.py - c.y) > R0) continue; const dd = d2(r.px, r.py, p.x, p.y); if (dd < bd) { bd = dd; best = r; } } if (best) { x = best.px; y = best.py; } else { x = c.x; y = c.y; } } return { x, y }; }
+function safePoint(p) { if (G.circle && G.circle.spread) return spreadSafePoint(p); const c = G.circle, R0 = nextCircleR(12) - 110; const d = Math.hypot(p.x - c.x, p.y - c.y) || 1; if (R0 <= 40) return { x: c.x, y: c.y }; const k = Math.min(1, R0 / d); let x = c.x + (p.x - c.x) * k, y = c.y + (p.y - c.y) * k; if (hitsWall(x, y, 6)) { let best = null, bd = 1e12; for (const r of G.rooms) { if (Math.hypot(r.px - c.x, r.py - c.y) > R0) continue; const dd = d2(r.px, r.py, p.x, p.y); if (dd < bd) { bd = dd; best = r; } } if (best) { x = best.px; y = best.py; } else { x = c.x; y = c.y; } } return { x, y }; }
 function decideMode(p, A, vis) {
   const H = human();
   if (p.fchan) return 'idle';
@@ -6344,7 +6351,7 @@ function decideMode(p, A, vis) {
   if (c) { A.goal = { x: c.x + rr(-60, 60), y: c.y + rr(-50, 50), near: 50 }; return 'goto'; }
   return 'idle';
 }
-function nearestShrineNow(p) { const c = G.circle, sb = bmAt(p.x, p.y), sealed = sb >= 0 && sealHolds(G.biomes[sb]); let best = null, bd = 1e12; for (const it of G.inter) { if (it.kind !== 'shrine') continue; if (sealed && bmAt(it.x, it.y) !== sb) continue; if (!sealed && G.chalOn) { const ib = bmAt(it.x, it.y); if (ib >= 0 && sealHolds(G.biomes[ib])) continue; } if (c && Math.hypot(it.x - c.x, it.y - c.y) > c.r - 60) continue; const dd = d2(it.x, it.y, p.x, p.y); if (dd < bd) { bd = dd; best = it; } } return best; }
+function nearestShrineNow(p) { const c = G.circle, sb = bmAt(p.x, p.y), sealed = sb >= 0 && sealHolds(G.biomes[sb]); let best = null, bd = 1e12; for (const it of G.inter) { if (it.kind !== 'shrine') continue; if (sealed && bmAt(it.x, it.y) !== sb) continue; if (!sealed && G.chalOn) { const ib = bmAt(it.x, it.y); if (ib >= 0 && sealHolds(G.biomes[ib])) continue; } if (c && (c.spread ? fireOut(it.x, it.y, 60) : Math.hypot(it.x - c.x, it.y - c.y) > c.r - 60)) continue; const dd = d2(it.x, it.y, p.x, p.y); if (dd < bd) { bd = dd; best = it; } } return best; }
 function nearestShrine(p, safe) {
   let best = null, bd = 1e12;
   for (const it of G.inter) { if (it.kind !== 'shrine') continue; if (safe && !safeAt(it.x, it.y, 40)) continue; const dd = d2(it.x, it.y, p.x, p.y); if (dd < bd) { bd = dd; best = it; } }
@@ -6428,7 +6435,7 @@ function fightMove(p, A, tgt, c, dt, stayZone) {
   else mvA = away + A.strafe * Math.PI / 2;
   // keep inside the krystal zone during the boss fight
   if (tgt.type === 'shellback' && !tgt.spinning) { const bx = tgt.x - tgt.face * (pd * 0.9 + 20), by = tgt.y + A.strafe * 20; mvA = Math.atan2(by - p.y, bx - p.x); if (Math.hypot(bx - p.x, by - p.y) < 14) mvA = away + A.strafe * Math.PI / 2; }
-  if (stayZone && G.circle && Math.hypot(p.x - G.circle.x, p.y - G.circle.y) > G.circle.r - 30) mvA = Math.atan2(G.circle.y - p.y, G.circle.x - p.x);
+  if (stayZone && G.circle && !G.circle.spread && Math.hypot(p.x - G.circle.x, p.y - G.circle.y) > G.circle.r - 30) mvA = Math.atan2(G.circle.y - p.y, G.circle.x - p.x);
   for (const z of G.ezones) if (d2(p.x, p.y, z.x, z.y) < (z.r + 6) ** 2) { mvA = Math.atan2(p.y - z.y, p.x - z.x); break; }
   let mx = Math.cos(mvA), my = Math.sin(mvA);
   // room fights happen inside the room: never kite out into the corridor
@@ -6714,7 +6721,7 @@ function updateBotPlan() {
   if (G.planT > G.time) return; G.planT = G.time + 3;
   if (G.chalOn || G.phase !== 'day') { G.botPlan = null; return; }
   const P0 = G.botPlan, T0 = teamLv(), labNow = G.lab && !G.lab.bossKilled && G.day === 2 && T0.avg >= 8.5 && T0.min >= 7;
-  const labReach = al => !G.circle || Math.hypot(al.x - G.circle.x, al.y - G.circle.y) < G.circle.r - 40; // once inside, the Labyrinth is safe from the fire
+  const labReach = al => !G.circle || (G.circle.spread ? !fireOut(al.x, al.y, 40, 30) : Math.hypot(al.x - G.circle.x, al.y - G.circle.y) < G.circle.r - 40); // once inside, the Labyrinth is safe from the fire
   if (P0 && !P0.B.bossKilled && !P0.B.chal && altarOf(P0.B) && (P0.B.lab ? labReach(altarOf(P0.B)) : campSafe(teamCentre(), altarOf(P0.B).x, altarOf(P0.B).y, 40, 30)) && (P0.B.lab || !labNow)) return;
   const T = teamLv(), c = teamCentre(); let best = null, bs = 1e12;
   for (const B of G.biomes) {
@@ -6803,6 +6810,7 @@ function baseG(extra) {
 function startGame(charKey, watch, lord = 'warden', team = null, mp = null) {
   setMuffle(false);
   G = baseG({ watch: !!watch, lord, night1: pick(NIGHT1_POOL), night2: pick(NIGHT2_POOL) });
+  G.fireMode = FIRE_MODE;
   newMap(); generateDungeon();
   const start = G.startRoom;
   G.flaskUp = 0;
@@ -6892,7 +6900,7 @@ function updateRefill(dt) {
     room.refillT = tamed ? 60 : 24;
     const cap = tamed ? Math.max(1, Math.ceil(room.n0 * 0.2)) : Math.max(4, Math.ceil(room.n0 * 0.5));
     if (room.alive >= cap) continue;
-    if (fire && Math.hypot(room.px - c.x, room.py - c.y) > c.r - 40) continue;
+    if (fire && (c.spread ? fireOut(room.px, room.py, 40) : Math.hypot(room.px - c.x, room.py - c.y) > c.r - 40)) continue;
     if (G.players.some(p => p.state === 'up' && inRoom(room, p.x, p.y, 60))) { room.refillT = 6; continue; }
     if (room.locked || (G.bossRoom && room === G.bossRoom)) continue;
     if (room.type === 'castle') continue;
@@ -6936,7 +6944,7 @@ function updateAmbush() {
     if (!room.ambush || room.cleared || room.ambushDone || room.spawnedDay !== G.day) continue;
     if (room.locked) {
       // the storm overrides the lock
-      if (G.circle && Math.hypot(room.px - G.circle.x, room.py - G.circle.y) > G.circle.r - 120) { setRoomLocked(room, false); room.ambushDone = true; feed('The storm breaks the ambush gates open!', '#c8b8ff'); continue; }
+      if (G.circle && fireOut(room.px, room.py, 120)) { setRoomLocked(room, false); room.ambushDone = true; feed('The storm breaks the ambush gates open!', '#c8b8ff'); continue; }
       if (room.wave === 1 && room.alive <= 2) {
         room.wave = 2; const n = 2 + room.danger + G.day;
         for (let i = 0; i < n; i++) { const q = randomFloorIn(room, G.players, 60, 1); queueSpawn(rollMob(room.tpl), q.x, q.y, 0.8 + i * 0.12, { room, aggro: true }); room.alive++; }
@@ -6951,7 +6959,8 @@ function startDay(n) {
   if (G.bossRoom) setRoomLocked(G.bossRoom, false);
   G.bossRoom = null;
   G.nightRoom = G.nightRooms[n - 1];
-  G.circle = circleFor(G.nightRoom, n === 2 ? labCentre() : null);
+  G.circle = G.fireMode === 'spread' ? spreadCircle(G.nightRoom) : circleFor(G.nightRoom, n === 2 ? labCentre() : null);
+  if (G.fireMode === 'spread') planSpread(n);
   for (const p of G.players) { if (p.state !== 'up') { p.state = 'up'; p.invulnT = 2; } p.hp = p.maxHp; p.fightDowns = 0; p.phoenixUsed = false; clearStatus(p); }
   if (n > 1) { const old = G.inter.filter(i => i.kind === 'shrine' && (i.day || 0) < n && !(i.room && i.room.biome && i.room.biome.bossKilled)); /* conquered biomes keep their shrine */ for (const s of old) burst(s.x, s.y - 14, '#7ff0ff', 14, 60, 0.6, { glow: true }); G.inter = G.inter.filter(i => !old.includes(i)); }
   populateRooms();
@@ -6960,7 +6969,7 @@ function startDay(n) {
 // the dead come back at the nearest Krystal Shrine that the Wildfire will not reach; failing that, somewhere safe inside the ring
 function respawnPoint(p) {
   if (G.bossFight && G.bossRoom) return { x: G.bossRoom.px + rr(-40, 40), y: G.bossRoom.py + 60 };
-  const c = G.circle, safe = (x, y, m) => !c || Math.hypot(x - c.x, y - c.y) < (G.phase === 'day' ? Math.min(c.r, predictR(10)) : c.r) - m;
+  const c = G.circle, safe = (x, y, m) => !c || (c.spread ? !fireOut(x, y, m, G.phase === 'day' ? 10 : 0) : Math.hypot(x - c.x, y - c.y) < (G.phase === 'day' ? Math.min(c.r, predictR(10)) : c.r) - m);
   let best = null, bd = 1e12;
   for (const it of G.inter) {
     if (it.kind !== 'shrine' || !safe(it.x, it.y, 40)) continue;
@@ -7196,7 +7205,7 @@ function circleDamage(dt) {
   const c = G.circle; if (!c || c.calm) return; // after a Gatekeeper falls the fire calms: walk out and heal on the way
   for (const p of G.players) {
     if (p.state !== 'up') continue;
-    const out = Math.hypot(p.x - c.x, p.y - c.y) > c.r;
+    const out = c.spread ? fireOut(p.x, p.y) : Math.hypot(p.x - c.x, p.y - c.y) > c.r;
     p.outside = out;
     if (!out) continue;
     const k = (G.bossFight ? 0.08 : 0.045) * (1 - p.st.tideRes);
@@ -7223,11 +7232,12 @@ function step(dt) {
       const i = STAGES.findIndex(s => s[0] === G.dayStage);
       if (i < STAGES.length - 1) {
         G.dayStage = STAGES[i + 1][0]; G.stageT = stageDur(STAGES[i + 1][0]);
-        if (G.dayStage === 'shrink1' || G.dayStage === 'shrink2') setBanner('The Wildfire spreads', '', 2.5, '#ffb070');
+        if ((G.dayStage === 'shrink1' || G.dayStage === 'shrink2') && !c.spread) setBanner('The Wildfire spreads', '', 2.5, '#ffb070');
       } else if (false && labHolding()) { G.stageT = 0.5; G.labHold = (G.labHold || 0) + 0.5; if (!G.labHoldMsg) { G.labHoldMsg = true; setBanner('The Labyrinth holds the night back', 'The Gatekeeper waits until the Labyrinth battle ends.', 3.5, '#c8c8ff'); } }
       else { c.r = c.rf; startNight(); }
     }
     G.ambushT -= dt; if (G.ambushT <= 0) { G.ambushT = 0.2; updateAmbush(); }
+    updateSpread();
   }
   if (G.phase === 'night' && G.bossT > 0) {
     G.bossT -= dt;
@@ -7663,6 +7673,132 @@ const HUB_HINT = {
   chapel: 'Candles for the Krystalkers who never came back.', infirmary: 'Beds and herbs for the wounded.', oracle: 'The crystal ball shows glimpses of the Final Dungeon.',
   mess: 'Hot food and loud stories.', trophy: 'Trophies of every Dungeon Master brought down.',
 };
+// ===== Spreading Wildfire (Gate option): instead of a closing ring, the fire catches room by room =====
+// The map is a GW×GH grid of cells. Each Act the fire lights in the cells farthest from the Gatekeeper's arena and spreads
+// along the corridors one step at a time. Every cell gets a burn time; a cell is "smouldering" for SPREAD_WARN seconds first.
+// The arena and the way to it always burn last, so nobody is ever cut off. In Act II the Labyrinth burns just before the arena.
+let FIRE_MODE = 'ring';
+try { FIRE_MODE = localStorage.getItem('kry_fire') === 'spread' ? 'spread' : 'ring'; } catch (e) { }
+const SPREAD_WARN = 15, SPREAD_T0 = 0.5, SPREAD_T1 = 0.95, SPREAD_NEVER = 1e9;
+function spreadOn() { return !!(G && G.circle && G.circle.spread); }
+function cellOf(x, y) { const gx = Math.floor(x / TILE / CW), gy = Math.floor(y / TILE / CH); return gx >= 0 && gy >= 0 && gx < GW && gy < GH ? gx * GH + gy : -1; }
+function actLen() { let t = 0; for (const s of STAGES) t += stageDur(s[0]); return t; }
+function actElapsed() { let t = 0; for (const s of STAGES) { if (s[0] === G.dayStage) return t + stageDur(s[0]) - G.stageT; t += stageDur(s[0]); } return t; }
+// seconds into the Act as the fire sees it: during the night and between Acts, everything but the arena burns
+function fireClock(ahead = 0) { return G.phase === 'day' ? actElapsed() + ahead : SPREAD_NEVER - 1; }
+function cellBurnT(x, y) { const i = cellOf(x, y); return i < 0 || !G.fireT ? SPREAD_NEVER : G.fireT[i]; }
+// is (x, y) in the fire now (or `ahead` seconds from now)? `m` keeps a margin from the edge. Works for both fire modes.
+function fireOut(x, y, m = 0, ahead = 0) {
+  const c = G.circle; if (!c || c.calm) return false;
+  if (!c.spread) return Math.hypot(x - c.x, y - c.y) > (ahead > 0 && G.phase === 'day' ? Math.min(c.r, predictR(ahead)) : c.r) - m;
+  const t = fireClock(ahead);
+  if (cellBurnT(x, y) <= t) return true;
+  return m > 0 && (cellBurnT(x - m, y) <= t || cellBurnT(x + m, y) <= t || cellBurnT(x, y - m) <= t || cellBurnT(x, y + m) <= t);
+}
+function cellsOverlapping(x0, y0, w, h) { // tile rect → cell indices
+  const out = []; for (let gx = Math.floor(x0 / CW); gx <= Math.floor((x0 + w - 1) / CW); gx++) for (let gy = Math.floor(y0 / CH); gy <= Math.floor((y0 + h - 1) / CH); gy++) if (inGrid(gx, gy)) out.push(gx * GH + gy);
+  return out;
+}
+// two cells are neighbours when walkable floor crosses the line between them
+function cellGraph() {
+  const N = GW * GH, adj = [...Array(N)].map(() => []), walk = (x, y) => { const t = tget(x, y); return t !== T_WALL && t !== T_VOID; };
+  for (let gx = 0; gx < GW; gx++) for (let gy = 0; gy < GH; gy++) {
+    const i = gx * GH + gy;
+    if (gx + 1 < GW) { const x = (gx + 1) * CW; for (let y = gy * CH; y < (gy + 1) * CH; y++) if (walk(x - 1, y) && walk(x, y)) { adj[i].push(i + GH); adj[i + GH].push(i); break; } }
+    if (gy + 1 < GH) { const y = (gy + 1) * CH; for (let x = gx * CW; x < (gx + 1) * CW; x++) if (walk(x, y - 1) && walk(x, y)) { adj[i].push(i + 1); adj[i + 1].push(i); break; } }
+  }
+  return adj;
+}
+function bfsCells(adj, src) { const d = new Array(adj.length).fill(-1), q = []; for (const s of src) { d[s] = 0; q.push(s); } for (let h = 0; h < q.length; h++) for (const j of adj[q[h]]) if (d[j] < 0) { d[j] = d[q[h]] + 1; q.push(j); } return d; }
+function planSpread(n) {
+  const room = G.nightRoom, adj = cellGraph(), N = adj.length;
+  const arena = cellsOverlapping(room.x, room.y, room.w, room.h), dA = bfsCells(adj, arena);
+  const reach = [...Array(N).keys()].filter(i => dA[i] > 0), maxA = Math.max(1, ...reach.map(i => dA[i]));
+  // light the fire where it is farthest from the arena, in cells far apart from each other
+  const lit = [], nLit = n >= 2 ? 3 : 2;
+  for (let k = 0; k < nLit && reach.length; k++) {
+    let best = -1, bv = -1e9;
+    for (const i of reach) { if (lit.includes(i) || dA[i] < Math.max(2, maxA - 2)) continue; const away = lit.length ? Math.min(...lit.map(j => Math.abs(Math.floor(i / GH) - Math.floor(j / GH)) + Math.abs(i % GH - j % GH))) : 0; const v = dA[i] * 2 + away * 3 + R() * 1.5; if (v > bv) { bv = v; best = i; } }
+    if (best < 0) break; lit.push(best);
+  }
+  if (!lit.length) lit.push(...reach.filter(i => dA[i] === maxA));
+  const dI = bfsCells(adj, lit), raw = new Array(N).fill(0);
+  for (let i = 0; i < N; i++) raw[i] = dI[i] >= 0 ? dI[i] : 0;
+  const late = Math.max(...raw) + 1;
+  // Act II: while its guardian lives, the Labyrinth burns just before the arena
+  if (n === 2 && G.castle && G.lab && !G.lab.bossKilled) for (const i of cellsOverlapping(G.castle.x0, G.castle.y0, 90, 48)) if (dA[i] > 0) raw[i] = Math.max(raw[i], late);
+  // the way to the arena burns after everything beyond it, so the team is never cut off
+  const order = reach.slice().sort((a, b) => dA[b] - dA[a]);
+  for (const i of order) { let par = -1; for (const j of adj[i]) if (dA[j] === dA[i] - 1 && (par < 0 || raw[j] > raw[par])) par = j; if (par >= 0 && dA[par] > 0) raw[par] = Math.max(raw[par], raw[i] + 1); }
+  const L = actLen(), t0 = SPREAD_T0 * L, t1 = SPREAD_T1 * L, rv = reach.map(i => raw[i]), lo = Math.min(...rv), hi = Math.max(lo + 1, ...rv);
+  G.fireT = new Array(N).fill(SPREAD_NEVER);
+  for (let i = 0; i < N; i++) { if (dA[i] === 0) continue; if (dA[i] < 0) { G.fireT[i] = t0; continue; } G.fireT[i] = Math.round(t0 + (raw[i] - lo) / (hi - lo) * (t1 - t0)); }
+  G.fireLit = new Array(N).fill(false); G.fireStep = Math.round((t1 - t0) / (hi - lo));
+}
+function spreadCircle(room) { const R0 = 1e7; return { x: room.px, y: room.py, r: R0, r0: R0, rmid: R0, rf: R0, spread: true }; }
+function cellName(i) { const gx = Math.floor(i / GH), gy = i % GH, ns = gy < GH / 3 ? 'north' : gy >= GH * 2 / 3 ? 'south' : '', ew = gx < GW / 3 ? 'west' : gx >= GW * 2 / 3 ? 'east' : ''; return ns && ew ? ns + '-' + ew : ns || ew || 'centre'; }
+// host: light cells as their time comes (unopened chests melt)
+function updateSpread() {
+  if (!spreadOn() || G.phase !== 'day' || !G.fireT) return;
+  const t = actElapsed(); let first = [];
+  for (let i = 0; i < G.fireT.length; i++) {
+    if (G.fireLit[i] || G.fireT[i] > t) continue;
+    G.fireLit[i] = true; if (!G.fireLit.some((v, j) => v && j !== i && G.fireT[j] < G.fireT[i])) first.push(i);
+    const gx = Math.floor(i / GH), gy = i % GH, inCell = (x, y) => cellOf(x, y) === i;
+    G.inter = G.inter.filter(it => { if (it.kind === 'chest' && !it.used && inCell(it.x, it.y)) { burst(it.x, it.y, '#ff8a2a', 14, 70, 0.6, { glow: true }); return false; } return true; });
+    if (gx >= 0) for (let k = 0; k < 3; k++) glow((gx + 0.2 + R() * 0.6) * CW * TILE, (gy + 0.2 + R() * 0.6) * CH * TILE, 40, '#ff8a2a', 0.6);
+  }
+  if (first.length) { setBanner('The Wildfire ignites', `Fire in the ${[...new Set(first.map(cellName))].join(' and ')}. It spreads room by room toward the Gatekeeper.`, 3.5, '#ffb070'); sfx('fire'); }
+}
+// next time the fire moves (for the HUD), or null
+function nextSpreadIn() { if (!G.fireT || G.phase !== 'day') return null; const t = actElapsed(); let m = Infinity; for (const T of G.fireT) if (T > t && T < SPREAD_NEVER) m = Math.min(m, T); return m === Infinity ? null : m - t; }
+// bots: the nearest room centre that stays out of the fire for a while
+function spreadSafePoint(p) {
+  let best = null, bd = 1e12;
+  for (const r of G.rooms) { if (r.gx == null && r.type !== 'castle') continue; if (fireOut(r.px, r.py, 30, 20)) continue; const dd = d2(r.px, r.py, p.x, p.y); if (dd < bd) { bd = dd; best = r; } }
+  return best ? { x: best.px, y: best.py } : { x: G.nightRoom.px, y: G.nightRoom.py };
+}
+// ---------- drawing ----------
+function drawSpread() {
+  if (!G.fireT) return;
+  const t = fireClock(), vx0 = G.cam.x - W / 2 / ZOOM - 50, vy0 = G.cam.y - H / 2 / ZOOM - 50, vw = W / ZOOM + 100, vh = H / ZOOM + 100, cw = CW * TILE, ch = CH * TILE;
+  ctx.save();
+  for (let i = 0; i < G.fireT.length; i++) {
+    const T = G.fireT[i], x = Math.floor(i / GH) * cw, y = (i % GH) * ch;
+    if (x > vx0 + vw || y > vy0 + vh || x + cw < vx0 || y + ch < vy0) continue;
+    if (T <= t) {
+      ctx.fillStyle = 'rgba(110,26,6,0.4)'; ctx.fillRect(x, y, cw, ch);
+      ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = `rgba(255,90,20,${0.1 + 0.04 * Math.sin(G.time * 3)})`; ctx.fillRect(x, y, cw, ch);
+      const st = 40;
+      for (let gy = Math.floor(y / st); gy < (y + ch) / st; gy++) for (let gx = Math.floor(x / st); gx < (x + cw) / st; gx++) {
+        const hsh = Math.sin(gx * 127.1 + gy * 311.7) * 43758.5453, f = hsh - Math.floor(hsh); if (f > 0.55) continue;
+        const fx = gx * st + f * 30, fy = gy * st + ((f * 7.13) % 1) * 30; if (fx < vx0 || fx > vx0 + vw || fy < vy0 || fy > vy0 + vh || cellOf(fx, fy) !== i) continue;
+        const tt = G.time * (2 + f * 3) + f * 20, h = 7 + 5 * Math.sin(tt * 2.3), fl = 0.55 + 0.45 * Math.sin(tt * 3.7);
+        const g = ctx.createLinearGradient(fx, fy, fx, fy - h); g.addColorStop(0, `rgba(255,80,20,${0.55 * fl})`); g.addColorStop(1, 'rgba(255,220,120,0)');
+        ctx.fillStyle = g; ctx.beginPath(); ctx.moveTo(fx - 3.5, fy); ctx.quadraticCurveTo(fx - 2, fy - h * 0.6, fx + Math.sin(tt * 4) * 1.5, fy - h); ctx.quadraticCurveTo(fx + 2, fy - h * 0.6, fx + 3.5, fy); ctx.closePath(); ctx.fill();
+      }
+      ctx.restore();
+    } else if (T - t <= SPREAD_WARN) {
+      const k = 1 - (T - t) / SPREAD_WARN, a = 0.25 + 0.35 * k + 0.2 * Math.sin(G.time * (4 + 8 * k));
+      ctx.fillStyle = `rgba(255,120,30,${0.06 + 0.1 * k})`; ctx.fillRect(x, y, cw, ch);
+      ctx.strokeStyle = `rgba(255,150,50,${a})`; ctx.lineWidth = 3; ctx.setLineDash([10, 8]); ctx.strokeRect(x + 4, y + 4, cw - 8, ch - 8); ctx.setLineDash([]);
+      ctx.save(); ctx.globalCompositeOperation = 'lighter';
+      for (let j = 0; j < 14; j++) { const ex = x + ((j * 97.3 + G.time * 9) % cw), ey = y + ch - ((j * 53.7 + G.time * 30 * (1 + j % 2)) % ch); ctx.fillStyle = `rgba(255,170,70,${0.4 + 0.4 * k})`; ctx.fillRect(ex, ey, 1.4, 1.4); }
+      ctx.restore();
+    }
+  }
+  ctx.restore();
+}
+function drawSpreadMini(X, Y, sc, s, big) {
+  if (!G.fireT) return;
+  const t = fireClock();
+  for (let i = 0; i < G.fireT.length; i++) {
+    const T = G.fireT[i], gx = Math.floor(i / GH), gy = i % GH, px = X(gx * CW), py = Y(gy * CH), w = CW * sc, h = CH * sc;
+    if (T <= t) { ctx.fillStyle = 'rgba(255,80,30,0.2)'; ctx.fillRect(px, py, w, h); }
+    else if (T - t <= SPREAD_WARN) { ctx.strokeStyle = `rgba(255,160,60,${0.5 + 0.4 * Math.sin(G.time * 8)})`; ctx.lineWidth = 1.5 * s; ctx.strokeRect(px + s, py + s, w - 2 * s, h - 2 * s); }
+  }
+  const r = G.nightRoom; if (r) txt('☾', X(r.cx), Y(r.cy) + 5 * s, big ? 18 : 13, '#ff9ad8', 'center');
+}
 // ===== Rendering =====
 const cv = document.getElementById('game'), ctx = cv.getContext('2d');
 let W = 0, H = 0, ZOOM = 3, U = 1, DPR = 1, VIGNETTE = null;
@@ -7968,6 +8104,7 @@ function drawPile(P) {
 }
 function drawCircle() {
   const c = G.circle; if (!c) return;
+  if (c.spread) { drawSpread(); return; }
   if (c.calm) { ctx.save(); ctx.strokeStyle = 'rgba(255,170,90,0.35)'; ctx.lineWidth = 2; ctx.setLineDash([6, 8]); ctx.beginPath(); ctx.arc(c.x, c.y, c.r, 0, Math.PI * 2); ctx.stroke(); ctx.restore(); return; }
   const vx0 = G.cam.x - W / 2 / ZOOM - 50, vy0 = G.cam.y - H / 2 / ZOOM - 50, vw = W / ZOOM + 100, vh = H / ZOOM + 100;
   ctx.save();
@@ -8520,6 +8657,7 @@ function stateLabel(p) { return p.state === 'downed' ? (G.bossFight ? 'DOWN!' : 
 function timelineText() {
   if (G.phase === 'day') {
     // no countdown: nobody knows when the fire will move
+    if (G.circle && G.circle.spread) { const nx = nextSpreadIn(), lit = G.fireT && G.fireT.some(T => T <= actElapsed()); return [lit ? 'WILDFIRE' : `ACT ${ROMAN[G.day]}`, nx == null ? 'Only the arena is left' : nx <= 30 ? `${lit ? 'Fire spreads' : 'Fire ignites'} in ${Math.ceil(nx)}s` : '']; }
     if (G.dayStage === 'farm' || G.dayStage === 'hold') return [`ACT ${ROMAN[G.day]}`, ''];
     return ['WILDFIRE', 'The flames spread'];
   }
@@ -8783,7 +8921,8 @@ function drawMinimap(big) {
   { const H1 = human(); for (const it of G.inter) { if (it.kind !== 'bosschest' || it.used || (H1 && it.taken.has(H1))) continue; const px = X(it.x / TILE), py = Y(it.y / TILE), k = big ? 1.5 : 1.1; ctx.fillStyle = '#ffd44a'; ctx.strokeStyle = UI.edge; ctx.lineWidth = 1.4 * s; ctx.fillRect(px - 4 * s * k, py - 3 * s * k, 8 * s * k, 6 * s * k); ctx.strokeRect(px - 4 * s * k, py - 3 * s * k, 8 * s * k, 6 * s * k); const pr = (5 + 2 * Math.sin(G.time * 5)) * s * k; ctx.strokeStyle = 'rgba(255,212,74,0.7)'; ctx.beginPath(); ctx.arc(px, py, pr + 3 * s, 0, Math.PI * 2); ctx.stroke(); } }
   for (const B of G.biomes || []) { if (!B.chal) continue; const bs = B.lab ? G.castle.rooms.filter(r => r.boss && !r.boss.dead).map(r => r.boss) : [B.chal.boss].filter(e => e && !e.dead); for (const e of bs) txt('☠', X(e.x / TILE), Y(e.y / TILE) + 5 * s, big ? 16 : 12, '#ff5a6a', 'center'); }
   const c = G.circle;
-  if (c && !inArena) {
+  if (c && !inArena && c.spread) drawSpreadMini(X, Y, sc, s, big);
+  else if (c && !inArena) {
     ctx.strokeStyle = '#ff8a3a'; ctx.lineWidth = 2.5 * s; ctx.beginPath(); ctx.arc(X(c.x / TILE), Y(c.y / TILE), c.r / TILE * sc, 0, Math.PI * 2); ctx.stroke();
     if (G.phase === 'day') { ctx.strokeStyle = 'rgba(255,255,255,0.85)'; ctx.setLineDash([3 * s, 3 * s]); ctx.beginPath(); ctx.arc(X(c.x / TILE), Y(c.y / TILE), circleTarget() / TILE * sc, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]); }
     if (G.dayStage !== 'farm' || G.phase === 'night' || big) txt('☾', X(c.x / TILE), Y(c.y / TILE) + 5 * s, big ? 18 : 13, '#ff9ad8', 'center');
@@ -9006,6 +9145,7 @@ function buildLords() {
   refreshLords();
 }
 function refreshLords() {
+  $('fire-ring').classList.toggle('sel', FIRE_MODE !== 'spread'); $('fire-spread').classList.toggle('sel', FIRE_MODE === 'spread');
   for (const L of NIGHTLORDS) $('lord-' + L.id).classList.toggle('sel', L.id === chosenLord);
   buildWatchTeam();
   const W0 = gateMode === 'watch'; $('scr-lord').classList.toggle('watch', W0);
@@ -9150,6 +9290,8 @@ function wireMenus() {
   $('b-gloss').onclick = () => { archFromTitle = true; buildArchive(); showScreen('archive'); };
   $('b-set').onclick = () => openSettings('title');
   $('b-back0').onclick = () => { if (gateMode === 'watch') { gateMode = 'run'; showScreen('title'); } else { paused = false; showScreen(null); } };
+  const setFire = m => { FIRE_MODE = m; try { localStorage.setItem('kry_fire', m); } catch (e) { } refreshLords(); };
+  $('fire-ring').onclick = () => setFire('ring'); $('fire-spread').onclick = () => setFire('spread');
   $('b-lordok').onclick = () => { const w = gateMode === 'watch'; gateMode = 'run'; startRun(w); };
   $('b-back2').onclick = () => showScreen(G && G.hub ? null : 'title');
   $('b-back3').onclick = () => { Input.listening = null; if (settingsReturn === 'pause') showScreen('pause'); else showScreen('title'); };
@@ -9268,7 +9410,7 @@ async function boot() {
   startAttract(); showScreen('title');
   requestAnimationFrame(frame);
 }
-window.KRY = { get G() { return G; }, startGame, startHub, step, setSpeed: v => SIM_SPEED = v, showScreen, openLoadout, openArchive, openGate, talkTo, switchHero };
+window.KRY = { get G() { return G; }, startGame, startHub, step, setSpeed: v => SIM_SPEED = v, showScreen, openLoadout, openArchive, openGate, talkTo, switchHero, setFire: m => { FIRE_MODE = m; }, get fireMode() { return FIRE_MODE; } };
 boot();
 // ===== Title backdrop: the Krystalkers in front, the bosses behind them, and the final shadow looming over all =====
 const TBG = { c: null, layer: null, w: 0, h: 0, embers: [], raf: 0, on: false };
@@ -9485,10 +9627,11 @@ function netStartRun(lord) {
   const seed = (Math.random() * 4294967296) >>> 0, taken = new Set(NET.party.map(e => e.char));
   const bots = shuffle(CHAR_KEYS.filter(k => !taken.has(k)));
   const mp = [0, 1, 2, 3].map(s => { const E = NET.party.find(e => e.slot === s); return E ? { char: E.char, human: true, name: E.name, gems: s === 0 ? (PROFILE.equipped[E.char] || []).slice() : E.gems.slice() } : { char: bots.pop(), human: false }; });
-  netBroadcast({ t: 'start', seed, lord, mp });
-  netBeginRun(seed, lord, mp);
+  netBroadcast({ t: 'start', seed, lord, mp, fire: FIRE_MODE });
+  netBeginRun(seed, lord, mp, FIRE_MODE);
 }
-function netBeginRun(seed, lord, mp) {
+function netBeginRun(seed, lord, mp, fire) {
+  if (fire) FIRE_MODE = fire;
   NET.endShown = false; NET.bossId = 0; NET.ents = new Map(); NET.tiles = new Set(); for (const E of NET.party) E.last = null;
   seedRNG(seed); startGame(mp[0].char, false, lord, null, mp); unseedRNG();
   chosenLord = lord; paused = false; SIM_SPEED = 1;
@@ -9566,7 +9709,7 @@ function netHostTick() {
   const tiles = NET.tiles.size ? [...NET.tiles].map(i => [i, G.map[i], G.prop.get(i) || 0]) : null; NET.tiles.clear();
   const full = NET.frame % (NET_SNAP_EVERY * 10) === 0;
   const scal = { time: G.time, phase: G.phase, day: G.day, dayStage: G.dayStage, stageT: G.stageT, bossFight: G.bossFight, lord: G.lord, castleKills: G.castleKills || 0, chalOn: !!G.chalOn, portalOpened: !!G.portalOpened, inVoid: !!G.inVoid, everWait: !!G.everWait, flash: G.flash || 0, hub: !!G.hub, boss: G.boss && !G.boss.dead ? G.boss.nid : 0, bossRoom: G.bossRoom ? G.rooms.indexOf(G.bossRoom) : -1, arena: G.arena ? G.rooms.indexOf(G.arena) : -1,
-    circle: G.circle ? packEnt(G.circle) : null, blackout: G.blackout ? { t: G.blackout.t, dur: G.blackout.dur } : null, opening: G.opening ? { t: G.opening.t } : null, fake: G.fake ? packEnt(G.fake) : null, deathFx: G.deathFx ? packEnt(G.deathFx) : null, intro: G.intro ? packEnt(G.intro) : null, result: G.result || null, dawnT: G.dawnT || 0 };
+    circle: G.circle ? packEnt(G.circle) : null, fireT: G.fireT || null, blackout: G.blackout ? { t: G.blackout.t, dur: G.blackout.dur } : null, opening: G.opening ? { t: G.opening.t } : null, fake: G.fake ? packEnt(G.fake) : null, deathFx: G.deathFx ? packEnt(G.deathFx) : null, intro: G.intro ? packEnt(G.intro) : null, result: G.result || null, dawnT: G.dawnT || 0 };
   const important = new Set(); if (G.boss) important.add(G.boss); for (const e of G.enemies) if (e.boss || e.castle || e.chalB || e.type === 'pylon') important.add(e);
   const biomes = full && G.biomes ? G.biomes.map(B => ({ chal: B.chal ? { broken: !!B.chal.broken, boss: B.chal.boss ? B.chal.boss.nid : 0, t: B.chal.t } : null, bossKilled: !!B.bossKilled, retryT: B.retryT || 0 })) : null;
   const inter = full ? interPack() : null;
@@ -9643,7 +9786,7 @@ function netClientMsg(m) {
   if (m.t === 'map') { if (!G || G.hub) return; let i = 0; for (let k = 0; k < m.m.length; k += 2) { const v = m.m[k]; for (let n = 0; n < m.m[k + 1]; n++, i++) if (G.map[i] !== v) { G.map[i] = v; refreshMapTile(i % MW, Math.floor(i / MW)); } } G.prop = new Map(m.p); return; }
   if (m.t === 'party') { NET.party = m.party; return; }
   if (m.t === 'ping') { netSend({ t: 'pong', at: m.at }); return; }
-  if (m.t === 'start') { netBeginRun(m.seed, m.lord, m.mp); return; }
+  if (m.t === 'start') { netBeginRun(m.seed, m.lord, m.mp, m.fire); return; }
   if (m.t === 'hub') { NET.party = m.party; const mine = m.party.find(e => e.slot === NET.slot); netEnterHub(mine ? mine.char : LOADOUT.char); return; }
   if (m.t === 'bye') { netHostGone(); return; }
   if (m.t === 'ui') { if (m.what === 'loadout') openLoadout(); else if (m.what === 'archive') openArchive(); else if (m.what === 'gate') { feed('Only the host can start the expedition. Gather at the Gate!', '#ffe6a0'); setBanner('Waiting for the host', 'The host starts the expedition from the Gate.', 2.2, '#ffe6a0'); } return; }
