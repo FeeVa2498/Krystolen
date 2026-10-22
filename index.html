@@ -8793,7 +8793,7 @@ function drawGloomOverlay(p) {
     return;
   }
   if (p.darkT > G.time) { // The Long Night: like a Flash in a dark cave, a wide soft circle of light around you
-    const k = Math.min(1, (p.darkT - G.time) * 4 + 0.5), sp = worldToScreen(p.x, p.y - 8), r = 118 * ZOOM;
+    const k = Math.min(1, (p.darkT - G.time) * 4 + 0.5), sp = worldToScreen(p.x, p.y - 8), r = 82 * ZOOM;
     const g = ctx.createRadialGradient(sp.x, sp.y, r * 0.6, sp.x, sp.y, r * 1.12);
     g.addColorStop(0, 'rgba(8,4,20,0)'); g.addColorStop(0.55, `rgba(8,4,20,${0.6 * k})`); g.addColorStop(1, `rgba(8,4,20,${0.97 * k})`);
     ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
