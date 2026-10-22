@@ -6328,6 +6328,7 @@ function decideMode(p, A, vis) {
   const inLock = G.rooms.find(r => r.locked && inRoom(r, p.x, p.y, 4));
   if (inLock) { if (vis.length) return 'fight'; A.goal = { x: inLock.px + rr(-30, 30), y: inLock.py + rr(-20, 20), near: 20 }; return 'goto'; }
   // the Gatekeeper Bell: when the team wants to ring, everyone gathers in the arena and waits there
+  if (G.bellMode && G.bell && G.phase === 'day' && G.bellWant && !(G.bellToll > 0)) { const lv = levelCost(p); if (lv != null && p.gold >= lv) { const sh = nearestShrineNow(p); if (sh && d2(sh.x, sh.y, p.x, p.y) < 900 * 900 && safeAt(sh.x, sh.y, 30, 15)) { A.goal = { x: sh.x, y: sh.y, near: 18, use: true, it: sh }; return 'goto'; } } } // level up on the way to the bell
   if (G.bellMode && G.bell && G.phase === 'day' && (G.bellWant || G.bellToll > 0)) { const r = G.nightRoom; if (!inRoom(r, p.x, p.y, -12)) { botAnnounce(p, 'Heading to the Gatekeeper arena', 'bell' + G.day); A.goal = { x: r.px + rr(-30, 30), y: r.py + rr(-10, 30), near: 30 }; return 'goto'; } if (vis.length && vis[0].d < 140) return 'fight'; return 'idle'; }
   // at night: run into the arena (nobody is carried in any more)
   if (G.phase === 'night' && G.bossRoom && !inRoom(G.bossRoom, p.x, p.y, -10)) { A.goal = { x: G.bossRoom.px, y: G.bossRoom.py + 30, near: 30 }; return 'goto'; }
@@ -6364,10 +6365,16 @@ function decideMode(p, A, vis) {
   if (G.botPlan && G.botPlan.B.lab && !(myB && myB.chal)) {
     if (vis.length && vis[0].d < 90 && vis[0].e.aggro && !vis[0].e.champ) return 'fight';
     const lc1 = levelCost(p), sh1 = lc1 != null && p.gold >= lc1 ? nearestShrineNow(p) : null;
-    if (sh1 && d2(sh1.x, sh1.y, p.x, p.y) < 380 * 380) { A.goal = { x: sh1.x, y: sh1.y, near: 18, use: true, it: sh1 }; return 'goto'; }
+    if (sh1 && d2(sh1.x, sh1.y, p.x, p.y) < 700 * 700) { A.goal = { x: sh1.x, y: sh1.y, near: 18, use: true, it: sh1 }; return 'goto'; }
     const m = altarPlan(p, A); if (m) return m;
   }
   const rushing = G.botPlan && G.botPlan.B.lab && myB !== G.botPlan.B;
+  // levels matter most: as soon as one is affordable, go to the nearest shrine the fire will not reach (only an ongoing fight comes first)
+  { const lv = levelCost(p);
+    if (lv != null && p.gold >= lv && !(vis.length && vis[0].d < 110 && vis[0].e.aggro)) {
+      const sh = nearestShrineNow(p);
+      if (sh && !(G.botPlan && G.botPlan.B.lab && d2(sh.x, sh.y, p.x, p.y) > 900 * 900) && safeAt(sh.x, sh.y, 30, Math.min(30, Math.hypot(sh.x - p.x, sh.y - p.y) / 80 + 4))) { botAnnounce(p, 'Levelling up at the shrine', 'lvl' + p.level); A.goal = { x: sh.x, y: sh.y, near: 18, use: true, it: sh }; return 'goto'; }
+    } }
   if (vis.length && vis[0].d < (rushing ? 120 : 200) && (vis[0].e.aggro || vis[0].d < 150) && (!(vis[0].e.champ || vis[0].e.castle) || botCanFight(p, vis[0].e.room || vis[0].e.home))) return 'fight';
   if (A.pingSpot && A.pingSpotUntil > G.time && safeAt(A.pingSpot.x, A.pingSpot.y, 20)) { if (d2(p.x, p.y, A.pingSpot.x, A.pingSpot.y) < 40 * 40) A.pingSpot = null; else { A.goal = { x: A.pingSpot.x + rr(-16, 16), y: A.pingSpot.y + rr(-16, 16), near: 30 }; return 'goto'; } }
   { const m = joinPlan(p, A); if (m) return m; }
@@ -6378,11 +6385,7 @@ function decideMode(p, A, vis) {
   let coin = null; bd = (G.botPlan && G.botPlan.B.lab ? 50 : 120) ** 2;
   for (const k of G.coins) { if (k.botSkip > G.time) continue; const dd = d2(k.x, k.y, p.x, p.y); if (dd < bd && losClear(p.x, p.y, k.x, k.y)) { bd = dd; coin = k; } }
   if (coin) { A.goal = { x: coin.x, y: coin.y, near: 4 }; return 'goto'; }
-  // level up whenever it is affordable
   const lc = levelCost(p);
-  if (lc != null && p.gold >= lc) {
-    const sh = nearestShrineNow(p); if (sh && !(G.botPlan && G.botPlan.B.lab && d2(sh.x, sh.y, p.x, p.y) > 700 * 700) && (G.stageT > 45 || d2(sh.x, sh.y, p.x, p.y) < 500 * 500 || safeAt(sh.x, sh.y, 40))) { A.goal = { x: sh.x, y: sh.y, near: 18, use: true, it: sh }; return 'goto'; }
-  }
   // the team agreed on the Labyrinth: go there now, everything else can wait
   if (G.botPlan && G.botPlan.B.lab) { const m = altarPlan(p, A); if (m) return m; }
   // wounded and nothing around: rest at a shrine before the next room (the next pull will hurt)
@@ -6466,7 +6469,7 @@ function bestPurchase(p) {
       else score = 4 + RARITY[it.item.rarity].rank * 1.5;
     }
     // keep gold for levels unless rich
-    if (score && lc != null && p.gold - pr.cost < lc && p.level < 9 && p.ai.P.greed < 1 && it.kind !== 'chest') score -= 4;
+    if (score && lc != null && p.gold - pr.cost < lc && p.gold < lc * 2) score -= 8; // a level comes first
     if (score && lc != null && p.gold - pr.cost < lc * 0.6 && p.level < 6) score -= 3;
     score -= Math.hypot(it.x - p.x, it.y - p.y) / 250;
     if (score > bs && score > 0) { bs = score; best = it; }
@@ -7100,7 +7103,7 @@ function startDay(n) {
   for (const p of G.players) { if (p.state !== 'up') { p.state = 'up'; p.invulnT = 2; } p.hp = p.maxHp; p.fightDowns = 0; p.phoenixUsed = false; clearStatus(p); }
   if (n > 1) { const old = G.inter.filter(i => i.kind === 'shrine' && (i.day || 0) < n && !(i.room && i.room.biome && i.room.biome.bossKilled)); /* conquered biomes keep their shrine */ for (const s of old) burst(s.x, s.y - 14, '#7ff0ff', 14, 60, 0.6, { glow: true }); G.inter = G.inter.filter(i => !old.includes(i)); }
   if (n > 1) for (const it of G.inter) if (it.kind === 'font') { it.used = false; it.usedBy = null; it.by = null; } // every Krystal Font is restored for Act II
-  populateRooms(); G.bell = null; G.inter = G.inter.filter(i => i.kind !== 'bell'); placeFireDoors(); G.heatLv = 0; G.doused = {};
+  populateRooms(); if (n === 1 && G.startRoom) { spawnShrine(G.startRoom); const ss = G.inter.find(i => i.kind === 'shrine' && i.room === G.startRoom); if (ss) ss.day = 9; } /* a bonfire at the spawn: the first place to rest and level up */ G.bell = null; G.inter = G.inter.filter(i => i.kind !== 'bell'); placeFireDoors(); G.heatLv = 0; G.doused = {};
   applyCross();
   setBanner(`Act ${ROMAN[n]}`, n === 2 && G.act1Saved > 0 ? `Act I finished early: +${G.act1Saved}s for this Act` : G.fireSrc && G.circle && G.circle.spread ? `The Wildfire will ignite in the ${[...new Set(G.fireSrc.map(cellName))].join(' and ')} (marked on the map)` : '', 3.5, '#ffe6a0');
 }
