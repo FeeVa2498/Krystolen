@@ -8586,7 +8586,7 @@ function drawCircle() {
   ctx.strokeStyle = 'rgba(255,140,40,0.95)'; ctx.lineWidth = 2.2; ctx.beginPath(); ctx.arc(c.x, c.y, c.r, 0, Math.PI * 2); ctx.stroke();
   const nr = circleTarget();
   // the next ring is only shown once the lair is revealed (the first closing); spectators always see it
-  if (G.phase === 'day' && nr < c.r - 5 && (G.gkRevealed || G.watch)) { const nx = c.tx != null ? c.tx : c.x, ny = c.ty != null ? c.ty : c.y; ctx.strokeStyle = 'rgba(255,255,255,0.55)'; ctx.lineWidth = 1.2; ctx.setLineDash([3, 5]); ctx.beginPath(); ctx.arc(nx, ny, nr, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]); }
+  if (G.phase === 'day' && nr < c.r - 5 && (G.gkRevealed || (G.watch && G.noFog))) { const nx = c.tx != null ? c.tx : c.x, ny = c.ty != null ? c.ty : c.y; ctx.strokeStyle = 'rgba(255,255,255,0.55)'; ctx.lineWidth = 1.2; ctx.setLineDash([3, 5]); ctx.beginPath(); ctx.arc(nx, ny, nr, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]); }
   // embers drifting up outside the ring
   ctx.globalCompositeOperation = 'lighter';
   for (let i = 0; i < 90; i++) { const sx = vx0 + ((i * 97.3 + Math.sin(i) * 40 + G.time * 12 * (1 + i % 3)) % vw), sy = vy0 + vh - ((i * 53.7 + G.time * 45 * (1 + i % 2)) % vh); if (Math.hypot(sx - c.x, sy - c.y) > c.r + 4) { ctx.fillStyle = i % 3 ? 'rgba(255,150,50,0.7)' : 'rgba(255,230,140,0.8)'; ctx.fillRect(sx, sy, 1.1, 1.1); } }
@@ -9211,7 +9211,7 @@ function drawHUD() {
     if (H0.state === 'downed') { txt(G.bossFight ? "YOU'RE DOWN" : `YOU'RE DOWN · ${Math.ceil(H0.downT)}s`, cx, H * 0.62, 24, '#ff8a8a', 'center'); txt(G.bossFight ? 'No timer during boss fights. Crawl toward a teammate.' : 'Crawl to a teammate. If the timer runs out you drop a level.', cx, H * 0.62 + 22 * s, 12, '#eef4fb', 'center', FONT2); }
     if (H0.state === 'dead') { const sp = camTarget(); txt(`RESPAWNING IN ${Math.ceil(H0.respawnT)} · YOUR GOLD AND A LEVEL WERE LEFT BEHIND`, cx, H * 0.62, 22, '#ff8a8a', 'center'); txt('1 · 2 · 3: watch a teammate', cx, H * 0.62 + 46 * U, 11, '#bfe9ff', 'center', FONT2); if (sp && sp !== H0) txt(`Spectating ${sp.name} · ${keyName(settings.binds.attack)} / ${keyName(settings.binds.skill)}: next teammate`, cx, H * 0.62 + 24 * s, 12, '#fff3e0', 'center', FONT2); }
   }
-  if (G.watch) { const ww = 420 * s; panel(cx - ww / 2, H - pad - 30 * s, ww, 26 * s, 0.7, 10 * s); txt(`WATCHING BOTS · ${SIM_SPEED}x · Tab: next camera · 1-3: speed · V: fog ${G.noFog ? 'off' : 'on'} · Esc: menu`, cx, H - pad - 12 * s, 10, '#cfe8ff', 'center'); }
+  if (G.watch) { const ww = 420 * s; panel(cx - ww / 2, H - pad - 30 * s, ww, 26 * s, 0.7, 10 * s); txt(`WATCHING BOTS · ${SIM_SPEED}x · Tab: next camera · 1-3: speed · V: reveal map & lair ${G.noFog ? "ON" : "off"} · Esc: menu`, cx, H - pad - 12 * s, 10, '#cfe8ff', 'center'); }
   if (H0 && !G.watch && !G.bigMap) drawEdgeMarkers(H0);
   if (G.stickerOpen) drawStickerWheel();
   if (G.hoverItem && !G.bigMap) drawTooltip(G.hoverItem.it, G.hoverItem.x, G.hoverItem.y + 6 * s, focus);
@@ -9378,8 +9378,8 @@ function drawMinimap(big) {
   if (c && !inArena && c.spread) drawSpreadMini(X, Y, sc, s, big);
   else if (c && !inArena) {
     ctx.strokeStyle = '#ff8a3a'; ctx.lineWidth = 2.5 * s; ctx.beginPath(); ctx.arc(X(c.x / TILE), Y(c.y / TILE), c.r / TILE * sc, 0, Math.PI * 2); ctx.stroke();
-    if (G.phase === 'day' && (G.gkRevealed || G.watch)) { const nx = c.tx != null ? c.tx : c.x, ny = c.ty != null ? c.ty : c.y; ctx.strokeStyle = 'rgba(255,255,255,0.85)'; ctx.setLineDash([3 * s, 3 * s]); ctx.beginPath(); ctx.arc(X(nx / TILE), Y(ny / TILE), circleTarget() / TILE * sc, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]); }
-    if (G.gkRevealed || G.watch || G.phase !== 'day') { const r = G.nightRoom; if (r) txt('☾', X(r.cx), Y(r.cy) + 5 * s, big ? 18 : 13, '#ff9ad8', 'center'); }
+    if (G.phase === 'day' && (G.gkRevealed || (G.watch && G.noFog))) { const nx = c.tx != null ? c.tx : c.x, ny = c.ty != null ? c.ty : c.y; ctx.strokeStyle = 'rgba(255,255,255,0.85)'; ctx.setLineDash([3 * s, 3 * s]); ctx.beginPath(); ctx.arc(X(nx / TILE), Y(ny / TILE), circleTarget() / TILE * sc, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]); }
+    if (G.gkRevealed || (G.watch && G.noFog) || G.phase !== 'day') { const r = G.nightRoom; if (r) txt('☾', X(r.cx), Y(r.cy) + 5 * s, big ? 18 : 13, '#ff9ad8', 'center'); }
     else for (const r of G.nightRooms || []) txt('?', X(r.cx), Y(r.cy) + 5 * s, big ? 18 : 13, '#ff9ad8', 'center'); // two possible lairs
   }
   if (G.pings) for (const P0 of G.pings) { const k = (G.time * 3) % 1, px = X(P0.x / TILE), py = Y(P0.y / TILE), col = P0.enemy ? '#ff5a5a' : '#ffd44a', kk = big ? 1.4 : 1; ctx.strokeStyle = col; ctx.lineWidth = 2 * s; ctx.beginPath(); ctx.arc(px, py, (4 + k * 8) * s * kk, 0, Math.PI * 2); ctx.stroke(); ctx.fillStyle = col; ctx.strokeStyle = UI.edge; ctx.lineWidth = s; ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(px - 3.5 * s * kk, py - 7 * s * kk); ctx.arc(px, py - 8 * s * kk, 3.6 * s * kk, Math.PI * 0.85, Math.PI * 0.15); ctx.closePath(); ctx.fill(); ctx.stroke(); }
