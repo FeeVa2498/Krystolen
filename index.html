@@ -6172,7 +6172,14 @@ function botControl(p, dt) {
   // stuck detection
   if (A.stuckCheck === undefined || (A.stuckCheck -= dt) <= 0) {
     A.stuckCheck = 0.8;
-    if (A.wantMove && d2(p.x, p.y, A.lx, A.ly) < 4) { A.path = null; A.jitter = 0.4; A.jitA = R() * Math.PI * 2; }
+    if (A.wantMove && d2(p.x, p.y, A.lx, A.ly) < 4) {
+      A.path = null; A.jitter = 0.4; A.jitA = R() * Math.PI * 2; A.stuckN = (A.stuckN || 0) + 1;
+      if (A.stuckN >= 3) { // still facing a wall: give up on this goal / target for a while and think again
+        if (A.goal) A.badGoal = { x: A.goal.x, y: A.goal.y, until: G.time + 8 };
+        if (A.target && !A.target.boss) { A.ignoreE = A.target; A.ignoreT = G.time + 6; }
+        A.goal = null; A.target = null; A.think = 0; A.stuckN = 0; A.jitter = 0.8;
+      }
+    } else A.stuckN = 0;
     A.lx = p.x; A.ly = p.y;
   }
   // ---- decide ----
@@ -6181,6 +6188,7 @@ function botControl(p, dt) {
     const vis = visibleEnemies(p, p.blind > 0 ? 62 : hasSt(p, 'gloom') ? 90 : 230);
     const lockR = G.rooms && (G.rooms.find(r => r.locked && r !== G.bossRoom && inRoom(r, p.x, p.y, 4)) || (A.camp && !G.bossFight && inRoom(A.camp, p.x, p.y, 4) ? A.camp : null));
     if (lockR && !vis.length) { let be = null, bd = 1e12; for (const e of G.enemies) if (!e.dead && lairOf(e) === lockR) { const dd = d2(e.x, e.y, p.x, p.y); if (dd < bd) { bd = dd; be = e; } } if (be) vis.push({ e: be, d: Math.sqrt(bd) }); else if (lockR === A.camp && !G.enemies.some(e => !e.dead && lairOf(e) === lockR)) { lockR.alive = 0; if (!lockR.hasBoss || lockR.bossKilled || lockR.bossDone) lockR.cleared = true; A.camp = null; } }
+    if (A.ignoreE && A.ignoreT > G.time) { const i = vis.findIndex(v => v.e === A.ignoreE); if (i >= 0) vis.splice(i, 1); }
     A.target = vis.length ? vis[0].e : null;
     A.pingT = (A.pingT || 0) - L.react; if (A.pingT > 0 && A.pingEnemy && !A.pingEnemy.dead && !G.bossFight) { A.target = A.pingEnemy; } else A.pingEnemy = null;
     if (G.bossFight) {
@@ -6339,7 +6347,8 @@ function decideMode(p, A, vis) {
         const v = vis.find(o => Math.hypot(o.e.x - ld.x, o.e.y - ld.y) < 190); if (v) { A.target = v.e; return 'fight'; }
       } else if (ld === p && !(vis.length && vis[0].d < 150)) {
         const lag = G.players.filter(q => q !== p && q.state === 'up' && bmAt(q.x, q.y) === myB.id && d2(q.x, q.y, p.x, p.y) > 220 * 220);
-        if (lag.length) return 'idle'; // wait for the stragglers
+        if (lag.length && (A.leadWait = (A.leadWait || 0) + (L0react(p))) < 6) return 'idle'; // wait for the stragglers (a few seconds at most)
+        A.leadWait = 0;
       }
     }
     if (vis.length && vis[0].d < 210) return 'fight';
@@ -6746,6 +6755,7 @@ function teamLv() { const t = G.players; const lv = t.map(q => q.level); return 
 function teamCentre() { const al = G.players.filter(q => q.state !== 'dead'); return { x: al.reduce((a, q) => a + q.x, 0) / Math.max(1, al.length), y: al.reduce((a, q) => a + q.y, 0) / Math.max(1, al.length) }; }
 function labBosses() { return G.castle ? G.castle.rooms.filter(r => r.boss && !r.boss.dead && r.bossDone !== 99).map(r => r.boss) : []; }
 // sealed inside: everyone goes for the same boss
+function L0react(p) { return botLvl().react || 0.25; }
 function labLeader(B) {
   const inLab = G.players.filter(q => q.state === 'up' && bmAt(q.x, q.y) === B.id);
   return inLab.find(q => !q.isBot) || inLab.sort((a, b) => (a.slot ?? 0) - (b.slot ?? 0))[0] || null;
@@ -6831,7 +6841,8 @@ function altarPlan(p, A) {
     const atGate = live.filter(q => d2(q.x, q.y, gate.x, gate.y) < 150 * 150 || bmAt(q.x, q.y) === B.id);
     if (!G.labGather) G.labGather = G.time;
     const waited = G.time - G.labGather, bots = live.filter(q => q.isBot), humansAway = live.some(q => !q.isBot && !atGate.includes(q));
-    const ready = atGate.length >= live.length || (waited > 60 && bots.every(q => atGate.includes(q)) && humansAway) || (waited > 150 && atGate.length >= 2);
+    const humanFar = live.some(q => !q.isBot && d2(q.x, q.y, gate.x, gate.y) > 900 * 900);
+    const ready = atGate.length >= live.length || ((waited > 60 || (humanFar && waited > 20)) && bots.every(q => atGate.includes(q)) && humansAway) || (waited > 150 && atGate.length >= 2);
     if (ready) { G.labGo = true; feed('The team is together: into the Labyrinth!', '#c8c8ff'); }
     else {
       if (d2(p.x, p.y, gate.x, gate.y) < 150 * 150) { botAnnounce(p, `Waiting at the Labyrinth gate (${atGate.length}/${live.length})`, 'gate' + B.id); A.goal = { x: gate.x + rr(-40, 40), y: gate.y + rr(-10, 30), near: 40 }; return d2(p.x, p.y, gate.x, gate.y) < 60 * 60 ? 'idle' : 'goto'; }
@@ -6840,7 +6851,7 @@ function altarPlan(p, A) {
     }
   }
   if (B.lab) {
-    const live = G.players.filter(q => q.state !== 'dead'); need = live.length;
+    const live = G.players.filter(q => q.state !== 'dead'); need = G.labGo ? Math.max(2, G.players.filter(q => q.state !== 'dead' && (bmAt(q.x, q.y) === B.id || d2(q.x, q.y, al.x, al.y) < 400 * 400)).length) : live.length;
     if (inB.length && !G.labGather) G.labGather = G.time;
     if (G.labGather && G.time - G.labGather > 60 && G.players.filter(q => q.isBot && q.state !== 'dead').every(q => inB.includes(q))) need = Math.max(2, inB.length);
     if (inB.length < need && d2(p.x, p.y, al.x, al.y) < 140 * 140) { botAnnounce(p, `Waiting for the team at ${B.lab ? "the Labyrinth" : "the " + B.name} (${inB.length}/${live.length})`, 'wait' + B.id); }
