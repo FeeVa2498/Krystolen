@@ -8032,7 +8032,7 @@ function hazardTick(p, dt) {
   const H = G.hazard;
   if (H === 'flood') applyStatus(p, 'mire', 0.6, { amt: 0.35 });
   if (H === 'frost' && (p.frostT = (p.frostT || 0) - dt) <= 0) { p.frostT = 1.5; applyStatus(p, 'chill', 4); }
-  if (H === 'dark') applyStatus(p, 'gloom', 0.6);
+  if (H === 'dark') p.darkT = G.time + 0.5; // The Long Night: a lantern circle (wider than Vesper's blackout)
 }
 
 // ---------- The two rule sets offered at the Gate ----------
@@ -8715,6 +8715,14 @@ function drawGloomOverlay(p) {
     ctx.fillStyle = `rgba(60,30,110,${0.12 * k})`; ctx.fillRect(0, 0, W, H);
     return;
   }
+  if (p.darkT > G.time) { // The Long Night: like a Flash in a dark cave, a wide soft circle of light around you
+    const k = Math.min(1, (p.darkT - G.time) * 4 + 0.5), sp = worldToScreen(p.x, p.y - 8), r = 118 * ZOOM;
+    const g = ctx.createRadialGradient(sp.x, sp.y, r * 0.6, sp.x, sp.y, r * 1.12);
+    g.addColorStop(0, 'rgba(8,4,20,0)'); g.addColorStop(0.55, `rgba(8,4,20,${0.6 * k})`); g.addColorStop(1, `rgba(8,4,20,${0.97 * k})`);
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+    ctx.save(); ctx.globalCompositeOperation = 'lighter'; const w = ctx.createRadialGradient(sp.x, sp.y, 0, sp.x, sp.y, r * 0.7); w.addColorStop(0, `rgba(255,230,170,${0.07 * k})`); w.addColorStop(1, 'rgba(255,230,170,0)'); ctx.fillStyle = w; ctx.beginPath(); ctx.arc(sp.x, sp.y, r * 0.7, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+    return;
+  }
   const s = hasSt(p, 'gloom') ? Math.min(1, p.sts.gloom.t * 2) : 0; if (s <= 0) return;
   const sp = worldToScreen(p.x, p.y - 8), r = 70 * ZOOM;
   const g = ctx.createRadialGradient(sp.x, sp.y, r * 0.55, sp.x, sp.y, r * 1.15);
@@ -8788,7 +8796,7 @@ function render(dt) {
   drawFxText();
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.drawImage(VIGNETTE, 0, 0);
-  const H0 = human(); if (H0 && !G.watch && H0.state === 'up') drawGloomOverlay(H0); else if (G.watch) { const ct = camTarget(); if (ct && ct.blind > 0) drawGloomOverlay(ct); }
+  const H0 = human(); if (H0 && !G.watch && H0.state === 'up') drawGloomOverlay(H0); else if (G.watch) { const ct = camTarget(); if (ct && (ct.blind > 0 || ct.darkT > G.time)) drawGloomOverlay(ct); }
   // spectating a teammate who is sealed inside a challenge: you only see what is right around them
   if (H0 && H0.state === 'dead') { const ct = camTarget(); const B = ct && ct !== H0 ? biomeAt(ct.x, ct.y) : null; if (B && sealHolds(B)) { const sp = worldToScreen(ct.x, ct.y - 8), r = 58 * ZOOM, g = ctx.createRadialGradient(sp.x, sp.y, r * 0.45, sp.x, sp.y, r * 1.15); g.addColorStop(0, 'rgba(6,2,14,0)'); g.addColorStop(0.7, 'rgba(6,2,14,0.8)'); g.addColorStop(1, 'rgba(6,2,14,0.97)'); ctx.fillStyle = g; ctx.fillRect(0, 0, W, H); } }
   if (G.hurtFlash > 0) { ctx.fillStyle = `rgba(255,40,60,${G.hurtFlash * 0.45})`; ctx.fillRect(0, 0, W, H); }
