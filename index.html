@@ -274,7 +274,8 @@ th { font-family: var(--display); letter-spacing: 0.08em; }
     <div class="row"><div><p class="eyebrow" id="gate-eyebrow">Expedition Gate</p><h2 id="gate-title">Which Dungeon Master will you hunt?</h2></div>
       </div>
     <div class="fireopt"><span class="fo-l">Wildfire</span><button class="btn fo" id="fire-ring">Closing ring<small>Classic: a ring of fire closes on the Gatekeeper</small></button><button class="btn fo" id="fire-spread">Spreading rooms <em>NEW</em><small>Fire catches room by room along the corridors</small></button></div>
-    <div class="fireopt"><span class="fo-l">Gatekeeper</span><button class="btn fo" id="bell-off">When the Act ends<small>Classic: the night comes on its own</small></button><button class="btn fo" id="bell-on">Gatekeeper Bell <em>NEW</em><small>Ring it in the arena when ready; early = bonus</small></button></div>
+    <div class="fireopt"><span class="fo-l">Gatekeeper</span><button class="btn fo" id="bell-off">When the Act ends<small>Classic: the night comes on its own</small></button><button class="btn fo" id="bell-on">Gatekeeper Bell <em>NEW</em><small>Ring it when ready; early = bonus; monsters grow +8%/min</small></button></div>
+    <div class="fireopt"><span class="fo-l">Act II</span><button class="btn fo" id="cross-off">Like Act I<small>Classic: the same fire again</small></button><button class="btn fo" id="cross-on">Crossroads <em>NEW</em><small>After Gatekeeper I, vote for one of 3 gates</small></button></div>
     <div class="wteam" id="watch-team" hidden></div>
     <div class="lords" id="lords"></div>
     <p class="hint" id="lord-team" style="text-align:center"></p>
@@ -3013,6 +3014,8 @@ function interPrompt(it, p) {
     case 'bosschest': return it.taken.has(p) ? null : { text: `Open ${it.label}'s chest: choose 1 of 3 relics`, sub: oddsText(it.odds) };
     case 'portal': { if (it.opening) return null; const n = G.players.filter(q => q.state === 'up').length, k = [...it.ready].filter(q => q.state === 'up').length; return it.ready.has(p) ? { text: `Ready · waiting for the team (${k}/${n})`, locked: true } : { text: it.to === 'bazaar' ? `Step into the portal: The Bazaar (${k}/${n} ready)` : `Step into the portal: the Everfield (${k}/${n} ready)` }; }
     case 'bell': return bellPrompt(it, p);
+    case 'firedoor': return fireDoorPrompt(it, p);
+    case 'xroad': return xroadPrompt(it, p);
     case 'tpad': return (p.tpCd || 0) > G.time ? { text: 'Teleporter recharging…', locked: true } : { text: 'Teleporter: travel to the linked room' };
     case 'table': return { text: 'Round Table: change Krystalker & gems' };
     case 'archive': return { text: 'Read the Archive (glossary)' };
@@ -3035,6 +3038,8 @@ function useInter(it, p) {
     case 'shrine': levelUp(p); it.lastUse = G.time; pillar(it.x, it.y, '#7ff0ff', 70, 14, 0.6); break;
     case 'portal': it.ready.add(p); burst(p.x, p.y - 8, '#c86aff', 12, 60, 0.5, { glow: true }); floatText(p.x, p.y - 30, 'Ready!', '#e0b0ff', 0.9); if (p.isBot && R() < 0.35) botSay(p, 'ready'); break;
     case 'bell': useBell(it, p); break;
+    case 'firedoor': useFireDoor(it, p); break;
+    case 'xroad': useXroad(it, p); break;
     case 'tpad': teleportVia(it, p); break;
     case 'table': if (p.remote) netUI(p, 'loadout'); else openLoadout(); break;
     case 'archive': if (p.remote) netUI(p, 'archive'); else openArchive(); break;
@@ -3447,6 +3452,7 @@ function applyStatus(t, k, dur, o = {}) {
     dur *= 1 - (t.st.statusRes || 0);
   } else {
     if (t.def.objective || t.type === 'mothdecoy') return;
+    if (k === 'chill' || k === 'frozen') douseAt(t.x, t.y);
     const hard = k === 'frozen' || k === 'hush';
     if (t.def.weak && t.def.weak === ST_ELEM[k]) dur *= 1.5;
     if (o.src && o.src.team === 'player' && o.src.st && o.src.st.stDur) dur *= 1 + o.src.st.stDur;
@@ -6813,7 +6819,7 @@ function baseG(extra) {
 function startGame(charKey, watch, lord = 'warden', team = null, mp = null) {
   setMuffle(false);
   G = baseG({ watch: !!watch, lord, night1: pick(NIGHT1_POOL), night2: pick(NIGHT2_POOL) });
-  G.fireMode = FIRE_MODE; G.bellMode = BELL_MODE;
+  G.fireMode = FIRE_MODE; G.bellMode = BELL_MODE; G.crossMode = CROSS_MODE; G.hazard = 'fire'; G.cross = null;
   newMap(); generateDungeon();
   const start = G.startRoom;
   G.flaskUp = 0;
@@ -6966,7 +6972,8 @@ function startDay(n) {
   if (G.fireMode === 'spread') planSpread(n);
   for (const p of G.players) { if (p.state !== 'up') { p.state = 'up'; p.invulnT = 2; } p.hp = p.maxHp; p.fightDowns = 0; p.phoenixUsed = false; clearStatus(p); }
   if (n > 1) { const old = G.inter.filter(i => i.kind === 'shrine' && (i.day || 0) < n && !(i.room && i.room.biome && i.room.biome.bossKilled)); /* conquered biomes keep their shrine */ for (const s of old) burst(s.x, s.y - 14, '#7ff0ff', 14, 60, 0.6, { glow: true }); G.inter = G.inter.filter(i => !old.includes(i)); }
-  populateRooms(); placeBell();
+  populateRooms(); placeBell(); placeFireDoors(); G.heatLv = 0; G.doused = {};
+  applyCross();
   setBanner(`Act ${ROMAN[n]}`, G.fireSrc && G.circle && G.circle.spread ? `The Wildfire will ignite in the ${[...new Set(G.fireSrc.map(cellName))].join(' and ')} (marked on the map)` : '', 3.5, '#ffe6a0');
 }
 // the dead come back at the nearest Krystal Shrine that the Wildfire will not reach; failing that, somewhere safe inside the ring
@@ -7045,8 +7052,8 @@ function onBossDead(e) {
   for (const p of G.players) { p.gold += reward; p.stats.gold += reward; }
   feed(`${e.def.name} defeated! Everyone gains ${reward} gold and a reward.`, '#ffd44a');
   setBanner(`Gatekeeper ${ROMAN[G.day]} defeated`, '', 3, '#ffe6a0');
-  dropBossChest(e.x, e.y, GK_REC[G.day] + 1, e.def.name, null); bellReward(e);
-  G.phase = 'dawn'; G.dawnT = 0;
+  dropBossChest(e.x, e.y, GK_REC[G.day] + 1, e.def.name, null); bellReward(e); crossReward(e);
+  G.phase = 'dawn'; G.dawnT = 0; if (G.day === 1) openCrossroads();
   setRoomLocked(G.bossRoom, false);
   feed('The doors open. The Wildfire still burns outside the ring until the next Act begins.', '#ffe6a0');
   if (G.day === 2) { G.portalOpened = true; setRoomLocked(G.bossRoom, false); openPortal(G.bossRoom.px, G.bossRoom.py - 40, 'bazaar'); }
@@ -7215,9 +7222,9 @@ function circleDamage(dt) {
     const out = c.spread ? fireOut(p.x, p.y) : Math.hypot(p.x - c.x, p.y - c.y) > c.r;
     p.outside = out;
     if (!out) continue;
-    const k = (G.bossFight ? 0.08 : 0.045) * (1 - p.st.tideRes);
+    const k = (G.bossFight ? 0.08 : 0.045) * (1 - p.st.tideRes) * hz().dmg; hazardTick(p, dt);
     p.hp -= (p.maxHp * k + 2) * dt; p.lastHurt = G.time;
-    if ((p.tideTick = (p.tideTick || 0) - dt) <= 0) { p.tideTick = 0.6; if (!p.isBot) G.hurtFlash = Math.max(G.hurtFlash, 0.12); floatText(p.x, p.y - 30, 'Burning!', '#ffb070', 0.6); burst(p.x + rr(-4, 4), p.y - rr(4, 16), '#ff8a2a', 3, 30, 0.5, { g: -60, glow: true }); }
+    if ((p.tideTick = (p.tideTick || 0) - dt) <= 0) { p.tideTick = 0.6; if (!p.isBot) G.hurtFlash = Math.max(G.hurtFlash, 0.12); floatText(p.x, p.y - 30, hz().ouch, hz().col, 0.6); burst(p.x + rr(-4, 4), p.y - rr(4, 16), hz().col, 3, 30, 0.5, { g: -60, glow: true }); }
     if (p.hp <= 0) downPlayer(p);
   }
 }
@@ -7244,7 +7251,7 @@ function step(dt) {
       else { c.r = c.rf; startNight(); }
     }
     G.ambushT -= dt; if (G.ambushT <= 0) { G.ambushT = 0.2; updateAmbush(); }
-    updateSpread(); updateBell(dt);
+    updateSpread(); updateBell(dt); updateHeat(dt); updateFireDoors(); if (G.cross === 'embers') for (const e of G.enemies) if (!e.dead && !e.boss) crossGold(e);
   }
   if (G.phase === 'night' && G.bossT > 0) {
     G.bossT -= dt;
@@ -7252,7 +7259,7 @@ function step(dt) {
     if (G.bossT <= 0) { const type = G.day === 1 ? G.night1 : G.night2; G.boss = spawnEnemy(type, G.bossRoom.px, G.bossRoom.py - 50); G.boss.rec = GK_REC[G.day]; tuneBoss(G.boss, GK_HP[G.day], GK_DMG[G.day]); sfx('roar'); burst(G.boss.x, G.boss.y, '#7ff0ff', 40, 160, 0.7, { glow: true }); pillar(G.boss.x, G.boss.y, '#ff9ad8', 120, 30, 0.8); shock(G.boss.x, G.boss.y, 90, '#ff9ad8', 0.6); shake(8); }
   }
   if (G.phase === 'embers') G.embersT += dt;
-  if (G.phase === 'dawn') { G.dawnT += dt; if (G.day === 1 && ((!G.choice && G.dawnT > 8 && G.inter.filter(i => i.kind === 'bosschest' && !i.used).every(i => G.players.every(p => i.taken.has(p) || p.state !== 'up'))) || G.dawnT > 30)) startDay(2); }
+  if (G.phase === 'dawn') { G.dawnT += dt; const crOk = G.day !== 1 || !G.crossMode || crossroadsReady(dt); if (G.day === 1 && crOk && ((!G.choice && G.dawnT > 8 && G.inter.filter(i => i.kind === 'bosschest' && !i.used).every(i => G.players.every(p => i.taken.has(p) || p.state !== 'up'))) || G.dawnT > 30)) startDay(2); }
   G.flowT -= dt; if (G.flowT <= 0) { G.flowT = 0.35; updateFlow(); }
   if (G.phase === 'day' || G.phase === 'dawn' || G.phase === 'embers') updateRefill(dt);
   updateChallenges(dt);
@@ -7686,6 +7693,7 @@ const HUB_HINT = {
 // The arena and the way to it always burn last, so nobody is ever cut off. In Act II the Labyrinth burns just before the arena.
 let FIRE_MODE = 'ring';
 try { FIRE_MODE = localStorage.getItem('kry_fire') === 'spread' ? 'spread' : 'ring'; } catch (e) { }
+let SPREAD_OVR = null; // a Crossroads choice can make the fire faster
 const SPREAD_WARN = 15, SPREAD_T0 = 0.5, SPREAD_T1 = 0.95, SPREAD_NEVER = 1e9;
 function spreadOn() { return !!(G && G.circle && G.circle.spread); }
 function cellOf(x, y) { const gx = Math.floor(x / TILE / CW), gy = Math.floor(y / TILE / CH); return gx >= 0 && gy >= 0 && gx < GW && gy < GH ? gx * GH + gy : -1; }
@@ -7737,7 +7745,7 @@ function planSpread(n) {
   // the way to the arena burns after everything beyond it, so the team is never cut off
   const order = reach.slice().sort((a, b) => dA[b] - dA[a]);
   for (const i of order) { let par = -1; for (const j of adj[i]) if (dA[j] === dA[i] - 1 && (par < 0 || raw[j] > raw[par])) par = j; if (par >= 0 && dA[par] > 0) raw[par] = Math.max(raw[par], raw[i] + 1); }
-  const L = actLen(), t0 = SPREAD_T0 * L, t1 = SPREAD_T1 * L, rv = reach.map(i => raw[i]), lo = Math.min(...rv), hi = Math.max(lo + 1, ...rv);
+  const L = actLen(), t0 = (SPREAD_OVR ? SPREAD_OVR[0] : SPREAD_T0) * L, t1 = (SPREAD_OVR ? SPREAD_OVR[1] : SPREAD_T1) * L, rv = reach.map(i => raw[i]), lo = Math.min(...rv), hi = Math.max(lo + 1, ...rv);
   G.fireT = new Array(N).fill(SPREAD_NEVER);
   for (let i = 0; i < N; i++) { if (dA[i] === 0) continue; if (dA[i] < 0) { G.fireT[i] = t0; continue; } G.fireT[i] = Math.round(t0 + (raw[i] - lo) / (hi - lo) * (t1 - t0)); }
   G.fireSrc = lit.slice();
@@ -7756,7 +7764,7 @@ function updateSpread() {
     G.inter = G.inter.filter(it => { if (it.kind === 'chest' && !it.used && inCell(it.x, it.y)) { burst(it.x, it.y, '#ff8a2a', 14, 70, 0.6, { glow: true }); return false; } return true; });
     if (gx >= 0) for (let k = 0; k < 3; k++) glow((gx + 0.2 + R() * 0.6) * CW * TILE, (gy + 0.2 + R() * 0.6) * CH * TILE, 40, '#ff8a2a', 0.6);
   }
-  if (first.length) { setBanner('The Wildfire ignites', `Fire in the ${[...new Set(first.map(cellName))].join(' and ')}. It spreads room by room toward the Gatekeeper.`, 3.5, '#ffb070'); sfx('fire'); }
+  if (first.length) { setBanner(G.hazard && G.hazard !== 'fire' ? `The ${hz().name} rises` : 'The Wildfire ignites', `It starts in the ${[...new Set(first.map(cellName))].join(' and ')} and spreads room by room toward the Gatekeeper.`, 3.5, '#ffb070'); sfx('fire'); }
 }
 // next time the fire moves (for the HUD), or null
 function nextSpreadIn() { if (!G.fireT || G.phase !== 'day') return null; const t = actElapsed(); let m = Infinity; for (const T of G.fireT) if (T > t && T < SPREAD_NEVER) m = Math.min(m, T); return m === Infinity ? null : m - t; }
@@ -7775,8 +7783,9 @@ function drawSpread() {
     const T = G.fireT[i], x = Math.floor(i / GH) * cw, y = (i % GH) * ch;
     if (x > vx0 + vw || y > vy0 + vh || x + cw < vx0 || y + ch < vy0) continue;
     if (T <= t) {
-      ctx.fillStyle = 'rgba(110,26,6,0.4)'; ctx.fillRect(x, y, cw, ch);
-      ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = `rgba(255,90,20,${0.1 + 0.04 * Math.sin(G.time * 3)})`; ctx.fillRect(x, y, cw, ch);
+      const HZ = hz(); ctx.fillStyle = HZ.fill; ctx.fillRect(x, y, cw, ch);
+      ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = `${HZ.glow}${0.08 + 0.04 * Math.sin(G.time * 3)})`; ctx.fillRect(x, y, cw, ch);
+      if (G.hazard && G.hazard !== 'fire') { hazardMotes(x, y, cw, ch, vx0, vy0, vw, vh); ctx.restore(); continue; }
       const st = 40;
       for (let gy = Math.floor(y / st); gy < (y + ch) / st; gy++) for (let gx = Math.floor(x / st); gx < (x + cw) / st; gx++) {
         const hsh = Math.sin(gx * 127.1 + gy * 311.7) * 43758.5453, f = hsh - Math.floor(hsh); if (f > 0.55) continue;
@@ -7810,7 +7819,7 @@ function drawSpreadMini(X, Y, sc, s, big) {
   const t = fireClock();
   for (let i = 0; i < G.fireT.length; i++) {
     const T = G.fireT[i], gx = Math.floor(i / GH), gy = i % GH, px = X(gx * CW), py = Y(gy * CH), w = CW * sc, h = CH * sc;
-    if (T <= t) { ctx.fillStyle = 'rgba(255,80,30,0.2)'; ctx.fillRect(px, py, w, h); }
+    if (T <= t) { ctx.fillStyle = hz().mini; ctx.fillRect(px, py, w, h); }
     else if (T - t <= SPREAD_WARN) { ctx.strokeStyle = `rgba(255,160,60,${0.5 + 0.4 * Math.sin(G.time * 8)})`; ctx.lineWidth = 1.5 * s; ctx.strokeRect(px + s, py + s, w - 2 * s, h - 2 * s); }
     else if (big && T < SPREAD_NEVER && G.phase === 'day') { // the full map shows how soon every cell burns: the deeper the orange, the sooner
       const soon = clamp(1 - (T - t) / 120, 0, 1); ctx.fillStyle = `rgba(255,120,40,${0.03 + 0.13 * soon})`; ctx.fillRect(px, py, w, h);
@@ -7820,6 +7829,21 @@ function drawSpreadMini(X, Y, sc, s, big) {
   // where the fire will start (and has started): a flame on the map from the first second of the Act
   for (const i of G.fireSrc || []) { const gx = Math.floor(i / GH), gy = i % GH; miniFlame(X(gx * CW + CW / 2), Y(gy * CH + CH / 2), (big ? 9 : 6) * s, G.fireT[i] > t); }
   const r = G.nightRoom; if (r) txt('☾', X(r.cx), Y(r.cy) + 5 * s, big ? 18 : 13, '#ff9ad8', 'center');
+}
+
+// flood ripples, snowflakes or drifting dark wisps instead of flames
+function hazardMotes(x, y, cw, ch, vx0, vy0, vw, vh) {
+  const H = G.hazard, n = 40;
+  for (let j = 0; j < n; j++) {
+    const f = (Math.sin(j * 91.7 + x * 0.013 + y * 0.029) * 43758.5) % 1, ff = Math.abs(f);
+    let px = x + ((j * 97.3 + ff * 300) % cw), py = y + ((j * 53.7 + ff * 200) % ch);
+    if (H === 'frost') { px = x + ((j * 97.3 + G.time * (8 + ff * 10)) % cw); py = y + ((j * 53.7 + G.time * (25 + ff * 20)) % ch); }
+    if (H === 'dark') { px += Math.sin(G.time * 0.7 + j) * 12; py -= (G.time * 6 + j * 13) % 40; }
+    if (px < vx0 || px > vx0 + vw || py < vy0 || py > vy0 + vh) continue;
+    if (H === 'flood') { const k = (G.time * 0.6 + ff) % 1; ctx.strokeStyle = `rgba(150,210,255,${0.45 * (1 - k)})`; ctx.lineWidth = 1; ctx.beginPath(); ctx.ellipse(px, py, 3 + k * 10, 1.5 + k * 4, 0, 0, Math.PI * 2); ctx.stroke(); }
+    else if (H === 'frost') { ctx.fillStyle = 'rgba(240,250,255,0.8)'; ctx.fillRect(px, py, 1.6, 1.6); }
+    else { ctx.fillStyle = `rgba(160,120,255,${0.25 + 0.25 * Math.sin(G.time * 2 + j)})`; ctx.beginPath(); ctx.arc(px, py, 2, 0, Math.PI * 2); ctx.fill(); }
+  }
 }
 // ===== Gatekeeper Bell (Gate option): the team calls the Gatekeeper when it feels ready =====
 // A bell stands in the Gatekeeper's arena. From BELL_FROM of the Act on, ringing it (every living human presses F at the bell)
@@ -7895,6 +7919,155 @@ function drawBell(it) {
   ctx.restore();
   if (open && G.bellToll <= 0) { ctx.save(); ctx.globalCompositeOperation = 'lighter'; const r = 18 + 3 * Math.sin(G.time * 4); const gg = ctx.createRadialGradient(x, y - 18, 1, x, y - 18, r); gg.addColorStop(0, 'rgba(255,220,120,0.35)'); gg.addColorStop(1, 'rgba(255,220,120,0)'); ctx.fillStyle = gg; ctx.beginPath(); ctx.arc(x, y - 18, r, 0, Math.PI * 2); ctx.fill(); ctx.restore(); }
   if (it.ready.size && G.bellToll <= 0) { ctx.font = `6px ${FONT}`; ctx.textAlign = 'center'; ctx.fillStyle = '#ffe6a0'; ctx.fillText(`${[...it.ready].filter(q => q.state === 'up' && !q.isBot).length} ready`, x, y - 36); }
+}
+// ===== Rising danger, fire counterplay, and the Crossroads between the two Acts =====
+
+// ---------- Rising danger (on with the Gatekeeper Bell): monsters grow 8% stronger for every minute of the Act ----------
+const HEAT_PER_MIN = 0.08;
+function heatNow() { return G.bellMode && G.phase === 'day' ? 1 + HEAT_PER_MIN * Math.floor(actElapsed() / 60) : 1; }
+function updateHeat(dt) {
+  if (!G.bellMode || G.phase !== 'day') return;
+  if ((G.heatT = (G.heatT || 0) - dt) > 0) return; G.heatT = 1;
+  const h = heatNow();
+  if (h !== G.heatLv) { if (G.heatLv && h > G.heatLv) feed(`The monsters grow stronger (+${Math.round((h - 1) * 100)}%).`, '#ff9a6a'); G.heatLv = h; }
+  for (const e of G.enemies) {
+    if (e.dead || e.boss || e.team === 'player' || e.isMinion || e.def.objective || e.type === 'dummy') continue;
+    const cur = e.heat || 1; if (cur === h) continue;
+    const k = h / cur; e.maxHp *= k; e.hp *= k; e.dmgM = (e.dmgM || 1) * k; e.heat = h;
+  }
+}
+// ---------- Frost douses a smouldering cell (spreading mode) ----------
+function douseAt(x, y) {
+  if (!spreadOn() || G.phase !== 'day' || !G.fireT) return;
+  const i = cellOf(x, y); if (i < 0) return;
+  const t = actElapsed(), T = G.fireT[i];
+  if (T >= SPREAD_NEVER || T <= t || T - t > SPREAD_WARN) return;
+  G.doused = G.doused || {}; if (G.doused[i]) return;
+  G.doused[i] = true; G.fireT[i] = T + 20;
+  floatText(x, y - 34, 'Fire doused! +20s', '#bff4ff', 1.2, 1.1);
+  for (let k = 0; k < 4; k++) burst(x + rr(-60, 60), y + rr(-40, 40), '#bff4ff', 10, 60, 0.7, { glow: true });
+  feed('Frost doused a smouldering room: the fire waits 20s longer there.', '#bff4ff');
+}
+// ---------- Fire doors (spreading mode): seal a room for 40s, nobody gets in or out, the fire waits outside ----------
+function placeFireDoors() {
+  G.inter = G.inter.filter(i => i.kind !== 'firedoor');
+  if (!spreadOn() || !G.fireT) return;
+  const t0 = SPREAD_T0 * actLen(), cand = shuffle(G.rooms.filter(r => r.type === 'themed' && r.gx != null && r !== G.nightRoom && G.fireT[cellOf(r.px, r.py)] > t0 + 20 && G.fireT[cellOf(r.px, r.py)] < SPREAD_NEVER));
+  for (const r of cand.slice(0, 3)) { const q = clearSpot(r.px - 50, r.py - 26, 9); addInter({ kind: 'firedoor', x: q.x, y: q.y, r: 14, room: r }); }
+}
+function fireDoorPrompt(it, p) {
+  if (it.used) return it.lockT > G.time ? { text: `Fire door sealed: ${Math.ceil(it.lockT - G.time)}s`, locked: true } : null;
+  if (G.phase !== 'day') return null;
+  return { text: 'Pull the fire-door lever', sub: 'Seals this room for 40s: the fire waits outside, but nobody can get in or out' };
+}
+function useFireDoor(it, p) {
+  it.used = true; it.lockT = G.time + 40; const r = it.room, i = cellOf(r.px, r.py);
+  setRoomLocked(r, true); r.fireSealed = it;
+  if (i >= 0 && G.fireT) G.fireT[i] = Math.max(G.fireT[i], actElapsed() + 40);
+  shake(4); sfx('roar'); burst(it.x, it.y, '#c8a060', 16, 70, 0.6);
+  setBanner('Fire doors sealed', 'This room holds for 40 seconds.', 2.5, '#ffe6a0');
+}
+function updateFireDoors() {
+  for (const it of G.inter) if (it.kind === 'firedoor' && it.used && it.lockT && G.time >= it.lockT && it.room.fireSealed === it) { it.room.fireSealed = null; if (!G.bossFight || it.room !== G.bossRoom) setRoomLocked(it.room, false); feed('The fire doors grind open.', '#ffe6a0'); }
+}
+function drawFireDoor(it) {
+  const x = it.x, y = it.y, on = it.used && it.lockT > G.time;
+  ctx.save(); shadow(x, y, 6);
+  ctx.fillStyle = '#4a4a52'; ctx.fillRect(x - 6, y - 4, 12, 5); ctx.strokeStyle = OUTL; ctx.lineWidth = 1; ctx.strokeRect(x - 6, y - 4, 12, 5);
+  const a = on ? 0.7 : -0.7; ctx.strokeStyle = '#8a6a3a'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(x, y - 3); ctx.lineTo(x + Math.sin(a) * 12, y - 3 - Math.cos(a) * 12); ctx.stroke();
+  ctx.fillStyle = on ? '#ff6a3a' : '#ffd44a'; ctx.beginPath(); ctx.arc(x + Math.sin(a) * 12, y - 3 - Math.cos(a) * 12, 2.4, 0, Math.PI * 2); ctx.fill();
+  if (on) { ctx.font = `6px ${FONT}`; ctx.textAlign = 'center'; ctx.fillStyle = '#ffe6a0'; ctx.fillText(Math.ceil(it.lockT - G.time) + 's', x, y - 20); }
+  ctx.restore();
+}
+
+// ---------- Hazards: what spreads in Act II depends on the Crossroads ----------
+const HAZARD = {
+  fire: { name: 'Wildfire', you: "You're in the Wildfire! Move in!", ouch: 'Burning!', col: '#ff8a2a', fill: 'rgba(110,26,6,0.4)', glow: 'rgba(255,90,20,', mini: 'rgba(255,80,30,0.2)', dmg: 1 },
+  flood: { name: 'Flood', you: "You're in the flood! Get to dry ground!", ouch: 'Drowning!', col: '#4aa8ff', fill: 'rgba(10,50,120,0.42)', glow: 'rgba(60,140,255,', mini: 'rgba(60,140,255,0.25)', dmg: 0.6 },
+  frost: { name: 'Blizzard', you: "You're in the blizzard! Get out before you freeze!", ouch: 'Freezing!', col: '#bff4ff', fill: 'rgba(150,200,230,0.35)', glow: 'rgba(200,240,255,', mini: 'rgba(200,240,255,0.25)', dmg: 0.6 },
+  dark: { name: 'Long Night', you: "You're in the dark! Find the light!", ouch: 'Lost in the dark', col: '#b48cff', fill: 'rgba(10,4,24,0.6)', glow: 'rgba(120,80,200,', mini: 'rgba(90,60,160,0.3)', dmg: 0.5 },
+};
+function hz() { return HAZARD[G.hazard] || HAZARD.fire; }
+// called from circleDamage for each player standing in the hazard
+function hazardTick(p, dt) {
+  const H = G.hazard;
+  if (H === 'flood') applyStatus(p, 'mire', 0.6, { amt: 0.35 });
+  if (H === 'frost' && (p.frostT = (p.frostT || 0) - dt) <= 0) { p.frostT = 1.5; applyStatus(p, 'chill', 4); }
+  if (H === 'dark') applyStatus(p, 'gloom', 0.6);
+}
+
+// ---------- The Crossroads: after Gatekeeper I the team chooses how Act II goes ----------
+let CROSS_MODE = false;
+try { CROSS_MODE = localStorage.getItem('kry_cross') === '1'; } catch (e) { }
+const XROADS = {
+  embers: { name: 'Embers', col: '#ff8a3a', hazard: 'fire', desc: 'The fire runs faster · monsters drop +30% gold', spread: [0.38, 0.88] },
+  flood: { name: 'The Flood', col: '#4aa8ff', hazard: 'flood', desc: 'Water rises instead of fire: it slows, hurts less · extra chests everywhere' },
+  blizzard: { name: 'Blizzard', col: '#bff4ff', hazard: 'frost', desc: 'Frost spreads: it Chills, then Freezes · the Gatekeeper leaves an extra relic chest' },
+  night: { name: 'The Long Night', col: '#b48cff', hazard: 'dark', desc: 'Darkness spreads: you see almost nothing in it · the Gatekeeper pays double gold' },
+  siege: { name: 'The Siege', col: '#c8c8ff', hazard: 'fire', desc: 'Start at the Labyrinth gate · the fire outside runs fast', spread: [0.33, 0.85] },
+};
+function openCrossroads() {
+  if (!G.crossMode || G.day !== 1 || G.inter.some(i => i.kind === 'xroad')) return;
+  let keys = shuffle(['embers', 'flood', 'blizzard', 'night']).slice(0, 2);
+  if (G.lab && !G.lab.bossKilled) keys.push('siege'); else keys.push(pick(['embers', 'flood', 'blizzard', 'night'].filter(k => !keys.includes(k))));
+  const gks = shuffle(NIGHT2_POOL.slice()), room = G.bossRoom || G.nightRoom;
+  keys.forEach((k, i) => { const q = clearSpot(room.px + (i - 1) * 64, room.py + 54, 12); addInter({ kind: 'xroad', x: q.x, y: q.y, r: 22, xk: k, gk: gks[i % gks.length], ready: new Set() }); });
+  setBanner('The Crossroads', 'Three ways into Act II. Stand at a gate and press F to vote.', 4, '#ffe6a0');
+  G.crossT = 0;
+}
+function xroadPrompt(it, p) {
+  const X = XROADS[it.xk], gk = ENEMY[it.gk] ? ENEMY[it.gk].name : it.gk;
+  if (it.ready.has(p)) return { text: `Voted: ${X.name} · waiting for the team`, sub: X.desc, locked: true };
+  return { text: `Vote: ${X.name} (Gatekeeper II: ${gk})`, sub: X.desc };
+}
+function useXroad(it, p) {
+  for (const o of G.inter) if (o.kind === 'xroad') o.ready.delete(p);
+  it.ready.add(p); burst(p.x, p.y - 8, XROADS[it.xk].col, 12, 60, 0.5, { glow: true }); floatText(p.x, p.y - 30, 'Vote: ' + XROADS[it.xk].name, XROADS[it.xk].col, 1);
+}
+// host: decide once every living human has voted (or the dawn runs long); returns true when Act II may start
+function crossroadsReady(dt) {
+  const gates = G.inter.filter(i => i.kind === 'xroad'); if (!gates.length) return true;
+  G.crossT = (G.crossT || 0) + dt;
+  const hum = G.players.filter(q => !q.isBot && q.state === 'up'), voted = hum.filter(q => gates.some(g => g.ready.has(q)));
+  if (hum.length && voted.length < hum.length && G.crossT < 45) return false;
+  if (!hum.length && G.crossT < 4) return false;
+  let best = null, bv = -1;
+  for (const g of shuffle(gates.slice())) { const v = [...g.ready].filter(q => q.state === 'up').length + (G.players[0] && g.ready.has(G.players[0]) ? 0.5 : 0); if (v > bv) { bv = v; best = g; } }
+  chooseCross(best); return true;
+}
+function chooseCross(g) {
+  G.cross = g.xk; G.hazard = XROADS[g.xk].hazard; G.night2 = g.gk;
+  G.inter = G.inter.filter(i => i.kind !== 'xroad');
+  feed(`The team takes ${XROADS[g.xk].name}.`, XROADS[g.xk].col);
+}
+// after startDay(2) has set the map up
+function applyCross() {
+  const k = G.cross; if (!k || G.day !== 2) return;
+  const X = XROADS[k];
+  if (X.spread && G.fireMode === 'spread') { SPREAD_OVR = X.spread; planSpread(2); SPREAD_OVR = null; placeFireDoors(); }
+  if (k === 'flood') for (const r of G.rooms) if (r.type === 'themed' && r.gx != null) { const q = randomFloorIn(r, [], 0, 2); addInter({ kind: 'chest', x: q.x, y: q.y }); }
+  if (k === 'siege' && G.castle) { const q = clearSpot((G.castle.x0 + 44.5) * TILE, (G.castle.y0 + 50) * TILE, 10); placeTeam(q.x, q.y); } // right outside the Labyrinth's main gate
+  setBanner(`Act II · ${X.name}`, X.desc, 4, X.col);
+}
+// a few rewards are paid by the second Gatekeeper
+function crossReward(e) {
+  if (G.day !== 2 || !G.cross) return;
+  if (G.cross === 'blizzard') dropBossChest(e.x - 46, e.y, GK_REC[2] + 1, 'Blizzard', null);
+  if (G.cross === 'night') { const g = 320; for (const p of G.players) { p.gold += g; p.stats.gold += g; } feed('The Long Night pays: +320 gold each.', '#b48cff'); }
+}
+function crossGold(e) { if (G.cross === 'embers' && G.day === 2 && !e.xg) { e.xg = true; e.goldM = (e.goldM || 1) * 1.3; } }
+function drawXroad(it) {
+  const X = XROADS[it.xk], x = it.x, y = it.y, t = G.time;
+  ctx.save();
+  ctx.fillStyle = 'rgba(20,10,30,0.35)'; ctx.beginPath(); ctx.ellipse(x, y, 20, 9, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = X.col; ctx.lineWidth = 1.8; ctx.beginPath(); ctx.ellipse(x, y, 19, 8.5, 0, 0, Math.PI * 2); ctx.stroke();
+  ctx.globalCompositeOperation = 'lighter';
+  const g = ctx.createRadialGradient(x, y - 22, 2, x, y - 22, 26); g.addColorStop(0, 'rgba(255,255,255,0.7)'); g.addColorStop(0.5, X.col + '88'); g.addColorStop(1, X.col + '00');
+  ctx.fillStyle = g; ctx.beginPath(); ctx.ellipse(x, y - 22, 13 + Math.sin(t * 3) * 1, 23, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+  ctx.font = `bold 7px ${FONT}`; ctx.textAlign = 'center'; ctx.lineWidth = 2.4; ctx.strokeStyle = OUTL; ctx.strokeText(X.name, x, y - 52); ctx.fillStyle = X.col; ctx.fillText(X.name, x, y - 52);
+  const gk = ENEMY[it.gk] ? ENEMY[it.gk].name : ''; ctx.font = `5.5px ${FONT}`; ctx.strokeText(gk, x, y - 45); ctx.fillStyle = '#ffe6a0'; ctx.fillText(gk, x, y - 45);
+  const n = [...it.ready].filter(q => q.state === 'up').length; if (n) { ctx.font = `6px ${FONT}`; ctx.strokeText(n + ' vote' + (n > 1 ? 's' : ''), x, y + 16); ctx.fillStyle = '#fff'; ctx.fillText(n + ' vote' + (n > 1 ? 's' : ''), x, y + 16); }
 }
 // ===== Rendering =====
 const cv = document.getElementById('game'), ctx = cv.getContext('2d');
@@ -8145,6 +8318,8 @@ function roundRect(c, x, y, w, h, r) { c.beginPath(); c.roundRect(x, y, w, h, r)
 function drawInter(it) {
   const x = it.x, y = it.y;
   if (it.kind === 'bell') { drawBell(it); return; }
+  if (it.kind === 'firedoor') { drawFireDoor(it); return; }
+  if (it.kind === 'xroad') { drawXroad(it); return; }
   if (it.opening && !it.inner) { const O = G.opening, k = O ? clamp(Math.min(O.t / 0.5, (3 - O.t) / 0.5), 0.05, 1) : 1; ctx.save(); ctx.translate(x, y); ctx.scale(k, k); ctx.translate(-x, -y); it.inner = true; drawInter(it); it.inner = false; ctx.restore(); return; }
   if (it.kind === 'portal' || it.kind === 'tpad') {
     const P = it.kind === 'portal', c1 = P ? '#c86aff' : '#49d6ff', c2 = P ? '#f0c8ff' : '#bff4ff', t = G.time;
@@ -8203,6 +8378,7 @@ function drawPile(P) {
 function drawCircle() {
   const c = G.circle; if (!c) return;
   if (c.spread) { drawSpread(); return; }
+  if (G.hazard && G.hazard !== 'fire' && !c.calm) { const HZ = hz(), vx0 = G.cam.x - W / 2 / ZOOM - 50, vy0 = G.cam.y - H / 2 / ZOOM - 50, vw = W / ZOOM + 100, vh = H / ZOOM + 100; ctx.save(); ctx.beginPath(); ctx.rect(vx0, vy0, vw, vh); ctx.arc(c.x, c.y, c.r, 0, Math.PI * 2, true); ctx.fillStyle = HZ.fill; ctx.fill('evenodd'); ctx.strokeStyle = HZ.col; ctx.lineWidth = 2.2; ctx.beginPath(); ctx.arc(c.x, c.y, c.r, 0, Math.PI * 2); ctx.stroke(); ctx.restore(); return; }
   if (c.calm) { ctx.save(); ctx.strokeStyle = 'rgba(255,170,90,0.35)'; ctx.lineWidth = 2; ctx.setLineDash([6, 8]); ctx.beginPath(); ctx.arc(c.x, c.y, c.r, 0, Math.PI * 2); ctx.stroke(); ctx.restore(); return; }
   const vx0 = G.cam.x - W / 2 / ZOOM - 50, vy0 = G.cam.y - H / 2 / ZOOM - 50, vw = W / ZOOM + 100, vh = H / ZOOM + 100;
   ctx.save();
@@ -8756,9 +8932,9 @@ function timelineText() {
   if (G.phase === 'day' && G.bellMode && G.bellToll > 0) return ['THE BELL TOLLS', `Gatekeeper ${ROMAN[G.day]} comes in ${Math.ceil(G.bellToll)}s`];
   if (G.phase === 'day') {
     // no countdown: nobody knows when the fire will move
-    if (G.circle && G.circle.spread) { const nx = nextSpreadIn(), lit = G.fireT && G.fireT.some(T => T <= actElapsed()); return [lit ? 'WILDFIRE' : `ACT ${ROMAN[G.day]}`, nx == null ? 'Only the arena is left' : nx <= 30 ? `${lit ? 'Fire spreads' : 'Fire ignites'} in ${Math.ceil(nx)}s` : '']; }
+    if (G.circle && G.circle.spread) { const nx = nextSpreadIn(), lit = G.fireT && G.fireT.some(T => T <= actElapsed()); const HN = G.hazard && G.hazard !== 'fire' ? hz().name : 'Fire'; return [lit ? (G.hazard && G.hazard !== 'fire' ? hz().name : 'Wildfire').toUpperCase() : `ACT ${ROMAN[G.day]}`, nx == null ? 'Only the arena is left' : nx <= 30 ? `${HN} ${lit ? 'spreads' : (G.hazard && G.hazard !== 'fire' ? 'rises' : 'ignites')} in ${Math.ceil(nx)}s` : G.bellMode && G.heatLv > 1 ? `Monsters +${Math.round((G.heatLv - 1) * 100)}%` : '']; }
     if (G.dayStage === 'farm' || G.dayStage === 'hold') return [`ACT ${ROMAN[G.day]}`, ''];
-    return ['WILDFIRE', 'The flames spread'];
+    return [G.hazard && G.hazard !== 'fire' ? hz().name.toUpperCase() : 'WILDFIRE', G.hazard && G.hazard !== 'fire' ? 'It closes in' : 'The flames spread'];
   }
   if (G.phase === 'night') return [`GATEKEEPER ${ROMAN[G.day]}`, ''];
   if (G.phase === 'embers') { const it = G.inter.find(i => i.kind === 'portal'); const left = it ? Math.max(0, EMBERS_MAX - (G.time - it.t0)) : 0; return ['EMBERS', labCleared() ? `Labyrinth conquered · portal closes in ${fmtTime(left)}` : `Raid the Labyrinth · portal closes in ${fmtTime(left)}`]; }
@@ -8841,7 +9017,7 @@ function drawHUD() {
   }
   if (!G.watch && H0) { drawSkillBar(H0); drawKitHud(H0); }
   // outside-the-circle warning
-  if (H0 && H0.outside && H0.state === 'up' && !(G.circle && G.circle.calm)) txt("You're in the Wildfire! Move in!", cx, H * 0.24, 15, '#ffb070', 'center');
+  if (H0 && H0.outside && H0.state === 'up' && !(G.circle && G.circle.calm)) txt(hz().you, cx, H * 0.24, 15, hz().col, 'center');
   // ---- banner ----
   if (G.banner) {
     const b = G.banner, a = clamp(Math.min(1, b.t * 3, (b.life - b.t) * 2), 0, 1);
@@ -9244,6 +9420,7 @@ function buildLords() {
   refreshLords();
 }
 function refreshLords() {
+  $('cross-off').classList.toggle('sel', !CROSS_MODE); $('cross-on').classList.toggle('sel', CROSS_MODE);
   $('bell-off').classList.toggle('sel', !BELL_MODE); $('bell-on').classList.toggle('sel', BELL_MODE);
   $('fire-ring').classList.toggle('sel', FIRE_MODE !== 'spread'); $('fire-spread').classList.toggle('sel', FIRE_MODE === 'spread');
   for (const L of NIGHTLORDS) $('lord-' + L.id).classList.toggle('sel', L.id === chosenLord);
@@ -9392,6 +9569,8 @@ function wireMenus() {
   $('b-back0').onclick = () => { if (gateMode === 'watch') { gateMode = 'run'; showScreen('title'); } else { paused = false; showScreen(null); } };
   const setFire = m => { FIRE_MODE = m; try { localStorage.setItem('kry_fire', m); } catch (e) { } refreshLords(); };
   const setBell = v => { BELL_MODE = v; try { localStorage.setItem('kry_bell', v ? '1' : '0'); } catch (e) { } refreshLords(); };
+  const setCross = v => { CROSS_MODE = v; try { localStorage.setItem('kry_cross', v ? '1' : '0'); } catch (e) { } refreshLords(); };
+  $('cross-off').onclick = () => setCross(false); $('cross-on').onclick = () => setCross(true);
   $('bell-off').onclick = () => setBell(false); $('bell-on').onclick = () => setBell(true);
   $('fire-ring').onclick = () => setFire('ring'); $('fire-spread').onclick = () => setFire('spread');
   $('b-lordok').onclick = () => { const w = gateMode === 'watch'; gateMode = 'run'; startRun(w); };
@@ -9512,7 +9691,7 @@ async function boot() {
   startAttract(); showScreen('title');
   requestAnimationFrame(frame);
 }
-window.KRY = { get G() { return G; }, startGame, startHub, step, setSpeed: v => SIM_SPEED = v, showScreen, openLoadout, openArchive, openGate, talkTo, switchHero, setFire: m => { FIRE_MODE = m; }, setBell: v => { BELL_MODE = !!v; }, get fireMode() { return FIRE_MODE; } };
+window.KRY = { get G() { return G; }, startGame, startHub, step, setSpeed: v => SIM_SPEED = v, showScreen, openLoadout, openArchive, openGate, talkTo, switchHero, setFire: m => { FIRE_MODE = m; }, setBell: v => { BELL_MODE = !!v; }, setCross: v => { CROSS_MODE = !!v; }, get fireMode() { return FIRE_MODE; } };
 boot();
 // ===== Title backdrop: the Krystalkers in front, the bosses behind them, and the final shadow looming over all =====
 const TBG = { c: null, layer: null, w: 0, h: 0, embers: [], raf: 0, on: false };
@@ -9729,11 +9908,11 @@ function netStartRun(lord) {
   const seed = (Math.random() * 4294967296) >>> 0, taken = new Set(NET.party.map(e => e.char));
   const bots = shuffle(CHAR_KEYS.filter(k => !taken.has(k)));
   const mp = [0, 1, 2, 3].map(s => { const E = NET.party.find(e => e.slot === s); return E ? { char: E.char, human: true, name: E.name, gems: s === 0 ? (PROFILE.equipped[E.char] || []).slice() : E.gems.slice() } : { char: bots.pop(), human: false }; });
-  netBroadcast({ t: 'start', seed, lord, mp, fire: FIRE_MODE, bell: BELL_MODE });
-  netBeginRun(seed, lord, mp, FIRE_MODE, BELL_MODE);
+  netBroadcast({ t: 'start', seed, lord, mp, fire: FIRE_MODE, bell: BELL_MODE, cross: CROSS_MODE });
+  netBeginRun(seed, lord, mp, FIRE_MODE, BELL_MODE, CROSS_MODE);
 }
-function netBeginRun(seed, lord, mp, fire, bell) {
-  if (fire) FIRE_MODE = fire; if (bell != null) BELL_MODE = !!bell;
+function netBeginRun(seed, lord, mp, fire, bell, cross) {
+  if (fire) FIRE_MODE = fire; if (bell != null) BELL_MODE = !!bell; if (cross != null) CROSS_MODE = !!cross;
   NET.endShown = false; NET.bossId = 0; NET.ents = new Map(); NET.tiles = new Set(); for (const E of NET.party) E.last = null;
   seedRNG(seed); startGame(mp[0].char, false, lord, null, mp); unseedRNG();
   chosenLord = lord; paused = false; SIM_SPEED = 1;
@@ -9811,7 +9990,7 @@ function netHostTick() {
   const tiles = NET.tiles.size ? [...NET.tiles].map(i => [i, G.map[i], G.prop.get(i) || 0]) : null; NET.tiles.clear();
   const full = NET.frame % (NET_SNAP_EVERY * 10) === 0;
   const scal = { time: G.time, phase: G.phase, day: G.day, dayStage: G.dayStage, stageT: G.stageT, bossFight: G.bossFight, lord: G.lord, castleKills: G.castleKills || 0, chalOn: !!G.chalOn, portalOpened: !!G.portalOpened, inVoid: !!G.inVoid, everWait: !!G.everWait, flash: G.flash || 0, hub: !!G.hub, boss: G.boss && !G.boss.dead ? G.boss.nid : 0, bossRoom: G.bossRoom ? G.rooms.indexOf(G.bossRoom) : -1, arena: G.arena ? G.rooms.indexOf(G.arena) : -1,
-    circle: G.circle ? packEnt(G.circle) : null, fireT: G.fireT || null, bellMode: !!G.bellMode, bellToll: G.bellToll || 0, fireSrc: G.fireSrc || null, blackout: G.blackout ? { t: G.blackout.t, dur: G.blackout.dur } : null, opening: G.opening ? { t: G.opening.t } : null, fake: G.fake ? packEnt(G.fake) : null, deathFx: G.deathFx ? packEnt(G.deathFx) : null, intro: G.intro ? packEnt(G.intro) : null, result: G.result || null, dawnT: G.dawnT || 0 };
+    circle: G.circle ? packEnt(G.circle) : null, fireT: G.fireT || null, bellMode: !!G.bellMode, bellToll: G.bellToll || 0, hazard: G.hazard || 'fire', cross: G.cross || null, heatLv: G.heatLv || 1, fireSrc: G.fireSrc || null, blackout: G.blackout ? { t: G.blackout.t, dur: G.blackout.dur } : null, opening: G.opening ? { t: G.opening.t } : null, fake: G.fake ? packEnt(G.fake) : null, deathFx: G.deathFx ? packEnt(G.deathFx) : null, intro: G.intro ? packEnt(G.intro) : null, result: G.result || null, dawnT: G.dawnT || 0 };
   const important = new Set(); if (G.boss) important.add(G.boss); for (const e of G.enemies) if (e.boss || e.castle || e.chalB || e.type === 'pylon') important.add(e);
   const biomes = full && G.biomes ? G.biomes.map(B => ({ chal: B.chal ? { broken: !!B.chal.broken, boss: B.chal.boss ? B.chal.boss.nid : 0, t: B.chal.t } : null, bossKilled: !!B.bossKilled, retryT: B.retryT || 0 })) : null;
   const inter = full ? interPack() : null;
@@ -9888,7 +10067,7 @@ function netClientMsg(m) {
   if (m.t === 'map') { if (!G || G.hub) return; let i = 0; for (let k = 0; k < m.m.length; k += 2) { const v = m.m[k]; for (let n = 0; n < m.m[k + 1]; n++, i++) if (G.map[i] !== v) { G.map[i] = v; refreshMapTile(i % MW, Math.floor(i / MW)); } } G.prop = new Map(m.p); return; }
   if (m.t === 'party') { NET.party = m.party; return; }
   if (m.t === 'ping') { netSend({ t: 'pong', at: m.at }); return; }
-  if (m.t === 'start') { netBeginRun(m.seed, m.lord, m.mp, m.fire, m.bell); return; }
+  if (m.t === 'start') { netBeginRun(m.seed, m.lord, m.mp, m.fire, m.bell, m.cross); return; }
   if (m.t === 'hub') { NET.party = m.party; const mine = m.party.find(e => e.slot === NET.slot); netEnterHub(mine ? mine.char : LOADOUT.char); return; }
   if (m.t === 'bye') { netHostGone(); return; }
   if (m.t === 'ui') { if (m.what === 'loadout') openLoadout(); else if (m.what === 'archive') openArchive(); else if (m.what === 'gate') { feed('Only the host can start the expedition. Gather at the Gate!', '#ffe6a0'); setBanner('Waiting for the host', 'The host starts the expedition from the Gate.', 2.2, '#ffe6a0'); } return; }
