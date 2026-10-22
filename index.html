@@ -6196,7 +6196,8 @@ function botControl(p, dt) {
   if (!tgt && A.target) A.target = null;
   // ---- movement by mode ----
   const m = A.mode;
-  if (m === 'revive' && A.ally) {
+  if (applyWallDodge(p, A, c)) { /* a wall of fire is coming: slip through its gap first */ }
+  else if (m === 'revive' && A.ally) {
     const al = A.ally;
     if (d2(p.x, p.y, al.x, al.y) > 12 * 12) { goTo(p, A, al.x, al.y, c, dt); A.wantMove = true; }
     if (d2(p.x, p.y, al.x, al.y) < 22 * 22) { c.intD = true; }
@@ -6429,6 +6430,31 @@ function bestPurchase(p) {
   return best;
 }
 function A_greedCheck(p) { return p.ai.P.greed < 1 && p.level < 8; }
+// walls of fire (Phoenix, boss hazards): find the gap nearest along the wall, slide to it and back off to buy time; hold still inside it
+function wallDodge(p) {
+  if (!G.walls || !G.walls.length) return null;
+  let best = null, bt = 1e9;
+  for (const w of G.walls) {
+    const X = w.axis === 'x', pos = X ? w.x : w.y, v = X ? w.vx : w.vy, pp = X ? p.x : p.y, other = X ? p.y : p.x;
+    if (X ? (p.y < w.y0 || p.y > w.y1) : (p.x < w.x0 || p.x > w.x1)) continue;
+    const ahead = (pp - pos) * Math.sign(v); if (ahead < -10) continue; // already past us
+    const tt = (w.t < 0 ? -w.t : 0) + Math.max(0, ahead) / Math.abs(v);
+    if (tt > 4.5 || tt >= bt || !w.gaps.length) continue;
+    const g = w.gaps.reduce((a, q) => Math.abs((X ? q.y : q.x) - other) < Math.abs((X ? a.y : a.x) - other) ? q : a);
+    const off = (X ? g.y : g.x) - other;
+    bt = tt; best = { X, off, inGap: Math.abs(off) < g.w / 2 - 9, sv: Math.sign(v), tt };
+  }
+  if (!best) return null;
+  if (best.inGap) return 'hold';
+  const along = Math.sign(best.off), back = best.tt < 1 ? 0.9 : 0.15;
+  return best.X ? Math.atan2(along, best.sv * back) : Math.atan2(best.sv * back, along);
+}
+function applyWallDodge(p, A, c) {
+  if (!G.bossFight || p.state !== 'up' || G.noWallDodge) return false;
+  const wd = wallDodge(p); if (wd == null) return false;
+  if (wd === 'hold') { c.mx = 0; c.my = 0; A.wantMove = false; return true; }
+  c.mx = Math.cos(wd); c.my = Math.sin(wd); A.wantMove = true; c.run = true; return true;
+}
 function fightMove(p, A, tgt, c, dt, stayZone) {
   const def = CHARS[p.char];
   const hot = p.char === 'hedgehog' && p.over && p.hp > p.maxHp * 0.45 && (A.nVis || 0) <= 4 && !(tgt.boss && p.hp < p.maxHp * 0.7);
@@ -9728,7 +9754,7 @@ async function boot() {
   startAttract(); showScreen('title');
   requestAnimationFrame(frame);
 }
-window.KRY = { get G() { return G; }, startGame, startHub, step, setSpeed: v => SIM_SPEED = v, showScreen, openLoadout, openArchive, openGate, talkTo, switchHero, setFire: m => { FIRE_MODE = m; }, dbg: { startDay: n => startDay(n), startChallenge: (B, p) => startChallenge(B, p), recalcStats: p => recalcStats(p), relics: () => Object.values(ALL_ITEMS).filter(i => i.relic), giveItem: (p, i) => giveItem(p, i, true) }, setBell: v => { BELL_MODE = !!v; }, setCross: v => { CROSS_MODE = !!v; }, get fireMode() { return FIRE_MODE; } };
+window.KRY = { get G() { return G; }, startGame, startHub, step, setSpeed: v => SIM_SPEED = v, showScreen, openLoadout, openArchive, openGate, talkTo, switchHero, setFire: m => { FIRE_MODE = m; }, dbg: { startDay: n => startDay(n), startChallenge: (B, p) => startChallenge(B, p), recalcStats: p => recalcStats(p), relics: () => Object.values(ALL_ITEMS).filter(i => i.relic), giveItem: (p, i) => giveItem(p, i, true), fireCourse: (e, n) => fireCourse(e, n), fireWalls: (e, n) => fireWalls(e, n) }, setBell: v => { BELL_MODE = !!v; }, setCross: v => { CROSS_MODE = !!v; }, get fireMode() { return FIRE_MODE; } };
 boot();
 // ===== Title backdrop: the Krystalkers in front, the bosses behind them, and the final shadow looming over all =====
 const TBG = { c: null, layer: null, w: 0, h: 0, embers: [], raf: 0, on: false };
