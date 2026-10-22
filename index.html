@@ -273,9 +273,8 @@ th { font-family: var(--display); letter-spacing: 0.08em; }
   <section id="scr-lord" class="screen" hidden>
     <div class="row"><div><p class="eyebrow" id="gate-eyebrow">Expedition Gate</p><h2 id="gate-title">Which Dungeon Master will you hunt?</h2></div>
       </div>
-    <div class="fireopt"><span class="fo-l">Wildfire</span><button class="btn fo" id="fire-ring">Closing ring<small>Classic: a ring of fire closes on the Gatekeeper</small></button><button class="btn fo" id="fire-spread">Spreading rooms <em>NEW</em><small>Fire catches room by room along the corridors</small></button></div>
-    <div class="fireopt"><span class="fo-l">Gatekeeper</span><button class="btn fo" id="bell-off">When the Act ends<small>Classic: the night comes on its own</small></button><button class="btn fo" id="bell-on">Gatekeeper Bell <em>NEW</em><small>Ring it when ready; early = bonus; monsters grow +8%/min</small></button></div>
-    <div class="fireopt"><span class="fo-l">Act II</span><button class="btn fo" id="cross-off">Like Act I<small>Classic: the same fire again</small></button><button class="btn fo" id="cross-on">Crossroads <em>NEW</em><small>After Gatekeeper I, vote for one of 3 gates</small></button></div>
+    <div class="fireopt"><span class="fo-l">Rules</span><button class="btn fo" id="mode-classic">Classic<small>A ring of fire closes on the Gatekeeper · the night comes when the Act ends</small></button><button class="btn fo" id="mode-new">Krystolen rules <em>NEW</em><small>Fire spreads room by room · Gatekeeper Bell · Crossroads before Act II</small></button></div>
+    <div class="fireopt" id="watch-rand" hidden><span class="fo-l">Bots</span><button class="btn fo" id="rand-off">Pick the team<small>Choose the Krystalkers and the Dungeon Master below</small></button><button class="btn fo" id="rand-on">Random team &amp; boss<small>A new team and Dungeon Master every run</small></button></div>
     <div class="wteam" id="watch-team" hidden></div>
     <div class="lords" id="lords"></div>
     <p class="hint" id="lord-team" style="text-align:center"></p>
@@ -2452,7 +2451,7 @@ const TIER_HP = [1, 0.8, 1, 1.3, 1.65], TIER_DMG = [1, 0.85, 1, 1.15, 1.3];
 const TIER_NAME = ['', 'Easy', 'Normal', 'Hard', 'Deadly'];
 // the Labyrinth: its halls hold the strongest monsters in the realm
 const LAB_HP = 1.25, LAB_DMG = 1.15, LAB_GOLD = 1.2; // the whole castle wakes at once, so its monsters are a little softer
-const LAB_BOSS_HP = 1.9, LAB_BOSS_DMG = 1.3, KEEP_HP = 2.2, KEEP_DMG = 1.3;
+const LAB_BOSS_HP = 1.33, /* tower Gatekeepers: was 1.9, −30% */ LAB_BOSS_DMG = 1.3, KEEP_HP = 2.2, KEEP_DMG = 1.3;
 const TIER_COL = ['', '#7ae07a', '#ffe06a', '#ff9a4a', '#ff5a6a'];
 const CASTLE_TPL = { id: 'castle', name: 'The Labyrinth', floor: 'castle', elem: null, mobs: { bonewalker: 3, shardling: 2, brute: 1, hushling: 2, frostling: 1, emberling: 1, shade: 1, boar: 1 }, boss: null };
 // west half + centre; the east half is mirrored (x' = 89 - x - w, point x' = 88 - x)
@@ -7996,6 +7995,15 @@ function hazardTick(p, dt) {
   if (H === 'dark') applyStatus(p, 'gloom', 0.6);
 }
 
+// ---------- The two rule sets offered at the Gate ----------
+// Classic: closing ring, night at the end of the Act, Act II like Act I. Krystolen rules: spreading fire + Gatekeeper Bell
+// (with rising danger) + Crossroads. The three parts stay separate switches inside the code.
+let WATCH_RAND = false;
+try { WATCH_RAND = localStorage.getItem('kry_wrand') === '1'; } catch (e) { }
+function setRules(isNew) {
+  FIRE_MODE = isNew ? 'spread' : 'ring'; BELL_MODE = CROSS_MODE = !!isNew;
+  try { localStorage.setItem('kry_fire', FIRE_MODE); localStorage.setItem('kry_bell', isNew ? '1' : '0'); localStorage.setItem('kry_cross', isNew ? '1' : '0'); } catch (e) { }
+}
 // ---------- The Crossroads: after Gatekeeper I the team chooses how Act II goes ----------
 let CROSS_MODE = false;
 try { CROSS_MODE = localStorage.getItem('kry_cross') === '1'; } catch (e) { }
@@ -8069,6 +8077,8 @@ function drawXroad(it) {
   const gk = ENEMY[it.gk] ? ENEMY[it.gk].name : ''; ctx.font = `5.5px ${FONT}`; ctx.strokeText(gk, x, y - 45); ctx.fillStyle = '#ffe6a0'; ctx.fillText(gk, x, y - 45);
   const n = [...it.ready].filter(q => q.state === 'up').length; if (n) { ctx.font = `6px ${FONT}`; ctx.strokeText(n + ' vote' + (n > 1 ? 's' : ''), x, y + 16); ctx.fillStyle = '#fff'; ctx.fillText(n + ' vote' + (n > 1 ? 's' : ''), x, y + 16); }
 }
+
+setRules(FIRE_MODE === 'spread'); // older saves could mix the switches
 // ===== Rendering =====
 const cv = document.getElementById('game'), ctx = cv.getContext('2d');
 let W = 0, H = 0, ZOOM = 3, U = 1, DPR = 1, VIGNETTE = null;
@@ -9384,7 +9394,8 @@ function goHub() {
   if (NET.role === 'host') netHostToHub(); else startHub(LOADOUT.char);
   showScreen(null);
 }
-function startRun(watch) { if (NET.role === 'host' && !watch) { netStartRun(chosenLord); return; } paused = false; SIM_SPEED = 1; lastRun = { watch, lord: chosenLord, char: LOADOUT.char, team: watch ? watchTeam.slice() : null }; startGame(watch ? watchTeam[0] : LOADOUT.char, watch, chosenLord, watch ? watchTeam.slice() : null); showScreen(null); }
+function startRun(watch) { if (NET.role === 'host' && !watch) { netStartRun(chosenLord); return; }
+  if (watch && WATCH_RAND) { watchTeam = shuffle(CHAR_KEYS.slice()).slice(0, 4); chosenLord = pick(NIGHTLORDS.map(L => L.id)); } paused = false; SIM_SPEED = 1; lastRun = { watch, lord: chosenLord, char: LOADOUT.char, team: watch ? watchTeam.slice() : null }; startGame(watch ? watchTeam[0] : LOADOUT.char, watch, chosenLord, watch ? watchTeam.slice() : null); showScreen(null); }
 function drawHeroPortrait(c, k, scale) {
   const x = c.getContext('2d'); x.clearRect(0, 0, c.width, c.height);
   const f = SPR[k].idle, w = SPR['w_' + k], s = scale, fx = c.width / 2 - (k === 'bear' ? 4 : 8) * s, fy = c.height - 6 * s;
@@ -9420,16 +9431,15 @@ function buildLords() {
   refreshLords();
 }
 function refreshLords() {
-  $('cross-off').classList.toggle('sel', !CROSS_MODE); $('cross-on').classList.toggle('sel', CROSS_MODE);
-  $('bell-off').classList.toggle('sel', !BELL_MODE); $('bell-on').classList.toggle('sel', BELL_MODE);
-  $('fire-ring').classList.toggle('sel', FIRE_MODE !== 'spread'); $('fire-spread').classList.toggle('sel', FIRE_MODE === 'spread');
+  const NEW = FIRE_MODE === 'spread'; $('mode-classic').classList.toggle('sel', !NEW); $('mode-new').classList.toggle('sel', NEW);
+  $('watch-rand').hidden = gateMode !== 'watch'; { const dim = gateMode === 'watch' && WATCH_RAND ? '0.35' : ''; $('watch-team').style.opacity = dim; $('lords').style.opacity = dim; } $('rand-off').classList.toggle('sel', !WATCH_RAND); $('rand-on').classList.toggle('sel', WATCH_RAND);
   for (const L of NIGHTLORDS) $('lord-' + L.id).classList.toggle('sel', L.id === chosenLord);
   buildWatchTeam();
   const W0 = gateMode === 'watch'; $('scr-lord').classList.toggle('watch', W0);
   $('gate-title').textContent = W0 ? 'Set up the bot team and its Dungeon Master' : 'Which Dungeon Master will you hunt?';
   $('gate-eyebrow').textContent = W0 ? 'Watch the bots' : 'Expedition Gate';
   $('b-back0').textContent = W0 ? 'Back' : 'Back to the hub';
-  $('b-lordok').textContent = W0 ? `Start watching (${watchTeam.length} bot${watchTeam.length > 1 ? 's' : ''})` : 'Begin the expedition';
+  $('b-lordok').textContent = W0 ? (WATCH_RAND ? 'Start watching (random team & boss)' : `Start watching (${watchTeam.length} bot${watchTeam.length > 1 ? 's' : ''})`) : 'Begin the expedition';
   $('lord-team').textContent = W0 ? `Pick 1 to 4 Krystalkers. The first one picked gets the camera. Tab cycles the camera in game, 1-3 change speed.` : `You play ${CHARS[LOADOUT.char].name}. Three of the other Krystalkers join you as bots.`;
 }
 function openGate() { paused = true; gateMode = 'run'; buildLords(); showScreen('lord'); }
@@ -9567,12 +9577,9 @@ function wireMenus() {
   $('b-gloss').onclick = () => { archFromTitle = true; buildArchive(); showScreen('archive'); };
   $('b-set').onclick = () => openSettings('title');
   $('b-back0').onclick = () => { if (gateMode === 'watch') { gateMode = 'run'; showScreen('title'); } else { paused = false; showScreen(null); } };
-  const setFire = m => { FIRE_MODE = m; try { localStorage.setItem('kry_fire', m); } catch (e) { } refreshLords(); };
-  const setBell = v => { BELL_MODE = v; try { localStorage.setItem('kry_bell', v ? '1' : '0'); } catch (e) { } refreshLords(); };
-  const setCross = v => { CROSS_MODE = v; try { localStorage.setItem('kry_cross', v ? '1' : '0'); } catch (e) { } refreshLords(); };
-  $('cross-off').onclick = () => setCross(false); $('cross-on').onclick = () => setCross(true);
-  $('bell-off').onclick = () => setBell(false); $('bell-on').onclick = () => setBell(true);
-  $('fire-ring').onclick = () => setFire('ring'); $('fire-spread').onclick = () => setFire('spread');
+  $('mode-classic').onclick = () => { setRules(false); refreshLords(); }; $('mode-new').onclick = () => { setRules(true); refreshLords(); };
+  $('rand-off').onclick = () => { WATCH_RAND = false; try { localStorage.setItem('kry_wrand', '0'); } catch (e) { } refreshLords(); };
+  $('rand-on').onclick = () => { WATCH_RAND = true; try { localStorage.setItem('kry_wrand', '1'); } catch (e) { } refreshLords(); };
   $('b-lordok').onclick = () => { const w = gateMode === 'watch'; gateMode = 'run'; startRun(w); };
   $('b-back2').onclick = () => showScreen(G && G.hub ? null : 'title');
   $('b-back3').onclick = () => { Input.listening = null; if (settingsReturn === 'pause') showScreen('pause'); else showScreen('title'); };
