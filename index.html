@@ -274,6 +274,7 @@ th { font-family: var(--display); letter-spacing: 0.08em; }
     <div class="row"><div><p class="eyebrow" id="gate-eyebrow">Expedition Gate</p><h2 id="gate-title">Which Dungeon Master will you hunt?</h2></div>
       </div>
     <div class="fireopt"><span class="fo-l">Wildfire</span><button class="btn fo" id="fire-ring">Closing ring<small>Classic: a ring of fire closes on the Gatekeeper</small></button><button class="btn fo" id="fire-spread">Spreading rooms <em>NEW</em><small>Fire catches room by room along the corridors</small></button></div>
+    <div class="fireopt"><span class="fo-l">Gatekeeper</span><button class="btn fo" id="bell-off">When the Act ends<small>Classic: the night comes on its own</small></button><button class="btn fo" id="bell-on">Gatekeeper Bell <em>NEW</em><small>Ring it in the arena when ready; early = bonus</small></button></div>
     <div class="wteam" id="watch-team" hidden></div>
     <div class="lords" id="lords"></div>
     <p class="hint" id="lord-team" style="text-align:center"></p>
@@ -3011,6 +3012,7 @@ function interPrompt(it, p) {
     case 'altar': { const B = it.B, rec = chalRec(B); if (B.chal) return { text: `${B.name}: challenge in progress`, locked: true }; if (B.retryT > G.time) return { text: 'The altar is still cooling…', locked: true }; return { text: `Restore the altar: challenge the ${B.name}`, sub: `Recommended Lv ${rec} · the biome seals until its boss falls`, danger: rec > p.level }; }
     case 'bosschest': return it.taken.has(p) ? null : { text: `Open ${it.label}'s chest: choose 1 of 3 relics`, sub: oddsText(it.odds) };
     case 'portal': { if (it.opening) return null; const n = G.players.filter(q => q.state === 'up').length, k = [...it.ready].filter(q => q.state === 'up').length; return it.ready.has(p) ? { text: `Ready · waiting for the team (${k}/${n})`, locked: true } : { text: it.to === 'bazaar' ? `Step into the portal: The Bazaar (${k}/${n} ready)` : `Step into the portal: the Everfield (${k}/${n} ready)` }; }
+    case 'bell': return bellPrompt(it, p);
     case 'tpad': return (p.tpCd || 0) > G.time ? { text: 'Teleporter recharging…', locked: true } : { text: 'Teleporter: travel to the linked room' };
     case 'table': return { text: 'Round Table: change Krystalker & gems' };
     case 'archive': return { text: 'Read the Archive (glossary)' };
@@ -3032,6 +3034,7 @@ function useInter(it, p) {
     case 'bosschest': openBossChest(it, p); break;
     case 'shrine': levelUp(p); it.lastUse = G.time; pillar(it.x, it.y, '#7ff0ff', 70, 14, 0.6); break;
     case 'portal': it.ready.add(p); burst(p.x, p.y - 8, '#c86aff', 12, 60, 0.5, { glow: true }); floatText(p.x, p.y - 30, 'Ready!', '#e0b0ff', 0.9); if (p.isBot && R() < 0.35) botSay(p, 'ready'); break;
+    case 'bell': useBell(it, p); break;
     case 'tpad': teleportVia(it, p); break;
     case 'table': if (p.remote) netUI(p, 'loadout'); else openLoadout(); break;
     case 'archive': if (p.remote) netUI(p, 'archive'); else openArchive(); break;
@@ -6810,7 +6813,7 @@ function baseG(extra) {
 function startGame(charKey, watch, lord = 'warden', team = null, mp = null) {
   setMuffle(false);
   G = baseG({ watch: !!watch, lord, night1: pick(NIGHT1_POOL), night2: pick(NIGHT2_POOL) });
-  G.fireMode = FIRE_MODE;
+  G.fireMode = FIRE_MODE; G.bellMode = BELL_MODE;
   newMap(); generateDungeon();
   const start = G.startRoom;
   G.flaskUp = 0;
@@ -6963,7 +6966,7 @@ function startDay(n) {
   if (G.fireMode === 'spread') planSpread(n);
   for (const p of G.players) { if (p.state !== 'up') { p.state = 'up'; p.invulnT = 2; } p.hp = p.maxHp; p.fightDowns = 0; p.phoenixUsed = false; clearStatus(p); }
   if (n > 1) { const old = G.inter.filter(i => i.kind === 'shrine' && (i.day || 0) < n && !(i.room && i.room.biome && i.room.biome.bossKilled)); /* conquered biomes keep their shrine */ for (const s of old) burst(s.x, s.y - 14, '#7ff0ff', 14, 60, 0.6, { glow: true }); G.inter = G.inter.filter(i => !old.includes(i)); }
-  populateRooms();
+  populateRooms(); placeBell();
   setBanner(`Act ${ROMAN[n]}`, G.fireSrc && G.circle && G.circle.spread ? `The Wildfire will ignite in the ${[...new Set(G.fireSrc.map(cellName))].join(' and ')} (marked on the map)` : '', 3.5, '#ffe6a0');
 }
 // the dead come back at the nearest Krystal Shrine that the Wildfire will not reach; failing that, somewhere safe inside the ring
@@ -6998,6 +7001,7 @@ function updateShrineRest(dt) {
 }
 function startNight() {
   const room = G.nightRoom;
+  G.inter = G.inter.filter(i => i.kind !== 'bell'); G.bell = null; G.bellToll = 0;
   G.phase = 'night'; G.bossFight = true; G.bossRoom = room; G.bossT = 2.6;
   G.circle.r = G.circle.rf; if (G.circle.tx != null) { G.circle.x = G.circle.tx; G.circle.y = G.circle.ty; }
   for (const B of G.biomes || []) if (B.chal) endChallenge(B, false); // night falls: every seal breaks
@@ -7041,7 +7045,7 @@ function onBossDead(e) {
   for (const p of G.players) { p.gold += reward; p.stats.gold += reward; }
   feed(`${e.def.name} defeated! Everyone gains ${reward} gold and a reward.`, '#ffd44a');
   setBanner(`Gatekeeper ${ROMAN[G.day]} defeated`, '', 3, '#ffe6a0');
-  dropBossChest(e.x, e.y, GK_REC[G.day] + 1, e.def.name, null);
+  dropBossChest(e.x, e.y, GK_REC[G.day] + 1, e.def.name, null); bellReward(e);
   G.phase = 'dawn'; G.dawnT = 0;
   setRoomLocked(G.bossRoom, false);
   feed('The doors open. The Wildfire still burns outside the ring until the next Act begins.', '#ffe6a0');
@@ -7240,7 +7244,7 @@ function step(dt) {
       else { c.r = c.rf; startNight(); }
     }
     G.ambushT -= dt; if (G.ambushT <= 0) { G.ambushT = 0.2; updateAmbush(); }
-    updateSpread();
+    updateSpread(); updateBell(dt);
   }
   if (G.phase === 'night' && G.bossT > 0) {
     G.bossT -= dt;
@@ -7817,6 +7821,81 @@ function drawSpreadMini(X, Y, sc, s, big) {
   for (const i of G.fireSrc || []) { const gx = Math.floor(i / GH), gy = i % GH; miniFlame(X(gx * CW + CW / 2), Y(gy * CH + CH / 2), (big ? 9 : 6) * s, G.fireT[i] > t); }
   const r = G.nightRoom; if (r) txt('☾', X(r.cx), Y(r.cy) + 5 * s, big ? 18 : 13, '#ff9ad8', 'center');
 }
+// ===== Gatekeeper Bell (Gate option): the team calls the Gatekeeper when it feels ready =====
+// A bell stands in the Gatekeeper's arena. From BELL_FROM of the Act on, ringing it (every living human presses F at the bell)
+// starts a 10s toll, then the Gatekeeper comes. Ringing early pays: with ≥40% of the Act left the Gatekeeper also leaves an
+// "Early Bell" relic chest and extra gold; with ≥20% left, the chest. If nobody rings, the night comes when the Act ends as before.
+let BELL_MODE = false;
+try { BELL_MODE = localStorage.getItem('kry_bell') === '1'; } catch (e) { }
+const BELL_FROM = 0.35, BELL_TOLL = 10, BELL_TIERS = [0.4, 0.2];
+function bellTier() { const left = 1 - actElapsed() / actLen(); return left >= BELL_TIERS[0] ? 2 : left >= BELL_TIERS[1] ? 1 : 0; }
+function bellOpenIn() { return Math.max(0, BELL_FROM * actLen() - actElapsed()); }
+function placeBell() {
+  G.inter = G.inter.filter(i => i.kind !== 'bell');
+  if (!G.bellMode) return;
+  const room = G.nightRoom, q = clearSpot(room.px, room.py + 44, 10);
+  G.bell = addInter({ kind: 'bell', x: q.x, y: q.y, r: 18, ready: new Set(), room });
+  G.bellToll = 0; G.bellTier = 0; G.bellOpenSaid = false;
+}
+function bellPrompt(it, p) {
+  if (G.phase !== 'day') return null;
+  if (G.bellToll > 0) return { text: `The bell tolls… the Gatekeeper comes in ${Math.ceil(G.bellToll)}s`, locked: true };
+  const wait = bellOpenIn(); if (wait > 0) return { text: `Gatekeeper Bell: it can be rung in ${Math.ceil(wait)}s`, locked: true };
+  const hum = G.players.filter(q => !q.isBot && q.state === 'up'), k = hum.filter(q => it.ready.has(q)).length, t = bellTier();
+  const sub = t === 2 ? 'Ring early: +1 relic chest and +150 gold each' : t === 1 ? 'Ring early: +1 relic chest' : 'No early-bell reward any more';
+  if (it.ready.has(p)) return { text: `Ready to ring · waiting for the team (${k}/${hum.length})`, sub, locked: true };
+  return { text: hum.length > 1 ? `Ring the Gatekeeper Bell (${k}/${hum.length} ready)` : 'Ring the Gatekeeper Bell: call the Gatekeeper now', sub };
+}
+function useBell(it, p) {
+  it.ready.add(p); sfx('bell', it.x, it.y); burst(it.x, it.y - 18, '#ffd44a', 12, 60, 0.5, { glow: true });
+  floatText(p.x, p.y - 30, 'Ready to ring!', '#ffe6a0', 0.9);
+}
+function ringBell(by) {
+  G.bellToll = BELL_TOLL; G.bellTier = bellTier();
+  const it = G.bell; if (it) { shock(it.x, it.y - 14, 120, '#ffd44a', 0.8); pillar(it.x, it.y, '#ffd44a', 110, 18, 1); }
+  shake(5); sfx('bell'); setTimeout(() => sfx('bell'), 450);
+  setBanner('The bell tolls', `The Gatekeeper comes in ${BELL_TOLL}s${G.bellTier ? ' · early-bell reward ' + '★'.repeat(G.bellTier) : ''}`, 3.5, '#ffe6a0');
+  feed(`${by ? by.name + ' rang' : 'The team rang'} the Gatekeeper Bell.`, '#ffe6a0');
+}
+// host, every frame of the day
+function updateBell(dt) {
+  if (!G.bellMode || G.phase !== 'day' || !G.bell) return;
+  if (G.bellToll > 0) {
+    G.bellToll -= dt; if (R() < 0.3) burst(G.bell.x + rr(-8, 8), G.bell.y - 20, '#ffd44a', 1, 30, 0.6, { glow: true, g: -40 });
+    if (G.bellToll <= 0) { G.bellToll = 0; startNight(); }
+    return;
+  }
+  if (bellOpenIn() > 0) return;
+  if (!G.bellOpenSaid) { G.bellOpenSaid = true; setBanner('The Gatekeeper Bell can be rung', 'Ring it in the arena (☾) when the team is ready. Earlier = bigger reward.', 3.5, '#ffe6a0'); sfx('bell'); }
+  const hum = G.players.filter(q => !q.isBot && q.state === 'up');
+  if (hum.length) { if (hum.every(q => G.bell.ready.has(q))) ringBell(hum.length === 1 ? hum[0] : null); return; }
+  // nobody human is standing: the bots ring when strong enough, or when most of the Act is gone
+  const up = G.players.filter(q => q.state !== 'dead'); if (!up.length) return;
+  const avg = up.reduce((a, q) => a + q.level, 0) / up.length;
+  if (avg >= GK_REC[G.day] + 2.5 || actElapsed() / actLen() > 0.95) ringBell(up[0]);
+}
+// a bonus chest for the early bell (called when a Gatekeeper dies)
+function bellReward(e) {
+  if (!G.bellTier) return;
+  dropBossChest(e.x + 46, e.y, GK_REC[G.day] + 1, 'Early Bell', null);
+  if (G.bellTier >= 2) { const g = 150; for (const p of G.players) { p.gold += g; p.stats.gold += g; } }
+  feed(`Early bell reward: an extra relic chest${G.bellTier >= 2 ? ' and 150 gold each' : ''}.`, '#ffd44a');
+  G.bellTier = 0;
+}
+function drawBell(it) {
+  const x = it.x, y = it.y, sw = G.bellToll > 0 ? Math.sin(G.time * 9) * 0.35 : Math.sin(G.time * 1.5) * 0.05, open = G.phase === 'day' && bellOpenIn() <= 0;
+  ctx.save();
+  // wooden frame
+  ctx.fillStyle = '#5a3a24'; ctx.fillRect(x - 13, y - 30, 3, 30); ctx.fillRect(x + 10, y - 30, 3, 30); ctx.fillRect(x - 15, y - 32, 30, 4);
+  ctx.translate(x, y - 28); ctx.rotate(sw);
+  const g = ctx.createLinearGradient(-9, 0, 9, 0); g.addColorStop(0, '#a8742a'); g.addColorStop(0.45, open ? '#ffe08a' : '#c8a060'); g.addColorStop(1, '#8a5a1a');
+  ctx.fillStyle = g; ctx.strokeStyle = OUTL; ctx.lineWidth = 1.2;
+  ctx.beginPath(); ctx.moveTo(-3, 2); ctx.quadraticCurveTo(-8, 4, -8, 13); ctx.lineTo(-10, 18); ctx.lineTo(10, 18); ctx.lineTo(8, 13); ctx.quadraticCurveTo(8, 4, 3, 2); ctx.closePath(); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = '#5a3a14'; ctx.beginPath(); ctx.arc(0, 19, 2.2, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+  if (open && G.bellToll <= 0) { ctx.save(); ctx.globalCompositeOperation = 'lighter'; const r = 18 + 3 * Math.sin(G.time * 4); const gg = ctx.createRadialGradient(x, y - 18, 1, x, y - 18, r); gg.addColorStop(0, 'rgba(255,220,120,0.35)'); gg.addColorStop(1, 'rgba(255,220,120,0)'); ctx.fillStyle = gg; ctx.beginPath(); ctx.arc(x, y - 18, r, 0, Math.PI * 2); ctx.fill(); ctx.restore(); }
+  if (it.ready.size && G.bellToll <= 0) { ctx.font = `6px ${FONT}`; ctx.textAlign = 'center'; ctx.fillStyle = '#ffe6a0'; ctx.fillText(`${[...it.ready].filter(q => q.state === 'up' && !q.isBot).length} ready`, x, y - 36); }
+}
 // ===== Rendering =====
 const cv = document.getElementById('game'), ctx = cv.getContext('2d');
 let W = 0, H = 0, ZOOM = 3, U = 1, DPR = 1, VIGNETTE = null;
@@ -8065,6 +8144,7 @@ function drawEnemy(e) {
 function roundRect(c, x, y, w, h, r) { c.beginPath(); c.roundRect(x, y, w, h, r); }
 function drawInter(it) {
   const x = it.x, y = it.y;
+  if (it.kind === 'bell') { drawBell(it); return; }
   if (it.opening && !it.inner) { const O = G.opening, k = O ? clamp(Math.min(O.t / 0.5, (3 - O.t) / 0.5), 0.05, 1) : 1; ctx.save(); ctx.translate(x, y); ctx.scale(k, k); ctx.translate(-x, -y); it.inner = true; drawInter(it); it.inner = false; ctx.restore(); return; }
   if (it.kind === 'portal' || it.kind === 'tpad') {
     const P = it.kind === 'portal', c1 = P ? '#c86aff' : '#49d6ff', c2 = P ? '#f0c8ff' : '#bff4ff', t = G.time;
@@ -8673,6 +8753,7 @@ function portrait(p, x, y, size) {
 }
 function stateLabel(p) { return p.state === 'downed' ? (G.bossFight ? 'DOWN!' : `DOWN ${Math.ceil(p.downT)}s`) : p.state === 'dead' ? `RESPAWN ${Math.ceil(p.respawnT)}` : ''; }
 function timelineText() {
+  if (G.phase === 'day' && G.bellMode && G.bellToll > 0) return ['THE BELL TOLLS', `Gatekeeper ${ROMAN[G.day]} comes in ${Math.ceil(G.bellToll)}s`];
   if (G.phase === 'day') {
     // no countdown: nobody knows when the fire will move
     if (G.circle && G.circle.spread) { const nx = nextSpreadIn(), lit = G.fireT && G.fireT.some(T => T <= actElapsed()); return [lit ? 'WILDFIRE' : `ACT ${ROMAN[G.day]}`, nx == null ? 'Only the arena is left' : nx <= 30 ? `${lit ? 'Fire spreads' : 'Fire ignites'} in ${Math.ceil(nx)}s` : '']; }
@@ -9163,6 +9244,7 @@ function buildLords() {
   refreshLords();
 }
 function refreshLords() {
+  $('bell-off').classList.toggle('sel', !BELL_MODE); $('bell-on').classList.toggle('sel', BELL_MODE);
   $('fire-ring').classList.toggle('sel', FIRE_MODE !== 'spread'); $('fire-spread').classList.toggle('sel', FIRE_MODE === 'spread');
   for (const L of NIGHTLORDS) $('lord-' + L.id).classList.toggle('sel', L.id === chosenLord);
   buildWatchTeam();
@@ -9309,6 +9391,8 @@ function wireMenus() {
   $('b-set').onclick = () => openSettings('title');
   $('b-back0').onclick = () => { if (gateMode === 'watch') { gateMode = 'run'; showScreen('title'); } else { paused = false; showScreen(null); } };
   const setFire = m => { FIRE_MODE = m; try { localStorage.setItem('kry_fire', m); } catch (e) { } refreshLords(); };
+  const setBell = v => { BELL_MODE = v; try { localStorage.setItem('kry_bell', v ? '1' : '0'); } catch (e) { } refreshLords(); };
+  $('bell-off').onclick = () => setBell(false); $('bell-on').onclick = () => setBell(true);
   $('fire-ring').onclick = () => setFire('ring'); $('fire-spread').onclick = () => setFire('spread');
   $('b-lordok').onclick = () => { const w = gateMode === 'watch'; gateMode = 'run'; startRun(w); };
   $('b-back2').onclick = () => showScreen(G && G.hub ? null : 'title');
@@ -9428,7 +9512,7 @@ async function boot() {
   startAttract(); showScreen('title');
   requestAnimationFrame(frame);
 }
-window.KRY = { get G() { return G; }, startGame, startHub, step, setSpeed: v => SIM_SPEED = v, showScreen, openLoadout, openArchive, openGate, talkTo, switchHero, setFire: m => { FIRE_MODE = m; }, get fireMode() { return FIRE_MODE; } };
+window.KRY = { get G() { return G; }, startGame, startHub, step, setSpeed: v => SIM_SPEED = v, showScreen, openLoadout, openArchive, openGate, talkTo, switchHero, setFire: m => { FIRE_MODE = m; }, setBell: v => { BELL_MODE = !!v; }, get fireMode() { return FIRE_MODE; } };
 boot();
 // ===== Title backdrop: the Krystalkers in front, the bosses behind them, and the final shadow looming over all =====
 const TBG = { c: null, layer: null, w: 0, h: 0, embers: [], raf: 0, on: false };
@@ -9645,11 +9729,11 @@ function netStartRun(lord) {
   const seed = (Math.random() * 4294967296) >>> 0, taken = new Set(NET.party.map(e => e.char));
   const bots = shuffle(CHAR_KEYS.filter(k => !taken.has(k)));
   const mp = [0, 1, 2, 3].map(s => { const E = NET.party.find(e => e.slot === s); return E ? { char: E.char, human: true, name: E.name, gems: s === 0 ? (PROFILE.equipped[E.char] || []).slice() : E.gems.slice() } : { char: bots.pop(), human: false }; });
-  netBroadcast({ t: 'start', seed, lord, mp, fire: FIRE_MODE });
-  netBeginRun(seed, lord, mp, FIRE_MODE);
+  netBroadcast({ t: 'start', seed, lord, mp, fire: FIRE_MODE, bell: BELL_MODE });
+  netBeginRun(seed, lord, mp, FIRE_MODE, BELL_MODE);
 }
-function netBeginRun(seed, lord, mp, fire) {
-  if (fire) FIRE_MODE = fire;
+function netBeginRun(seed, lord, mp, fire, bell) {
+  if (fire) FIRE_MODE = fire; if (bell != null) BELL_MODE = !!bell;
   NET.endShown = false; NET.bossId = 0; NET.ents = new Map(); NET.tiles = new Set(); for (const E of NET.party) E.last = null;
   seedRNG(seed); startGame(mp[0].char, false, lord, null, mp); unseedRNG();
   chosenLord = lord; paused = false; SIM_SPEED = 1;
@@ -9727,7 +9811,7 @@ function netHostTick() {
   const tiles = NET.tiles.size ? [...NET.tiles].map(i => [i, G.map[i], G.prop.get(i) || 0]) : null; NET.tiles.clear();
   const full = NET.frame % (NET_SNAP_EVERY * 10) === 0;
   const scal = { time: G.time, phase: G.phase, day: G.day, dayStage: G.dayStage, stageT: G.stageT, bossFight: G.bossFight, lord: G.lord, castleKills: G.castleKills || 0, chalOn: !!G.chalOn, portalOpened: !!G.portalOpened, inVoid: !!G.inVoid, everWait: !!G.everWait, flash: G.flash || 0, hub: !!G.hub, boss: G.boss && !G.boss.dead ? G.boss.nid : 0, bossRoom: G.bossRoom ? G.rooms.indexOf(G.bossRoom) : -1, arena: G.arena ? G.rooms.indexOf(G.arena) : -1,
-    circle: G.circle ? packEnt(G.circle) : null, fireT: G.fireT || null, fireSrc: G.fireSrc || null, blackout: G.blackout ? { t: G.blackout.t, dur: G.blackout.dur } : null, opening: G.opening ? { t: G.opening.t } : null, fake: G.fake ? packEnt(G.fake) : null, deathFx: G.deathFx ? packEnt(G.deathFx) : null, intro: G.intro ? packEnt(G.intro) : null, result: G.result || null, dawnT: G.dawnT || 0 };
+    circle: G.circle ? packEnt(G.circle) : null, fireT: G.fireT || null, bellMode: !!G.bellMode, bellToll: G.bellToll || 0, fireSrc: G.fireSrc || null, blackout: G.blackout ? { t: G.blackout.t, dur: G.blackout.dur } : null, opening: G.opening ? { t: G.opening.t } : null, fake: G.fake ? packEnt(G.fake) : null, deathFx: G.deathFx ? packEnt(G.deathFx) : null, intro: G.intro ? packEnt(G.intro) : null, result: G.result || null, dawnT: G.dawnT || 0 };
   const important = new Set(); if (G.boss) important.add(G.boss); for (const e of G.enemies) if (e.boss || e.castle || e.chalB || e.type === 'pylon') important.add(e);
   const biomes = full && G.biomes ? G.biomes.map(B => ({ chal: B.chal ? { broken: !!B.chal.broken, boss: B.chal.boss ? B.chal.boss.nid : 0, t: B.chal.t } : null, bossKilled: !!B.bossKilled, retryT: B.retryT || 0 })) : null;
   const inter = full ? interPack() : null;
@@ -9804,7 +9888,7 @@ function netClientMsg(m) {
   if (m.t === 'map') { if (!G || G.hub) return; let i = 0; for (let k = 0; k < m.m.length; k += 2) { const v = m.m[k]; for (let n = 0; n < m.m[k + 1]; n++, i++) if (G.map[i] !== v) { G.map[i] = v; refreshMapTile(i % MW, Math.floor(i / MW)); } } G.prop = new Map(m.p); return; }
   if (m.t === 'party') { NET.party = m.party; return; }
   if (m.t === 'ping') { netSend({ t: 'pong', at: m.at }); return; }
-  if (m.t === 'start') { netBeginRun(m.seed, m.lord, m.mp, m.fire); return; }
+  if (m.t === 'start') { netBeginRun(m.seed, m.lord, m.mp, m.fire, m.bell); return; }
   if (m.t === 'hub') { NET.party = m.party; const mine = m.party.find(e => e.slot === NET.slot); netEnterHub(mine ? mine.char : LOADOUT.char); return; }
   if (m.t === 'bye') { netHostGone(); return; }
   if (m.t === 'ui') { if (m.what === 'loadout') openLoadout(); else if (m.what === 'archive') openArchive(); else if (m.what === 'gate') { feed('Only the host can start the expedition. Gather at the Gate!', '#ffe6a0'); setBanner('Waiting for the host', 'The host starts the expedition from the Gate.', 2.2, '#ffe6a0'); } return; }
