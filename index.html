@@ -6819,7 +6819,7 @@ const T_FARM = 170;
 // Act II is longer: it holds the Labyrinth
 const ACT_SCALE = [1, 1, 1.5];
 // Krystolen rules: both Acts share one time budget; whatever Act I leaves unused stretches Act II (G.actStretch)
-function stageDur(k) { const s = STAGES.find(s => s[0] === k); return s ? s[1] * (G && G.day ? ACT_SCALE[G.day] || 1 : 1) * (G && G.day === 2 && G.actStretch ? G.actStretch : 1) * (k === 'farm' && G && G.day === 2 && (G.cross === 'embers' || G.cross === 'siege') ? 0.6 : 1) : 1; }
+function stageDur(k) { const s = STAGES.find(s => s[0] === k); return s ? s[1] * (G && G.day ? ACT_SCALE[G.day] || 1 : 1) * (G && G.day === 2 && G.actStretch ? G.actStretch : 1) * (k === 'farm' && G && G.day === 2 && G.cross === 'embers' ? 0.6 : 1) : 1; }
 function circleRadiusAt(stage, tLeft) {
   const c = G.circle;
   if (stage === 'farm') return c.r0;
@@ -8022,9 +8022,9 @@ function drawFireDoor(it) {
 // ---------- Hazards: what spreads in Act II depends on the Crossroads ----------
 const HAZARD = {
   fire: { name: 'Wildfire', you: "You're in the Wildfire! Move in!", ouch: 'Burning!', col: '#ff8a2a', fill: 'rgba(110,26,6,0.4)', glow: 'rgba(255,90,20,', mini: 'rgba(255,80,30,0.2)', dmg: 1 },
-  flood: { name: 'Flood', you: "You're in the flood! Get to dry ground!", ouch: 'Drowning!', col: '#4aa8ff', fill: 'rgba(10,50,120,0.42)', glow: 'rgba(60,140,255,', mini: 'rgba(60,140,255,0.25)', dmg: 0.6 },
+  flood: { name: 'Flood', you: "You're in the flood! Get to dry ground!", ouch: 'Drowning!', col: '#4aa8ff', fill: 'rgba(10,50,120,0.42)', glow: 'rgba(60,140,255,', mini: 'rgba(60,140,255,0.25)', dmg: 1 },
   frost: { name: 'Blizzard', you: "You're in the blizzard! Get out before you freeze!", ouch: 'Freezing!', col: '#bff4ff', fill: 'rgba(150,200,230,0.35)', glow: 'rgba(200,240,255,', mini: 'rgba(200,240,255,0.25)', dmg: 0.6 },
-  dark: { name: 'Long Night', you: "You're in the dark! Find the light!", ouch: 'Lost in the dark', col: '#b48cff', fill: 'rgba(10,4,24,0.6)', glow: 'rgba(120,80,200,', mini: 'rgba(90,60,160,0.3)', dmg: 0.5 },
+  dark: { name: 'Long Night', you: "You're in the dark! Find the light!", ouch: 'Lost in the dark', col: '#b48cff', fill: 'rgba(10,4,24,0.6)', glow: 'rgba(120,80,200,', mini: 'rgba(90,60,160,0.3)', dmg: 1 },
 };
 function hz() { return HAZARD[G.hazard] || HAZARD.fire; }
 // called from circleDamage for each player standing in the hazard
@@ -8050,10 +8050,10 @@ let CROSS_MODE = false;
 try { CROSS_MODE = localStorage.getItem('kry_cross') === '1'; } catch (e) { }
 const XROADS = {
   embers: { name: 'Embers', col: '#ff8a3a', hazard: 'fire', desc: 'The ring starts closing much sooner · monsters drop +30% gold', spread: [0.38, 0.88] },
-  flood: { name: 'The Flood', col: '#4aa8ff', hazard: 'flood', desc: 'Water rises instead of fire: it slows, hurts less · extra chests everywhere' },
+  flood: { name: 'The Flood', col: '#4aa8ff', hazard: 'flood', desc: 'Water rises instead of fire: it slows you as it hurts · extra chests everywhere' },
   blizzard: { name: 'Blizzard', col: '#bff4ff', hazard: 'frost', desc: 'Frost spreads: it Chills, then Freezes · the Gatekeeper leaves an extra relic chest' },
   night: { name: 'The Long Night', col: '#b48cff', hazard: 'dark', desc: 'Darkness spreads: you see almost nothing in it · the Gatekeeper pays double gold' },
-  siege: { name: 'The Siege', col: '#c8c8ff', hazard: 'fire', desc: 'Start at the Labyrinth altar, its challenge begins at once · +100% health and damage for 30s · the fire outside runs fast', spread: [0.33, 0.85] },
+  siege: { name: 'The Siege', col: '#c8c8ff', hazard: 'fire', desc: 'Start at the Labyrinth altar, its challenge begins at once · +100% health and damage for 30s', spread: [0.33, 0.85] },
 };
 function openCrossroads() {
   if (!G.crossMode || G.day !== 1 || G.inter.some(i => i.kind === 'xroad')) return;
