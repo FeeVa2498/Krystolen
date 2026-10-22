@@ -4033,7 +4033,9 @@ function downPlayer(p) {
   sfx('down', p.x, p.y, p.isBot ? 0.6 : 1);
   if (p.st.phoenix && !p.phoenixUsed) { p.phoenixUsed = true; p.hp = p.maxHp * 0.4; p.invulnT = 2; clearStatus(p); floatText(p.x, p.y - 30, 'PHOENIX!', '#ff8a2a', 1.2, 1.3); burst(p.x, p.y - 8, '#ff8a2a', 30, 110, 0.7, { glow: true }); pillar(p.x, p.y, '#ff8a2a', 60, 14, 0.6); return; }
   const lab = !G.bossFight && labFight(p);
-  if (!G.bossFight && !lab) { p.hp = 0; clearStatus(p); p.dash = null; p.ball = 0; p.fated = 0; p.barrage = 0; p.dr = 1; p.aiming = null; p.stats.downs++; killPlayer(p); return; }
+  // falling outside the Gatekeeper's arena during the fight (still running in through the fire) is death: you come back inside
+  const outArena = G.bossFight && G.bossRoom && G.phase === 'night' && !inRoom(G.bossRoom, p.x, p.y, 0);
+  if ((!G.bossFight && !lab) || outArena) { p.hp = 0; clearStatus(p); p.dash = null; p.ball = 0; p.fated = 0; p.barrage = 0; p.dr = 1; p.aiming = null; p.stats.downs++; killPlayer(p); return; }
   p.state = 'downed'; p.hp = 0; p.downT = lab ? 30 : 20; p.revive = 0; p.dash = null; p.ball = 0; p.fated = 0; p.barrage = 0; p.dr = 1; p.aiming = null; clearStatus(p);
   p.stats.downs++; p.fightDowns = (p.fightDowns || 0) + 1;
   feed(p.isBot ? `${p.name} is down! Hold ${keyName(settings.binds.interact)} next to them to revive.` : (G.bossFight ? 'You are down! Crawl to a teammate. No timer during boss fights.' : 'You are down! Crawl to a teammate before the timer runs out.'), '#ff8a8a');
@@ -6259,7 +6261,7 @@ function botControl(p, dt) {
 }
 function nextCircleR(ahead = 6) { return predictR(ahead); }
 // a spot is safe if the fire will not have reached it in `ahead` seconds
-function safeAt(x, y, margin = 30, ahead = 6) { const c = G.circle; if (!c || G.phase !== 'day') return true; if (c.spread) return !fireOut(x, y, margin, ahead);  return Math.hypot(x - c.x, y - c.y) < nextCircleR(ahead) - margin; }
+function safeAt(x, y, margin = 30, ahead = 6) { const c = G.circle; if (!c || G.phase !== 'day') return true; if (c.spread) return !fireOut(x, y, margin, ahead); const pc = predictCentre(ahead); return Math.hypot(x - c.x, y - c.y) < nextCircleR(ahead) - margin && Math.hypot(x - pc.x, y - pc.y) < nextCircleR(ahead) - margin; }
 // worth walking to: still safe by the time we get there and have fought a while
 function campSafe(p, x, y, margin = 40, stay = 14) { const t = Math.hypot(x - p.x, y - p.y) / 85; return safeAt(x, y, margin, Math.min(40, t + stay)); }
 // nearest point the fire will not reach soon: step inward along the line to the centre, not all the way
@@ -6854,6 +6856,15 @@ function predictR(ahead) {
   while (i < STAGES.length) { if (a <= t) return circleRadiusAt(STAGES[i][0], t - a); a -= t; i++; if (i < STAGES.length) t = stageDur(STAGES[i][0]); }
   return G.circle.rf;
 }
+// where the ring's centre will be `ahead` seconds from now (it drifts onto the lair during one closing stage)
+function predictCentre(ahead) {
+  const c = G.circle; if (!c || c.tx == null || G.phase !== 'day') return c ? { x: c.x, y: c.y } : { x: 0, y: 0 };
+  const ms = c.moveIn || 'shrink2', mi = STAGES.findIndex(s => s[0] === ms);
+  let i = STAGES.findIndex(s => s[0] === G.dayStage), t = G.stageT, a = ahead;
+  while (i < STAGES.length && a > t) { a -= t; i++; if (i < STAGES.length) t = stageDur(STAGES[i][0]); }
+  const k = i >= STAGES.length || i > mi ? 1 : i < mi ? 0 : 1 - clamp((t - a) / stageDur(ms), 0, 1);
+  return { x: lerp(c.fx, c.tx, k), y: lerp(c.fy, c.ty, k) };
+}
 function circleTarget() { const c = G.circle; if (!c) return 0; if (G.phase !== 'day') return c.r; return G.dayStage === 'farm' || G.dayStage === 'shrink1' ? c.rmid : c.rf; }
 const ROMAN = ['', 'I', 'II', 'III'];
 function baseG(extra) {
@@ -6899,12 +6910,12 @@ const GK_HP = [0, 1, 1.7], GK_DMG = [0, 1, 1.2], FINAL_HP = 4.5, FINAL_DMG = 1.5
 const BOSS_HP_NERF = 0.75; // every Gatekeeper, Labyrinth guardian and Dungeon Master
 function tuneBoss(e, hp, dmg) { e.hp *= hp; e.maxHp *= hp; e.dmgM *= dmg; return e; }
 function setBanner(title, sub, life = 4.5, color) { G.banner = { title, sub, t: 0, life, color }; if (!G.hub) sfx('bell'); }
-function circleFor(room, centre) {
+function circleFor(room, centre, isLab) {
   const mapW = GW * CW * TILE, mapH = GH * CH * TILE, cx = centre ? centre.x : room.px, cy = centre ? centre.y : room.py;
   const far = Math.max(...[[0, 0], [mapW, 0], [0, mapH], [mapW, mapH]].map(([x, y]) => Math.hypot(x - cx, y - cy)));
   const half = Math.hypot(room.w, room.h) * TILE / 2, r0 = far + 40, rf = Math.max(196, half + 56); // the final ring always holds the whole Gatekeeper arena
   const c = { x: cx, y: cy, r: r0, r0, rf, rmid: Math.max(rf * 3, r0 * 0.45) };
-  if (centre) { c.fx = cx; c.fy = cy; c.tx = room.px; c.ty = room.py; c.rmid = Math.min(r0 - 40, Math.max(c.rmid, Math.hypot(cx - room.px, cy - room.py) + rf + 80, Math.hypot(90, 48) * TILE / 2 + 48)); } /* the whole Labyrinth stays inside until the last closing */ // the ring drifts onto the Gatekeeper only in the last closing
+  if (centre) { c.fx = cx; c.fy = cy; c.tx = room.px; c.ty = room.py; c.rmid = Math.min(r0 - 40, Math.max(c.rmid, Math.hypot(cx - room.px, cy - room.py) + rf + 80, isLab ? Math.hypot(90, 48) * TILE / 2 + 48 : 0)); c.moveIn = isLab ? 'shrink2' : 'shrink1'; } /* the whole Labyrinth stays inside until the last closing */ // the ring drifts onto the Gatekeeper only in the last closing
   return c;
 }
 // Act II: the Wildfire closes around the Labyrinth first, so it is the last place the fire swallows
@@ -7015,12 +7026,14 @@ function startDay(n) {
   G.day = n; G.phase = 'day'; G.dayStage = 'farm'; G.stageT = stageDur('farm'); G.bossFight = false; G.boss = null; G.labHold = 0; G.labHoldMsg = false;
   if (G.bossRoom) setRoomLocked(G.bossRoom, false);
   G.bossRoom = null;
-  G.nightRoom = G.nightRooms[n - 1];
-  G.circle = G.fireMode === 'spread' ? spreadCircle(G.nightRoom) : circleFor(G.nightRoom, n === 2 ? labCentre() : null);
+  // two possible lairs, picked anew each Act (the same one can come twice); nobody knows which until the ring first closes
+  G.nightRoom = pick(G.nightRooms); G.gkRevealed = false;
+  const lab = n === 2 ? labCentre() : null, NR = G.nightRooms, mid = NR.length > 1 ? { x: (NR[0].px + NR[1].px) / 2, y: (NR[0].py + NR[1].py) / 2 } : null;
+  G.circle = G.fireMode === 'spread' ? spreadCircle(G.nightRoom) : circleFor(G.nightRoom, lab || mid, !!lab);
   if (G.fireMode === 'spread') planSpread(n);
   for (const p of G.players) { if (p.state !== 'up') { p.state = 'up'; p.invulnT = 2; } p.hp = p.maxHp; p.fightDowns = 0; p.phoenixUsed = false; clearStatus(p); }
   if (n > 1) { const old = G.inter.filter(i => i.kind === 'shrine' && (i.day || 0) < n && !(i.room && i.room.biome && i.room.biome.bossKilled)); /* conquered biomes keep their shrine */ for (const s of old) burst(s.x, s.y - 14, '#7ff0ff', 14, 60, 0.6, { glow: true }); G.inter = G.inter.filter(i => !old.includes(i)); }
-  populateRooms(); placeBell(); placeFireDoors(); G.heatLv = 0; G.doused = {};
+  populateRooms(); G.bell = null; G.inter = G.inter.filter(i => i.kind !== 'bell'); placeFireDoors(); G.heatLv = 0; G.doused = {};
   applyCross();
   setBanner(`Act ${ROMAN[n]}`, n === 2 && G.act1Saved > 0 ? `Act I finished early: +${G.act1Saved}s for this Act` : G.fireSrc && G.circle && G.circle.spread ? `The Wildfire will ignite in the ${[...new Set(G.fireSrc.map(cellName))].join(' and ')} (marked on the map)` : '', 3.5, '#ffe6a0');
 }
@@ -7293,13 +7306,14 @@ function step(dt) {
   if (G.phase === 'day') {
     G.stageT -= dt; const c = G.circle;
     c.r = circleRadiusAt(G.dayStage, G.stageT);
-    if (c.tx != null) { const k = G.dayStage === 'shrink2' ? 1 - clamp(G.stageT / stageDur('shrink2'), 0, 1) : 0; c.x = lerp(c.fx, c.tx, k); c.y = lerp(c.fy, c.ty, k); }
+    if (c.tx != null) { const ms = c.moveIn || 'shrink2', si = STAGES.findIndex(s => s[0] === G.dayStage), mi = STAGES.findIndex(s => s[0] === ms); const k = si === mi ? 1 - clamp(G.stageT / stageDur(ms), 0, 1) : si > mi ? 1 : 0; c.x = lerp(c.fx, c.tx, k); c.y = lerp(c.fy, c.ty, k); }
     if (G.bellToll > 0) { c.r = c.rf; if (c.tx != null) { c.x = c.tx; c.y = c.ty; } } // after the bell only the arena is left
     if (G.stageT <= 0) {
       const i = STAGES.findIndex(s => s[0] === G.dayStage);
       if (i < STAGES.length - 1) {
         G.dayStage = STAGES[i + 1][0]; G.stageT = stageDur(STAGES[i + 1][0]);
-        if ((G.dayStage === 'shrink1' || G.dayStage === 'shrink2') && !c.spread) setBanner('The Wildfire spreads', '', 2.5, '#ffb070');
+        if (G.dayStage === 'shrink1' && !G.gkRevealed) { G.gkRevealed = true; revealRoom(G.nightRoom); setBanner('The Wildfire closes in', 'It closes on the Gatekeeper\'s lair (☾ on the map).', 3, '#ffb070'); placeBell(); }
+        else if ((G.dayStage === 'shrink1' || G.dayStage === 'shrink2') && !c.spread) setBanner('The Wildfire spreads', '', 2.5, '#ffb070');
       } else if (false && labHolding()) { G.stageT = 0.5; G.labHold = (G.labHold || 0) + 0.5; if (!G.labHoldMsg) { G.labHoldMsg = true; setBanner('The Labyrinth holds the night back', 'The Gatekeeper waits until the Labyrinth battle ends.', 3.5, '#c8c8ff'); } }
       else { c.r = c.rf; startNight(); }
     }
@@ -7364,7 +7378,7 @@ function step(dt) {
   updateShrineRest(dt);
   circleDamage(dt);
   if (G.phase !== 'won' && G.phase !== 'lost') {
-    const wiped = G.bossFight ? G.players.every(p => p.state !== 'up') : G.players.every(p => p.state === 'downed');
+    const wiped = G.bossFight ? G.players.every(p => p.state === 'downed') && G.players.some(p => p.state === 'downed') : G.players.every(p => p.state === 'downed');
     if (wiped) { G.wipeT += dt; if (G.wipeT > 1.5) { if (G.bossFight) endMatch(false); else { G.wipeT = 0; feed('The whole team fell in the Labyrinth. Everyone respawns at a shrine.', '#ff8a8a'); for (const p of G.players) if (p.state === 'downed') killPlayer(p); } } } else G.wipeT = 0;
   }
   updateFxAll(dt);
@@ -7915,19 +7929,20 @@ function fullMapCanvas() {
 let BELL_MODE = false;
 try { BELL_MODE = localStorage.getItem('kry_bell') === '1'; } catch (e) { }
 const BELL_FROM = 0.35, BELL_TOLL = 10, BELL_TIERS = [0.4, 0.2];
-function bellTier() { const left = 1 - actElapsed() / actLen(); return left >= BELL_TIERS[0] ? 2 : left >= BELL_TIERS[1] ? 1 : 0; }
-function bellOpenIn() { return Math.max(0, BELL_FROM * actLen() - actElapsed()); }
+// the bell appears when the lair is revealed (the ring's first closing); the early-bell tiers split the time left after that
+function bellTier() { const o = G.bellOpenAt ?? 0, W = Math.max(1, actLen() - o), e = (actElapsed() - o) / W; return e < 0.35 ? 2 : e < 0.7 ? 1 : 0; }
+function bellOpenIn() { return G.gkRevealed ? 0 : 999; }
 function placeBell() {
   G.inter = G.inter.filter(i => i.kind !== 'bell');
   if (!G.bellMode) return;
   const room = G.nightRoom, q = clearSpot(room.px, room.py + 44, 10);
   G.bell = addInter({ kind: 'bell', x: q.x, y: q.y, r: 18, ready: new Set(), room });
-  G.bellToll = 0; G.bellTier = 0; G.bellOpenSaid = false; G.bellWant = false;
+  G.bellToll = 0; G.bellTier = 0; G.bellOpenSaid = false; G.bellWant = false; G.bellOpenAt = actElapsed();
 }
 function bellPrompt(it, p) {
   if (G.phase !== 'day') return null;
   if (G.bellToll > 0) return { text: `The bell tolls… the Gatekeeper comes in ${Math.ceil(G.bellToll)}s`, locked: true };
-  const wait = bellOpenIn(); if (wait > 0) return { text: `Gatekeeper Bell: it can be rung in ${Math.ceil(wait)}s`, locked: true };
+
   const hum = G.players.filter(q => !q.isBot && q.state === 'up'), k = hum.filter(q => it.ready.has(q)).length, t = bellTier();
   const sub = t === 2 ? 'Ring early: +1 relic chest and +150 gold each' : t === 1 ? 'Ring early: +1 relic chest' : 'No early-bell reward any more';
   const live = G.players.filter(q => q.state !== 'dead'), inn = live.filter(q => inRoom(G.nightRoom, q.x, q.y, -8)).length;
@@ -9303,7 +9318,8 @@ function drawMinimap(big) {
   else if (c && !inArena) {
     ctx.strokeStyle = '#ff8a3a'; ctx.lineWidth = 2.5 * s; ctx.beginPath(); ctx.arc(X(c.x / TILE), Y(c.y / TILE), c.r / TILE * sc, 0, Math.PI * 2); ctx.stroke();
     if (G.phase === 'day') { ctx.strokeStyle = 'rgba(255,255,255,0.85)'; ctx.setLineDash([3 * s, 3 * s]); ctx.beginPath(); ctx.arc(X(c.x / TILE), Y(c.y / TILE), circleTarget() / TILE * sc, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]); }
-    if (G.dayStage !== 'farm' || G.phase === 'night' || big) txt('☾', X(c.x / TILE), Y(c.y / TILE) + 5 * s, big ? 18 : 13, '#ff9ad8', 'center');
+    if (G.gkRevealed || G.watch || G.phase !== 'day') { const r = G.nightRoom; if (r) txt('☾', X(r.cx), Y(r.cy) + 5 * s, big ? 18 : 13, '#ff9ad8', 'center'); }
+    else for (const r of G.nightRooms || []) txt('?', X(r.cx), Y(r.cy) + 5 * s, big ? 18 : 13, '#ff9ad8', 'center'); // two possible lairs
   }
   if (G.pings) for (const P0 of G.pings) { const k = (G.time * 3) % 1, px = X(P0.x / TILE), py = Y(P0.y / TILE), col = P0.enemy ? '#ff5a5a' : '#ffd44a', kk = big ? 1.4 : 1; ctx.strokeStyle = col; ctx.lineWidth = 2 * s; ctx.beginPath(); ctx.arc(px, py, (4 + k * 8) * s * kk, 0, Math.PI * 2); ctx.stroke(); ctx.fillStyle = col; ctx.strokeStyle = UI.edge; ctx.lineWidth = s; ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(px - 3.5 * s * kk, py - 7 * s * kk); ctx.arc(px, py - 8 * s * kk, 3.6 * s * kk, Math.PI * 0.85, Math.PI * 0.15); ctx.closePath(); ctx.fill(); ctx.stroke(); }
   if (G.castle && (big || true) && isSeen((G.castle.x0 + 45) * TILE, (G.castle.y0 + 41) * TILE)) txt('LABYRINTH', X(G.castle.x0 + 45), Y(G.castle.y0 + 47) + 12 * s, big ? 12 : 9, '#c8c8ff', 'center');
@@ -10091,7 +10107,7 @@ function netHostTick() {
   const tiles = NET.tiles.size ? [...NET.tiles].map(i => [i, G.map[i], G.prop.get(i) || 0]) : null; NET.tiles.clear();
   const full = NET.frame % (NET_SNAP_EVERY * 10) === 0;
   const scal = { time: G.time, phase: G.phase, day: G.day, dayStage: G.dayStage, stageT: G.stageT, bossFight: G.bossFight, lord: G.lord, castleKills: G.castleKills || 0, chalOn: !!G.chalOn, portalOpened: !!G.portalOpened, inVoid: !!G.inVoid, everWait: !!G.everWait, flash: G.flash || 0, hub: !!G.hub, boss: G.boss && !G.boss.dead ? G.boss.nid : 0, bossRoom: G.bossRoom ? G.rooms.indexOf(G.bossRoom) : -1, arena: G.arena ? G.rooms.indexOf(G.arena) : -1,
-    circle: G.circle ? packEnt(G.circle) : null, fireT: G.fireT || null, bellMode: !!G.bellMode, bellToll: G.bellToll || 0, hazard: G.hazard || 'fire', cross: G.cross || null, heatLv: G.heatLv || 1, fireSrc: G.fireSrc || null, blackout: G.blackout ? { t: G.blackout.t, dur: G.blackout.dur } : null, opening: G.opening ? { t: G.opening.t } : null, fake: G.fake ? packEnt(G.fake) : null, deathFx: G.deathFx ? packEnt(G.deathFx) : null, intro: G.intro ? packEnt(G.intro) : null, result: G.result || null, dawnT: G.dawnT || 0 };
+    circle: G.circle ? packEnt(G.circle) : null, fireT: G.fireT || null, bellMode: !!G.bellMode, gkRevealed: !!G.gkRevealed, nightRoom: G.nightRoom ? G.rooms.indexOf(G.nightRoom) : -1, bellToll: G.bellToll || 0, hazard: G.hazard || 'fire', cross: G.cross || null, heatLv: G.heatLv || 1, fireSrc: G.fireSrc || null, blackout: G.blackout ? { t: G.blackout.t, dur: G.blackout.dur } : null, opening: G.opening ? { t: G.opening.t } : null, fake: G.fake ? packEnt(G.fake) : null, deathFx: G.deathFx ? packEnt(G.deathFx) : null, intro: G.intro ? packEnt(G.intro) : null, result: G.result || null, dawnT: G.dawnT || 0 };
   const important = new Set(); if (G.boss) important.add(G.boss); for (const e of G.enemies) if (e.boss || e.castle || e.chalB || e.type === 'pylon') important.add(e);
   const biomes = full && G.biomes ? G.biomes.map(B => ({ chal: B.chal ? { broken: !!B.chal.broken, boss: B.chal.boss ? B.chal.boss.nid : 0, t: B.chal.t } : null, bossKilled: !!B.bossKilled, retryT: B.retryT || 0 })) : null;
   const inter = full ? interPack() : null;
@@ -10210,6 +10226,7 @@ function netApply(s) {
       else if (k === 'circle') G.circle = v ? Object.assign(G.circle || {}, v) : null;
       else if (k === 'intro') G.intro = v ? Object.assign(G.intro || {}, v) : null;
       else if (k === 'bossRoom') G.bossRoom = v >= 0 ? G.rooms[v] : null;
+      else if (k === 'nightRoom') G.nightRoom = v >= 0 ? G.rooms[v] : G.nightRoom;
       else if (k === 'arena') G.arena = v >= 0 ? G.rooms[v] : G.arena;
       else if (k === 'boss') NET.bossId = v;
       else if (k === 'result') { if (v) G.result = v; }
