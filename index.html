@@ -8585,7 +8585,8 @@ function drawCircle() {
   }
   ctx.strokeStyle = 'rgba(255,140,40,0.95)'; ctx.lineWidth = 2.2; ctx.beginPath(); ctx.arc(c.x, c.y, c.r, 0, Math.PI * 2); ctx.stroke();
   const nr = circleTarget();
-  if (G.phase === 'day' && nr < c.r - 5) { ctx.strokeStyle = 'rgba(255,255,255,0.55)'; ctx.lineWidth = 1.2; ctx.setLineDash([3, 5]); ctx.beginPath(); ctx.arc(c.x, c.y, nr, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]); }
+  // the next ring is only shown once the lair is revealed (the first closing); spectators always see it
+  if (G.phase === 'day' && nr < c.r - 5 && (G.gkRevealed || G.watch)) { const nx = c.tx != null ? c.tx : c.x, ny = c.ty != null ? c.ty : c.y; ctx.strokeStyle = 'rgba(255,255,255,0.55)'; ctx.lineWidth = 1.2; ctx.setLineDash([3, 5]); ctx.beginPath(); ctx.arc(nx, ny, nr, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]); }
   // embers drifting up outside the ring
   ctx.globalCompositeOperation = 'lighter';
   for (let i = 0; i < 90; i++) { const sx = vx0 + ((i * 97.3 + Math.sin(i) * 40 + G.time * 12 * (1 + i % 3)) % vw), sy = vy0 + vh - ((i * 53.7 + G.time * 45 * (1 + i % 2)) % vh); if (Math.hypot(sx - c.x, sy - c.y) > c.r + 4) { ctx.fillStyle = i % 3 ? 'rgba(255,150,50,0.7)' : 'rgba(255,230,140,0.8)'; ctx.fillRect(sx, sy, 1.1, 1.1); } }
@@ -9377,7 +9378,7 @@ function drawMinimap(big) {
   if (c && !inArena && c.spread) drawSpreadMini(X, Y, sc, s, big);
   else if (c && !inArena) {
     ctx.strokeStyle = '#ff8a3a'; ctx.lineWidth = 2.5 * s; ctx.beginPath(); ctx.arc(X(c.x / TILE), Y(c.y / TILE), c.r / TILE * sc, 0, Math.PI * 2); ctx.stroke();
-    if (G.phase === 'day') { ctx.strokeStyle = 'rgba(255,255,255,0.85)'; ctx.setLineDash([3 * s, 3 * s]); ctx.beginPath(); ctx.arc(X(c.x / TILE), Y(c.y / TILE), circleTarget() / TILE * sc, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]); }
+    if (G.phase === 'day' && (G.gkRevealed || G.watch)) { const nx = c.tx != null ? c.tx : c.x, ny = c.ty != null ? c.ty : c.y; ctx.strokeStyle = 'rgba(255,255,255,0.85)'; ctx.setLineDash([3 * s, 3 * s]); ctx.beginPath(); ctx.arc(X(nx / TILE), Y(ny / TILE), circleTarget() / TILE * sc, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]); }
     if (G.gkRevealed || G.watch || G.phase !== 'day') { const r = G.nightRoom; if (r) txt('☾', X(r.cx), Y(r.cy) + 5 * s, big ? 18 : 13, '#ff9ad8', 'center'); }
     else for (const r of G.nightRooms || []) txt('?', X(r.cx), Y(r.cy) + 5 * s, big ? 18 : 13, '#ff9ad8', 'center'); // two possible lairs
   }
