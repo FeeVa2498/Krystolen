@@ -6789,7 +6789,8 @@ const STAGES = [['farm', 150], ['shrink1', 25], ['hold', 55], ['shrink2', 30]];
 const T_FARM = 170;
 // Act II is longer: it holds the Labyrinth
 const ACT_SCALE = [1, 1, 1.5];
-function stageDur(k) { const s = STAGES.find(s => s[0] === k); return s ? s[1] * (G && G.day ? ACT_SCALE[G.day] || 1 : 1) : 1; }
+// Krystolen rules: both Acts share one time budget; whatever Act I leaves unused stretches Act II (G.actStretch)
+function stageDur(k) { const s = STAGES.find(s => s[0] === k); return s ? s[1] * (G && G.day ? ACT_SCALE[G.day] || 1 : 1) * (G && G.day === 2 && G.actStretch ? G.actStretch : 1) : 1; }
 function circleRadiusAt(stage, tLeft) {
   const c = G.circle;
   if (stage === 'farm') return c.r0;
@@ -6818,7 +6819,7 @@ function baseG(extra) {
 function startGame(charKey, watch, lord = 'warden', team = null, mp = null) {
   setMuffle(false);
   G = baseG({ watch: !!watch, lord, night1: pick(NIGHT1_POOL), night2: pick(NIGHT2_POOL) });
-  G.fireMode = FIRE_MODE; G.bellMode = BELL_MODE; G.crossMode = CROSS_MODE; G.hazard = 'fire'; G.cross = null;
+  G.actStretch = 1; G.fireMode = FIRE_MODE; G.bellMode = BELL_MODE; G.crossMode = CROSS_MODE; G.hazard = 'fire'; G.cross = null;
   newMap(); generateDungeon();
   const start = G.startRoom;
   G.flaskUp = 0;
@@ -6973,7 +6974,7 @@ function startDay(n) {
   if (n > 1) { const old = G.inter.filter(i => i.kind === 'shrine' && (i.day || 0) < n && !(i.room && i.room.biome && i.room.biome.bossKilled)); /* conquered biomes keep their shrine */ for (const s of old) burst(s.x, s.y - 14, '#7ff0ff', 14, 60, 0.6, { glow: true }); G.inter = G.inter.filter(i => !old.includes(i)); }
   populateRooms(); placeBell(); placeFireDoors(); G.heatLv = 0; G.doused = {};
   applyCross();
-  setBanner(`Act ${ROMAN[n]}`, G.fireSrc && G.circle && G.circle.spread ? `The Wildfire will ignite in the ${[...new Set(G.fireSrc.map(cellName))].join(' and ')} (marked on the map)` : '', 3.5, '#ffe6a0');
+  setBanner(`Act ${ROMAN[n]}`, n === 2 && G.act1Saved > 0 ? `Act I finished early: +${G.act1Saved}s for this Act` : G.fireSrc && G.circle && G.circle.spread ? `The Wildfire will ignite in the ${[...new Set(G.fireSrc.map(cellName))].join(' and ')} (marked on the map)` : '', 3.5, '#ffe6a0');
 }
 // the dead come back at the nearest Krystal Shrine that the Wildfire will not reach; failing that, somewhere safe inside the ring
 function respawnPoint(p) {
@@ -7007,6 +7008,7 @@ function updateShrineRest(dt) {
 }
 function startNight() {
   const room = G.nightRoom;
+  if (G.day === 1 && G.bellMode && G.phase === 'day') { const saved = Math.max(0, actLen() - actElapsed()), base = STAGES.reduce((a, s) => a + s[1], 0) * (ACT_SCALE[2] || 1); G.act1Saved = Math.round(saved); G.actStretch = (base + saved) / base; }
   G.inter = G.inter.filter(i => i.kind !== 'bell'); G.bell = null; G.bellToll = 0;
   G.phase = 'night'; G.bossFight = true; G.bossRoom = room; G.bossT = 2.6;
   G.circle.r = G.circle.rf; if (G.circle.tx != null) { G.circle.x = G.circle.tx; G.circle.y = G.circle.ty; }
@@ -7820,7 +7822,7 @@ function drawSpreadMini(X, Y, sc, s, big) {
     const T = G.fireT[i], gx = Math.floor(i / GH), gy = i % GH, px = X(gx * CW), py = Y(gy * CH), w = CW * sc, h = CH * sc;
     if (T <= t) { ctx.fillStyle = hz().mini; ctx.fillRect(px, py, w, h); }
     else if (T - t <= SPREAD_WARN) { ctx.strokeStyle = `rgba(255,160,60,${0.5 + 0.4 * Math.sin(G.time * 8)})`; ctx.lineWidth = 1.5 * s; ctx.strokeRect(px + s, py + s, w - 2 * s, h - 2 * s); }
-    else if (big && T < SPREAD_NEVER && G.phase === 'day') { // the full map shows how soon every cell burns: the deeper the orange, the sooner
+    else if (big && G.watch && T < SPREAD_NEVER && G.phase === 'day') { // spectators only // the full map shows how soon every cell burns: the deeper the orange, the sooner
       const soon = clamp(1 - (T - t) / 120, 0, 1); ctx.fillStyle = `rgba(255,120,40,${0.03 + 0.13 * soon})`; ctx.fillRect(px, py, w, h);
       if (T - t <= 90) txt(Math.ceil(T - t) + 's', px + w - 4 * s, py + 12 * s, 9, `rgba(255,190,120,${0.5 + 0.5 * soon})`, 'right');
     }
@@ -7843,6 +7845,15 @@ function hazardMotes(x, y, cw, ch, vx0, vy0, vw, vh) {
     else if (H === 'frost') { ctx.fillStyle = 'rgba(240,250,255,0.8)'; ctx.fillRect(px, py, 1.6, 1.6); }
     else { ctx.fillStyle = `rgba(160,120,255,${0.25 + 0.25 * Math.sin(G.time * 2 + j)})`; ctx.beginPath(); ctx.arc(px, py, 2, 0, Math.PI * 2); ctx.fill(); }
   }
+}
+
+// spectators can lift the fog: a full-colour copy of the whole map for the minimap (rebuilt every 2s)
+function fullMapCanvas() {
+  if (G.fullMapC && G.time - (G.fullMapT || -9) < 2) return G.fullMapC;
+  if (!G.fullMapC) G.fullMapC = mkCanvas(MW, MH);
+  const x = G.fullMapC.getContext('2d'), img = x.createImageData(MW, MH), d = img.data;
+  for (let i = 0; i < MW * MH; i++) { const mc = tileMapColor(i), c = MAPCOL[mc] || (MAPCOL[mc] = hex2rgb(dark(mc, 0.32))); d[i * 4] = c[0]; d[i * 4 + 1] = c[1]; d[i * 4 + 2] = c[2]; d[i * 4 + 3] = 255; }
+  x.putImageData(img, 0, 0); G.fullMapT = G.time; return G.fullMapC;
 }
 // ===== Gatekeeper Bell (Gate option): the team calls the Gatekeeper when it feels ready =====
 // A bell stands in the Gatekeeper's arena. From BELL_FROM of the Act on, ringing it (every living human presses F at the bell)
@@ -8714,7 +8725,7 @@ function render(dt) {
   drawFx();
   drawPings();
   if (!G.hub) drawChalVeils();
-  if (!G.hub) { const x0 = Math.max(0, Math.floor((G.cam.x - W / 2 / ZOOM) / TILE) - 2), y0 = Math.max(0, Math.floor((G.cam.y - H / 2 / ZOOM) / TILE) - 2); const w = Math.min(MW - x0, Math.ceil(W / ZOOM / TILE) + 5), h = Math.min(MH - y0, Math.ceil(H / ZOOM / TILE) + 5); if (w > 0 && h > 0) ctx.drawImage(G.fogC, x0, y0, w, h, x0 * TILE, y0 * TILE, w * TILE, h * TILE); }
+  if (!G.hub && !(G.watch && G.noFog)) { const x0 = Math.max(0, Math.floor((G.cam.x - W / 2 / ZOOM) / TILE) - 2), y0 = Math.max(0, Math.floor((G.cam.y - H / 2 / ZOOM) / TILE) - 2); const w = Math.min(MW - x0, Math.ceil(W / ZOOM / TILE) + 5), h = Math.min(MH - y0, Math.ceil(H / ZOOM / TILE) + 5); if (w > 0 && h > 0) ctx.drawImage(G.fogC, x0, y0, w, h, x0 * TILE, y0 * TILE, w * TILE, h * TILE); }
   drawCircle();
   drawAimHelpers(human());
   for (const p of G.players) {
@@ -8942,7 +8953,8 @@ function timelineText() {
   if (G.phase === 'day' && G.bellMode && G.bellToll > 0) return ['THE BELL TOLLS', `Gatekeeper ${ROMAN[G.day]} comes in ${Math.ceil(G.bellToll)}s`];
   if (G.phase === 'day') {
     // no countdown: nobody knows when the fire will move
-    if (G.circle && G.circle.spread) { const nx = nextSpreadIn(), lit = G.fireT && G.fireT.some(T => T <= actElapsed()); const HN = G.hazard && G.hazard !== 'fire' ? hz().name : 'Fire'; return [lit ? (G.hazard && G.hazard !== 'fire' ? hz().name : 'Wildfire').toUpperCase() : `ACT ${ROMAN[G.day]}`, nx == null ? 'Only the arena is left' : nx <= 30 ? `${HN} ${lit ? 'spreads' : (G.hazard && G.hazard !== 'fire' ? 'rises' : 'ignites')} in ${Math.ceil(nx)}s` : G.bellMode && G.heatLv > 1 ? `Monsters +${Math.round((G.heatLv - 1) * 100)}%` : '']; }
+    if (G.circle && G.circle.spread) { const nx = nextSpreadIn(), lit = G.fireT && G.fireT.some(T => T <= actElapsed()); const HN = G.hazard && G.hazard !== 'fire' ? hz().name : 'Fire'; return [lit ? (G.hazard && G.hazard !== 'fire' ? hz().name : 'Wildfire').toUpperCase() : `ACT ${ROMAN[G.day]}`, nx == null ? 'Only the arena is left' : G.watch ? `${HN} ${lit ? 'spreads' : (G.hazard && G.hazard !== 'fire' ? 'rises' : 'ignites')} in ${Math.ceil(nx)}s` : G.bellMode && G.heatLv > 1 ? `Monsters +${Math.round((G.heatLv - 1) * 100)}%` : '']; } // only spectators see the fire's timers
+    if (G.watch && G.circle) return [G.dayStage === 'farm' || G.dayStage === 'hold' ? `ACT ${ROMAN[G.day]}` : 'WILDFIRE', `${G.dayStage === 'farm' || G.dayStage === 'hold' ? 'Ring holds' : 'Ring closes'} · ${Math.ceil(G.stageT)}s`];
     if (G.dayStage === 'farm' || G.dayStage === 'hold') return [`ACT ${ROMAN[G.day]}`, ''];
     return [G.hazard && G.hazard !== 'fire' ? hz().name.toUpperCase() : 'WILDFIRE', G.hazard && G.hazard !== 'fire' ? 'It closes in' : 'The flames spread'];
   }
@@ -9042,7 +9054,7 @@ function drawHUD() {
     if (H0.state === 'downed') { txt(G.bossFight ? "YOU'RE DOWN" : `YOU'RE DOWN · ${Math.ceil(H0.downT)}s`, cx, H * 0.62, 24, '#ff8a8a', 'center'); txt(G.bossFight ? 'No timer during boss fights. Crawl toward a teammate.' : 'Crawl to a teammate. If the timer runs out you drop a level.', cx, H * 0.62 + 22 * s, 12, '#eef4fb', 'center', FONT2); }
     if (H0.state === 'dead') { const sp = camTarget(); txt(`RESPAWNING IN ${Math.ceil(H0.respawnT)} · YOUR GOLD AND A LEVEL WERE LEFT BEHIND`, cx, H * 0.62, 22, '#ff8a8a', 'center'); txt('1 · 2 · 3: watch a teammate', cx, H * 0.62 + 46 * U, 11, '#bfe9ff', 'center', FONT2); if (sp && sp !== H0) txt(`Spectating ${sp.name} · ${keyName(settings.binds.attack)} / ${keyName(settings.binds.skill)}: next teammate`, cx, H * 0.62 + 24 * s, 12, '#fff3e0', 'center', FONT2); }
   }
-  if (G.watch) { const ww = 420 * s; panel(cx - ww / 2, H - pad - 30 * s, ww, 26 * s, 0.7, 10 * s); txt(`WATCHING BOTS · ${SIM_SPEED}x · Tab: next camera · 1-3: speed · Esc: menu`, cx, H - pad - 12 * s, 10, '#cfe8ff', 'center'); }
+  if (G.watch) { const ww = 420 * s; panel(cx - ww / 2, H - pad - 30 * s, ww, 26 * s, 0.7, 10 * s); txt(`WATCHING BOTS · ${SIM_SPEED}x · Tab: next camera · 1-3: speed · V: fog ${G.noFog ? 'off' : 'on'} · Esc: menu`, cx, H - pad - 12 * s, 10, '#cfe8ff', 'center'); }
   if (H0 && !G.watch && !G.bigMap) drawEdgeMarkers(H0);
   if (G.stickerOpen) drawStickerWheel();
   if (G.hoverItem && !G.bigMap) drawTooltip(G.hoverItem.it, G.hoverItem.x, G.hoverItem.y + 6 * s, focus);
@@ -9179,7 +9191,7 @@ function drawMinimap(big) {
   ctx.fillStyle = '#060a08'; ctx.fillRect(ox, oy, mw, mh);
   if (focus && focus.blind > 0) { txt('The dark hides everything', ox + mw / 2, oy + mh / 2 + 4 * s, big ? 16 : 10, '#8a6ad8', 'center', FONT2); ctx.restore(); return; }
   ctx.imageSmoothingEnabled = false;
-  ctx.drawImage(G.mapC, x0, y0, bw, bh, ox, oy, mw, mh);
+  ctx.drawImage(G.watch && G.noFog ? fullMapCanvas() : G.mapC, x0, y0, bw, bh, ox, oy, mw, mh);
   ctx.imageSmoothingEnabled = true;
   const seen = (px, py) => isSeen(px, py);
   for (const r of G.rooms) {
@@ -9651,6 +9663,7 @@ function wireInput() {
     if (e.code === settings.binds.map && !G.hub) { G.bigMap = !G.bigMap; return; }
     if (G.watch) {
       if (e.code === 'Tab') G.camIdx++;
+      if (e.code === 'KeyV') G.noFog = !G.noFog;
       if (e.code === 'Digit1') SIM_SPEED = 1; if (e.code === 'Digit2') SIM_SPEED = 2; if (e.code === 'Digit3') SIM_SPEED = 4;
       return;
     }
