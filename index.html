@@ -2631,7 +2631,7 @@ function startChallenge(B, p) {
     B.chal.boss = e; B.bossRoom = room; room.hasBoss = true;
     setBanner(`${B.name}: challenge`, `${e.def.name} awakens in the biome.`, 3, '#ff8a8a');
   }
-  if (p) feed(`${p.isBot ? p.name : 'You'} restored the altar: the ${B.name} is sealed.`, '#ff9a8a');
+  if (p) feed(`${p.isBot ? p.name : 'You'} restored the altar: ${B.lab ? "the Labyrinth" : "the " + B.name} is sealed.`, '#ff9a8a');
   return true;
 }
 function chalInside(B) { return G.players.filter(q => (q.state === 'up' || q.state === 'downed') && bmAt(q.x, q.y) === B.id); }
@@ -4762,7 +4762,7 @@ function finishFont(p, it) {
   p.fchan = null; p.channel = 0; (it.usedBy || (it.usedBy = new Set())).add(p);
   if (G.players.every(q => it.usedBy.has(q))) it.used = true;
   p.flaskUp = (p.flaskUp || 0) + 1; G.flaskUp = Math.max(G.flaskUp || 0, p.flaskUp);
-  p.flasks = Math.min(flaskMax(p), (p.flasks || 0) + 1);
+  refillFlasks(p); p.hp = p.maxHp; clearStatus(p); floatText(p.x, p.y - 40, 'Fully restored', '#7ae07a', 1); // a Font also heals fully and refills every flask
   pillar(it.x, it.y, '#7ff0ff', 120, 18, 1); burst(it.x, it.y - 16, '#bff4ff', 30, 120, 0.8, { glow: true }); sfx('bell', it.x, it.y, p.isBot ? 0.4 : 1);
   if (!p.isBot) setBanner('Krystal Font restored', `Your flasks: ${flaskMax(p)} · each heals ${Math.round(flaskPct(p) * 100)}%`, 3, '#7ff0ff');
   else botAnnounce(p, 'Font channelled: my flasks are stronger!', 'fontdone' + it.x);
@@ -6342,6 +6342,12 @@ function decideMode(p, A, vis) {
     if (sh0) { A.goal = { x: sh0.x, y: sh0.y, near: 18, use: true, it: sh0 }; return 'goto'; }
     const m = chalHunt(p, A, myB); if (m) return m;
   }
+  if (G.botPlan && G.botPlan.B.lab && !(myB && myB.chal)) {
+    if (vis.length && vis[0].d < 90 && vis[0].e.aggro && !vis[0].e.champ) return 'fight';
+    const lc1 = levelCost(p), sh1 = lc1 != null && p.gold >= lc1 ? nearestShrineNow(p) : null;
+    if (sh1 && d2(sh1.x, sh1.y, p.x, p.y) < 380 * 380) { A.goal = { x: sh1.x, y: sh1.y, near: 18, use: true, it: sh1 }; return 'goto'; }
+    const m = altarPlan(p, A); if (m) return m;
+  }
   const rushing = G.botPlan && G.botPlan.B.lab && myB !== G.botPlan.B;
   if (vis.length && vis[0].d < (rushing ? 120 : 200) && (vis[0].e.aggro || vis[0].d < 150) && (!(vis[0].e.champ || vis[0].e.castle) || botCanFight(p, vis[0].e.room || vis[0].e.home))) return 'fight';
   if (A.pingSpot && A.pingSpotUntil > G.time && safeAt(A.pingSpot.x, A.pingSpot.y, 20)) { if (d2(p.x, p.y, A.pingSpot.x, A.pingSpot.y) < 40 * 40) A.pingSpot = null; else { A.goal = { x: A.pingSpot.x + rr(-16, 16), y: A.pingSpot.y + rr(-16, 16), near: 30 }; return 'goto'; } }
@@ -6769,7 +6775,7 @@ function joinPlan(p, A) {
     if (!G.players.some(q => q !== p && q.state !== 'dead' && bmAt(q.x, q.y) === B.id)) continue;
     if (p.level < chalRec(B) - (B.lab ? 4 : 2)) continue;
     const r = B.lab ? G.castle.hall : B.altarRoom; if (!r || !campSafe(p, r.px, r.py, 40, 30)) continue;
-    botAnnounce(p, `Joining the ${B.name} challenge`, 'join' + B.id);
+    botAnnounce(p, `Joining ${B.lab ? "the Labyrinth" : "the " + B.name} challenge`, 'join' + B.id);
     A.goal = { x: r.px + rr(-20, 20), y: r.py + rr(-20, 20), near: 40 }; return 'goto';
   }
   return null;
@@ -6777,7 +6783,8 @@ function joinPlan(p, A) {
 // the team picks one altar to restore together; at least two of us must stand in the biome (the whole team for the Labyrinth)
 function updateBotPlan() {
   if (G.planT > G.time) return; G.planT = G.time + 3;
-  if (G.chalOn || G.phase !== 'day') { G.botPlan = null; return; }
+  if (G.phase !== 'day' || (G.lab && G.lab.chal)) { G.botPlan = null; G.labGo = false; G.labGather = null; return; }
+  if (G.chalOn && !(G.botPlan && G.botPlan.B.lab)) { G.botPlan = null; return; }
   const P0 = G.botPlan, T0 = teamLv(), labNow = G.lab && !G.lab.bossKilled && G.day === 2 && T0.avg >= 8.5 && T0.min >= 7;
   const labReach = al => !G.circle || (G.circle.spread ? !fireOut(al.x, al.y, 40, 30) : Math.hypot(al.x - G.circle.x, al.y - G.circle.y) < G.circle.r - 40); // once inside, the Labyrinth is safe from the fire
   if (P0 && !P0.B.bossKilled && !P0.B.chal && altarOf(P0.B) && (P0.B.lab ? labReach(altarOf(P0.B)) : campSafe(teamCentre(), altarOf(P0.B).x, altarOf(P0.B).y, 40, 30)) && (P0.B.lab || !labNow)) return;
@@ -6792,8 +6799,12 @@ function updateBotPlan() {
     const sc = Math.hypot(al.x - c.x, al.y - c.y) + rec * 40 - (B.lab ? 900 : 0);
     if (sc < bs) { bs = sc; best = B; }
   }
+  const was = G.botPlan && G.botPlan.B;
   G.botPlan = best ? { B: best, t: G.time } : null;
+  if (best !== was) { G.labGo = false; G.labGather = null; }
+  if (best && best.lab && best !== was) { const caller = G.players.filter(q => q.isBot && q.state === 'up').sort((a, b) => b.level - a.level)[0]; if (caller) { feed(`${caller.name}: To the Labyrinth! Everyone, meet at its gate.`, CHARS[caller.char].color); caller.sticker = { text: 'Labyrinth!', t: 2 }; } }
 }
+function labGate() { const C = G.castle; return C ? clearSpot((C.x0 + 44.5) * TILE, (C.y0 + 50) * TILE, 10) : null; }
 function altarOf(B) { return G.inter.find(i => i.kind === 'altar' && i.B === B); }
 function altarPlan(p, A) {
   updateBotPlan();
@@ -6801,13 +6812,32 @@ function altarPlan(p, A) {
   const B = P0.B, al = altarOf(B); if (!al) return null;
   if (!B.lab && p.level < chalRec(B) - 2) return null;
   const inB = G.players.filter(q => q.state === 'up' && bmAt(q.x, q.y) === B.id && d2(q.x, q.y, al.x, al.y) < 260 * 260);
-  const need = B.lab ? Math.max(2, Math.min(3, G.players.filter(q => q.state !== 'dead').length)) : 2;
+  // the Labyrinth: the whole team gathers at the door first and goes in together (a human who never comes is waited for 60s)
+  let need = 2;
+  if (B.lab && !G.labGo) {
+    const gate = labGate(), live = G.players.filter(q => q.state !== 'dead');
+    const atGate = live.filter(q => d2(q.x, q.y, gate.x, gate.y) < 150 * 150 || bmAt(q.x, q.y) === B.id);
+    if (!G.labGather) G.labGather = G.time;
+    const waited = G.time - G.labGather, bots = live.filter(q => q.isBot), humansAway = live.some(q => !q.isBot && !atGate.includes(q));
+    const ready = atGate.length >= live.length || (waited > 60 && bots.every(q => atGate.includes(q)) && humansAway) || (waited > 150 && atGate.length >= 2);
+    if (ready) { G.labGo = true; feed('The team is together: into the Labyrinth!', '#c8c8ff'); }
+    else {
+      if (d2(p.x, p.y, gate.x, gate.y) < 150 * 150) { botAnnounce(p, `Waiting at the Labyrinth gate (${atGate.length}/${live.length})`, 'gate' + B.id); A.goal = { x: gate.x + rr(-40, 40), y: gate.y + rr(-10, 30), near: 40 }; return d2(p.x, p.y, gate.x, gate.y) < 60 * 60 ? 'idle' : 'goto'; }
+      botAnnounce(p, 'Heading to the Labyrinth gate', 'togate' + B.id); A.goal = { x: gate.x + rr(-30, 30), y: gate.y + rr(0, 30), near: 40 }; A.camp = null; return 'goto';
+    }
+  }
+  if (B.lab) {
+    const live = G.players.filter(q => q.state !== 'dead'); need = live.length;
+    if (inB.length && !G.labGather) G.labGather = G.time;
+    if (G.labGather && G.time - G.labGather > 60 && G.players.filter(q => q.isBot && q.state !== 'dead').every(q => inB.includes(q))) need = Math.max(2, inB.length);
+    if (inB.length < need && d2(p.x, p.y, al.x, al.y) < 140 * 140) { botAnnounce(p, `Waiting for the team at ${B.lab ? "the Labyrinth" : "the " + B.name} (${inB.length}/${live.length})`, 'wait' + B.id); }
+  }
   const near = d2(p.x, p.y, al.x, al.y) < 120 * 120;
   if (near && inB.length >= need && inB.every(q => q.hp > q.maxHp * 0.35)) {
     const starter = inB.filter(q => q.isBot && !q.remote).sort((a, b) => d2(a.x, a.y, al.x, al.y) - d2(b.x, b.y, al.x, al.y))[0];
-    if (starter === p) { botAnnounce(p, `Initiating the ${B.name} challenge!`, 'init' + B.id); A.goal = { x: al.x, y: al.y, near: 18, use: true, it: al }; return 'goto'; }
+    if (starter === p) { botAnnounce(p, `Initiating ${B.lab ? "the Labyrinth" : "the " + B.name} challenge!`, 'init' + B.id); A.goal = { x: al.x, y: al.y, near: 18, use: true, it: al }; return 'goto'; }
   }
-  if (!near) botAnnounce(p, `Heading to the ${B.name} altar`, 'head' + B.id);
+  if (!near) botAnnounce(p, `Heading to ${B.lab ? "the Labyrinth" : "the " + B.name} altar`, 'head' + B.id);
   A.goal = { x: al.x + rr(-40, 40), y: al.y + rr(10, 40), near: 50 }; A.camp = null; return 'goto';
 }
 
@@ -7023,6 +7053,7 @@ function updateAmbush() {
   }
 }
 function startDay(n) {
+  G.labGather = null;
   G.day = n; G.phase = 'day'; G.dayStage = 'farm'; G.stageT = stageDur('farm'); G.bossFight = false; G.boss = null; G.labHold = 0; G.labHoldMsg = false;
   if (G.bossRoom) setRoomLocked(G.bossRoom, false);
   G.bossRoom = null;
@@ -7064,7 +7095,7 @@ function updateShrineRest(dt) {
     const threat = G.enemies.some(e => !e.dead && !e.def.objective && e.type !== 'dummy' && d2(e.x, e.y, it.x, it.y) < 150 * 150);
     it.calm = !threat;
     if (threat) continue;
-    for (const p of near) { if (p.flasks < flaskMax(p)) { refillFlasks(p); floatText(p.x, p.y - 34, 'Flasks refilled', '#ff8a9a', 0.8); } if (p.hp < p.maxHp) { p.hp = Math.min(p.maxHp, p.hp + p.maxHp * 0.3 * dt); if (R() < 0.3) burst(p.x + rr(-5, 5), p.y - rr(4, 20), '#7ff0ff', 1, 14, 0.6, { glow: true, g: -30 }); } if (anyStatus(p)) clearStatus(p); }
+    for (const p of near) { if (p.flasks < flaskMax(p) || p.hp < p.maxHp) { const was = p.hp < p.maxHp * 0.98 || p.flasks < flaskMax(p); refillFlasks(p); p.hp = p.maxHp; if (was) { floatText(p.x, p.y - 34, 'Fully restored', '#7ff0ff', 0.9); burst(p.x, p.y - 10, '#7ff0ff', 14, 60, 0.6, { glow: true, g: -40 }); } } if (anyStatus(p)) clearStatus(p); } // a calm shrine restores health and flasks at once
   }
 }
 function startNight() {
