@@ -178,6 +178,8 @@ body { background: #08060a; font-weight: 500; }
 .overlay { background: radial-gradient(ellipse at 50% 40%, rgba(10,6,12,0.35), rgba(4,2,6,0.82)); }
 .logo { font-family: var(--display); font-weight: 900; letter-spacing: 0.14em; -webkit-text-stroke: 0; color: #e8d4a0; background: linear-gradient(#f6e6b8, #c9a253 55%, #7a5a2a); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; filter: drop-shadow(0 3px 0 #000) drop-shadow(0 0 22px rgba(216,178,90,0.35)); text-shadow: none; }
 .logo .k { -webkit-text-fill-color: var(--krystal); filter: drop-shadow(0 0 14px rgba(143,242,255,0.8)); }
+#scr-title { width: min(900px, 100%); justify-items: center; text-align: center; }
+#scr-title .logo { padding-left: 0.14em; }
 .tag { font-style: italic; color: #c8b89a; letter-spacing: 0.02em; }
 .eyebrow { font-family: var(--display); letter-spacing: 0.24em; color: var(--gold); font-size: 13px; }
 h2, h3 { font-family: var(--display); font-weight: 700; -webkit-text-stroke: 0; color: #eadcbc; letter-spacing: 0.06em; text-shadow: 0 2px 0 #000, 0 0 18px rgba(216,178,90,0.18); }
@@ -9870,25 +9872,39 @@ function tbgBuild() {
   }
   // distant mist between the shadow and the bosses
   const mist = x.createLinearGradient(0, h * 0.45, 0, h * 0.8); mist.addColorStop(0, 'rgba(30,20,34,0)'); mist.addColorStop(1, 'rgba(30,20,34,0.75)'); x.fillStyle = mist; x.fillRect(0, h * 0.45, w, h * 0.35);
-  // the bosses, rim-lit in red, half lost in the dark
-  const lords = ['vesper', 'rimehorn', 'phoenix', 'warden', 'stormcoil', 'shellback', 'moth'];
-  const gks = ['frostfang', 'emberdrake', 'bonecolossus', 'chieftain', 'gorehorn', 'hivequeen'];
-  const row = (keys, y, hh, spread, shade) => keys.forEach((k, i) => {
-    const t = keys.length > 1 ? i / (keys.length - 1) : 0.5, cx = w / 2 + (t - 0.5) * spread, by = y + Math.abs(t - 0.5) * hh * 0.25;
-    const sil = tbgSilhouette(k, hh, '#0c0610', shade); if (!sil) return;
-    x.save(); x.shadowColor = 'rgba(200,40,50,0.45)'; x.shadowBlur = 18 * DPR; x.drawImage(sil.c, cx - sil.ox, by - sil.oy); x.restore();
-  });
-  row(gks, h * 0.66, h * 0.17, Math.min(w * 1.05, h * 2.0), 0.82);
-  row(lords, h * 0.74, h * 0.25, Math.min(w * 0.95, h * 1.75), 0.62);
-  // ground and the Krystalkers standing in front, lit warm from the camera
-  const gr = x.createLinearGradient(0, h * 0.78, 0, h); gr.addColorStop(0, 'rgba(10,6,8,0)'); gr.addColorStop(0.35, 'rgba(10,6,8,0.92)'); gr.addColorStop(1, '#050304'); x.fillStyle = gr; x.fillRect(0, h * 0.75, w, h * 0.25);
-  const heroes = CHAR_KEYS.slice(), hh = h * 0.13, span = Math.min(w * 0.94, h * 1.9);
-  heroes.forEach((k, i) => {
-    const t = heroes.length > 1 ? i / (heroes.length - 1) : 0.5, cx = w / 2 + (t - 0.5) * span, by = h * 0.985 - Math.abs(t - 0.5) * hh * 0.35;
-    const glow = x.createRadialGradient(cx, by - hh * 0.4, 2, cx, by - hh * 0.4, hh * 0.9); glow.addColorStop(0, 'rgba(255,170,90,0.18)'); glow.addColorStop(1, 'rgba(255,170,90,0)'); x.fillStyle = glow; x.fillRect(cx - hh, by - hh * 1.4, hh * 2, hh * 1.6);
-    x.save(); x.globalAlpha = 0.95; tbgSprite(x, k, cx, by, hh, null, t > 0.5); x.restore();
-    const W0 = SPR['w_' + k]; if (W0) { const s = hh / SPR[k].idle.h; x.save(); x.translate(cx, by - HAND_Y * s); if (t > 0.5) x.scale(-1, 1); x.drawImage(W0.c, -W0.ox * s, -W0.oy * s, W0.w * s, W0.h * s); x.restore(); }
-  });
+  // the bosses: two hordes rising out of the mist on either side, at different depths (the centre stays clear for the menu)
+  const horde = [
+    // [key, x, ground y, height]  (fractions of the screen)
+    ['vesper', 0.03, 0.74, 0.24], ['gorehorn', 0.07, 0.83, 0.14], ['rimehorn', 0.14, 0.80, 0.30], ['phoenix', 0.23, 0.53, 0.24], ['frostfang', 0.25, 0.76, 0.17], ['chieftain', 0.32, 0.79, 0.15],
+    ['hivequeen', 0.645, 0.71, 0.13], ['emberdrake', 0.69, 0.79, 0.15], ['stormcoil', 0.75, 0.77, 0.22], ['moth', 0.80, 0.50, 0.22], ['shellback', 0.87, 0.80, 0.28], ['bonecolossus', 0.935, 0.83, 0.15], ['warden', 0.97, 0.75, 0.22],
+  ].sort((a, b) => a[2] - b[2]);
+  for (const [k, fx, fy, fh] of horde) {
+    const depth = clamp((fy - 0.5) / 0.33, 0, 1), sil = tbgSilhouette(k, h * fh, '#0c0610', 0.55 + 0.35 * (1 - depth)); if (!sil) continue;
+    x.save(); x.shadowColor = `rgba(200,40,50,${0.3 + 0.25 * depth})`; x.shadowBlur = 18 * DPR; if (fx > 0.5) { x.translate(w * fx, 0); x.scale(-1, 1); x.translate(-w * fx, 0); }
+    x.drawImage(sil.c, w * fx - sil.ox, h * fy - sil.oy); x.restore();
+  }
+  const mist2 = x.createLinearGradient(0, h * 0.7, 0, h * 0.9); mist2.addColorStop(0, 'rgba(26,16,30,0)'); mist2.addColorStop(1, 'rgba(26,16,30,0.6)'); x.fillStyle = mist2; x.fillRect(0, h * 0.7, w, h * 0.2);
+  // ground, with a krystal shard glowing in the middle of the field
+  const gr = x.createLinearGradient(0, h * 0.8, 0, h); gr.addColorStop(0, 'rgba(10,6,8,0)'); gr.addColorStop(0.35, 'rgba(10,6,8,0.92)'); gr.addColorStop(1, '#050304'); x.fillStyle = gr; x.fillRect(0, h * 0.78, w, h * 0.22);
+  { const kx = w / 2, ky = h * 0.965, kg = x.createRadialGradient(kx, ky, 2, kx, ky, h * 0.16); kg.addColorStop(0, 'rgba(127,240,255,0.35)'); kg.addColorStop(1, 'rgba(127,240,255,0)'); x.fillStyle = kg; x.fillRect(kx - h * 0.2, ky - h * 0.2, h * 0.4, h * 0.4);
+    x.fillStyle = '#7ff0ff'; x.strokeStyle = '#0a1418'; x.lineWidth = 2 * DPR; x.beginPath(); x.moveTo(kx, ky - h * 0.05); x.lineTo(kx + h * 0.014, ky - h * 0.012); x.lineTo(kx, ky); x.lineTo(kx - h * 0.014, ky - h * 0.012); x.closePath(); x.fill(); x.stroke(); }
+  // a few rocks for the Krystalkers to stand on
+  const rock = (fx, fy, rw, rh) => { x.fillStyle = '#0d0a0e'; x.beginPath(); x.ellipse(w * fx, h * fy, w * rw, h * rh, 0, Math.PI, 0); x.fill(); x.fillStyle = 'rgba(255,170,90,0.06)'; x.beginPath(); x.ellipse(w * fx, h * fy - h * rh * 0.6, w * rw * 0.7, h * rh * 0.25, 0, Math.PI, 0); x.fill(); };
+  rock(0.125, 0.935, 0.045, 0.035); rock(0.875, 0.93, 0.045, 0.035);
+  // the Krystalkers in two wedges facing the shadow: tanks at the tip, ranged at the back, the sniper and the gunner up on rocks
+  const party = [
+    ['serpent', 0.07, 0.975, 0.95, 1], ['wolf', 0.125, 0.905, 0.85, 1], ['crow', 0.17, 0.89, 0.8, 1], ['hedgehog', 0.2, 0.955, 0.95, 1], ['lizard', 0.255, 0.985, 1.05, 1], ['pangolin', 0.28, 0.935, 1.0, 1], ['bear', 0.335, 0.975, 1.2, 1],
+    ['goat', 0.665, 0.975, 1.1, -1], ['beaver', 0.72, 0.94, 0.95, -1], ['reindeer', 0.745, 0.985, 1.05, -1], ['rabbit', 0.8, 0.955, 0.95, -1], ['monkey', 0.83, 0.89, 0.8, -1], ['owl', 0.875, 0.9, 0.85, -1],
+  ].sort((a, b) => a[2] - b[2]);
+  for (const [k, fx, fy, sc, dir] of party) {
+    if (!SPR[k]) continue;
+    const cx = w * fx, by = h * fy, hh = h * 0.13 * sc, flip = dir < 0;
+    const glow = x.createRadialGradient(cx, by - hh * 0.4, 2, cx, by - hh * 0.4, hh * 0.9); glow.addColorStop(0, 'rgba(255,170,90,0.16)'); glow.addColorStop(1, 'rgba(255,170,90,0)'); x.fillStyle = glow; x.fillRect(cx - hh, by - hh * 1.4, hh * 2, hh * 1.6);
+    x.fillStyle = 'rgba(0,0,0,0.45)'; x.beginPath(); x.ellipse(cx, by, hh * 0.32, hh * 0.07, 0, 0, Math.PI * 2); x.fill();
+    x.save(); x.globalAlpha = 0.6 + 0.4 * clamp((fy - 0.88) / 0.1, 0, 1); tbgSprite(x, k, cx, by, hh, null, flip);
+    const W0 = SPR['w_' + k]; if (W0) { const s = hh / SPR[k].idle.h; x.translate(cx, by - HAND_Y * s); if (flip) x.scale(-1, 1); x.drawImage(W0.c, -W0.ox * s, -W0.oy * s, W0.w * s, W0.h * s); }
+    x.restore();
+  }
   // vignette
   const vg = x.createRadialGradient(w / 2, h * 0.5, h * 0.3, w / 2, h * 0.5, Math.max(w, h) * 0.75); vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,0.75)'); x.fillStyle = vg; x.fillRect(0, 0, w, h);
   TBG.layer = L;
@@ -9902,6 +9918,7 @@ function tbgFrame() {
   const t = performance.now() / 1000;
   // drifting fog
   for (let i = 0; i < 3; i++) { const fx = ((t * (8 + i * 5) + i * 400) % (w + 600)) - 300, fy = h * (0.62 + i * 0.08), r = h * 0.35; const fg = x.createRadialGradient(fx, fy, 0, fx, fy, r); fg.addColorStop(0, 'rgba(60,40,70,0.16)'); fg.addColorStop(1, 'rgba(60,40,70,0)'); x.fillStyle = fg; x.fillRect(fx - r, fy - r, r * 2, r * 2); }
+  { const kx = w / 2, ky = h * 0.965, r = h * (0.07 + 0.015 * Math.sin(t * 2)), kg = x.createRadialGradient(kx, ky - h * 0.02, 0, kx, ky - h * 0.02, r); kg.addColorStop(0, 'rgba(160,250,255,0.22)'); kg.addColorStop(1, 'rgba(160,250,255,0)'); x.save(); x.globalCompositeOperation = 'lighter'; x.fillStyle = kg; x.fillRect(kx - r, ky - h * 0.02 - r, r * 2, r * 2); x.restore(); }
   // embers rising
   if (TBG.embers.length < 70) TBG.embers.push({ x: Math.random() * w, y: h + 10, vy: (20 + Math.random() * 40) * DPR, vx: (Math.random() - 0.5) * 12 * DPR, a: Math.random() * 6, s: (0.8 + Math.random() * 1.6) * DPR });
   x.save(); x.globalCompositeOperation = 'lighter';
