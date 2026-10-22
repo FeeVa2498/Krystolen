@@ -6307,6 +6307,10 @@ function decideMode(p, A, vis) {
   if (pile && (!vis.length || vis[0].d > 120) && safeAt(pile.x, pile.y, 20)) { A.goal = { x: pile.x, y: pile.y, near: 4 }; return 'goto'; }
   const inLock = G.rooms.find(r => r.locked && inRoom(r, p.x, p.y, 4));
   if (inLock) { if (vis.length) return 'fight'; A.goal = { x: inLock.px + rr(-30, 30), y: inLock.py + rr(-20, 20), near: 20 }; return 'goto'; }
+  // the Gatekeeper Bell: when the team wants to ring, everyone gathers in the arena and waits there
+  if (G.bellMode && G.bell && G.phase === 'day' && (G.bellWant || G.bellToll > 0)) { const r = G.nightRoom; if (!inRoom(r, p.x, p.y, -12)) { botAnnounce(p, 'Heading to the Gatekeeper arena', 'bell' + G.day); A.goal = { x: r.px + rr(-30, 30), y: r.py + rr(-10, 30), near: 30 }; return 'goto'; } if (vis.length && vis[0].d < 140) return 'fight'; return 'idle'; }
+  // at night: run into the arena (nobody is carried in any more)
+  if (G.phase === 'night' && G.bossRoom && !inRoom(G.bossRoom, p.x, p.y, -10)) { A.goal = { x: G.bossRoom.px, y: G.bossRoom.py + 30, near: 30 }; return 'goto'; }
   // the Tide: get inside before it closes
   const c = G.circle;
   if (c && !safeAt(p.x, p.y, 0, 4)) { const sp = safePoint(p); A.goal = { x: sp.x + rr(-20, 20), y: sp.y + rr(-20, 20), near: 40 }; A.camp = null; return 'goto'; }
@@ -6320,6 +6324,17 @@ function decideMode(p, A, vis) {
   if (A.pingEnemy && !A.pingEnemy.dead) { const pe = A.pingEnemy; if (d2(pe.x, pe.y, p.x, p.y) < 160 * 160 && losClear(p.x, p.y, pe.x, pe.y)) { A.target = pe; return 'fight'; } A.goal = { x: pe.x, y: pe.y, near: 60 }; return 'goto'; }
   const myB = biomeAt(p.x, p.y);
   if (myB && myB.chal) {
+    if (myB.lab) { // in the Labyrinth the team moves as one: follow the leader, fight what is around the leader
+      const ld = labLeader(myB);
+      if (ld && ld !== p) {
+        const dl = Math.hypot(ld.x - p.x, ld.y - p.y);
+        if (dl > 120 && !(vis.length && vis[0].d < 70)) { A.goal = { x: ld.x + rr(-24, 24), y: ld.y + rr(-24, 24), near: 50 }; return 'goto'; }
+        const v = vis.find(o => Math.hypot(o.e.x - ld.x, o.e.y - ld.y) < 190); if (v) { A.target = v.e; return 'fight'; }
+      } else if (ld === p && !(vis.length && vis[0].d < 150)) {
+        const lag = G.players.filter(q => q !== p && q.state === 'up' && bmAt(q.x, q.y) === myB.id && d2(q.x, q.y, p.x, p.y) > 220 * 220);
+        if (lag.length) return 'idle'; // wait for the stragglers
+      }
+    }
     if (vis.length && vis[0].d < 210) return 'fight';
     const lc0 = levelCost(p), sh0 = lc0 != null && p.gold >= lc0 ? nearestShrineNow(p) : null;
     if (sh0) { A.goal = { x: sh0.x, y: sh0.y, near: 18, use: true, it: sh0 }; return 'goto'; }
@@ -6718,6 +6733,10 @@ function teamLv() { const t = G.players; const lv = t.map(q => q.level); return 
 function teamCentre() { const al = G.players.filter(q => q.state !== 'dead'); return { x: al.reduce((a, q) => a + q.x, 0) / Math.max(1, al.length), y: al.reduce((a, q) => a + q.y, 0) / Math.max(1, al.length) }; }
 function labBosses() { return G.castle ? G.castle.rooms.filter(r => r.boss && !r.boss.dead && r.bossDone !== 99).map(r => r.boss) : []; }
 // sealed inside: everyone goes for the same boss
+function labLeader(B) {
+  const inLab = G.players.filter(q => q.state === 'up' && bmAt(q.x, q.y) === B.id);
+  return inLab.find(q => !q.isBot) || inLab.sort((a, b) => (a.slot ?? 0) - (b.slot ?? 0))[0] || null;
+}
 function chalHunt(p, A, B) {
   let boss = null;
   if (B.lab) {
@@ -7047,12 +7066,15 @@ function startNight() {
   for (const r of G.rooms) if (r.locked) setRoomLocked(r, false);
   for (const p of G.players) {
     p.fightDowns = 0; p.phoenixUsed = false;
-    if (p.state === 'dead') p.state = 'up';
+    const wasDead = p.state === 'dead';
+    if (wasDead) p.state = 'up';
     if (p.state === 'up') p.hp = p.maxHp;
-    if (!inRoom(room, p.x, p.y, -8)) { burst(p.x, p.y, '#7ff0ff', 10, 60); const q = randomFloorIn(room, [], 0, 3); p.x = q.x; p.y = q.y; p.dash = null; p.ball = 0; burst(p.x, p.y, '#7ff0ff', 10, 60); }
+    // nobody is carried in any more: you run into the ring yourself; only the fallen come back inside the arena
+    if (wasDead && !inRoom(room, p.x, p.y, -8)) { const q = randomFloorIn(room, [], 0, 3); p.x = q.x; p.y = q.y; p.dash = null; p.ball = 0; burst(p.x, p.y, '#7ff0ff', 10, 60); }
   }
   for (const e of G.enemies) if (!e.boss && inRoom(room, e.x, e.y)) e.dead = true;
-  setRoomLocked(room, true);
+  G.arenaOpen = true; // the doors shut once every living Krystalker is inside
+
   const type = G.day === 1 ? G.night1 : G.night2;
   tele({ x: room.px, y: room.py - 50, r: 40, life: 2.6, color: 'spore' });
   setBanner(`Gatekeeper ${ROMAN[G.day]}`, ENEMY[type].name, 3, '#ff9ad8');
@@ -7272,6 +7294,7 @@ function step(dt) {
     G.stageT -= dt; const c = G.circle;
     c.r = circleRadiusAt(G.dayStage, G.stageT);
     if (c.tx != null) { const k = G.dayStage === 'shrink2' ? 1 - clamp(G.stageT / stageDur('shrink2'), 0, 1) : 0; c.x = lerp(c.fx, c.tx, k); c.y = lerp(c.fy, c.ty, k); }
+    if (G.bellToll > 0) { c.r = c.rf; if (c.tx != null) { c.x = c.tx; c.y = c.ty; } } // after the bell only the arena is left
     if (G.stageT <= 0) {
       const i = STAGES.findIndex(s => s[0] === G.dayStage);
       if (i < STAGES.length - 1) {
@@ -7283,6 +7306,7 @@ function step(dt) {
     G.ambushT -= dt; if (G.ambushT <= 0) { G.ambushT = 0.2; updateAmbush(); }
     updateSpread(); updateBell(dt); updateHeat(dt); updateFireDoors(); updateSiegeFury(); if (G.cross === 'embers') for (const e of G.enemies) if (!e.dead && !e.boss) crossGold(e);
   }
+  if (G.phase === 'night' && G.arenaOpen && G.bossRoom && G.players.every(p => p.state === 'dead' || inRoom(G.bossRoom, p.x, p.y, -8))) { G.arenaOpen = false; setRoomLocked(G.bossRoom, true); }
   if (G.phase === 'night' && G.bossT > 0) {
     G.bossT -= dt;
     if (R() < 0.5) burst(G.bossRoom.px + rr(-30, 30), G.bossRoom.py - 50 + rr(-10, 10), '#ff9ad8', 1, 40, 0.6, { glow: true, g: -60 });
@@ -7898,7 +7922,7 @@ function placeBell() {
   if (!G.bellMode) return;
   const room = G.nightRoom, q = clearSpot(room.px, room.py + 44, 10);
   G.bell = addInter({ kind: 'bell', x: q.x, y: q.y, r: 18, ready: new Set(), room });
-  G.bellToll = 0; G.bellTier = 0; G.bellOpenSaid = false;
+  G.bellToll = 0; G.bellTier = 0; G.bellOpenSaid = false; G.bellWant = false;
 }
 function bellPrompt(it, p) {
   if (G.phase !== 'day') return null;
@@ -7906,15 +7930,18 @@ function bellPrompt(it, p) {
   const wait = bellOpenIn(); if (wait > 0) return { text: `Gatekeeper Bell: it can be rung in ${Math.ceil(wait)}s`, locked: true };
   const hum = G.players.filter(q => !q.isBot && q.state === 'up'), k = hum.filter(q => it.ready.has(q)).length, t = bellTier();
   const sub = t === 2 ? 'Ring early: +1 relic chest and +150 gold each' : t === 1 ? 'Ring early: +1 relic chest' : 'No early-bell reward any more';
-  if (it.ready.has(p)) return { text: `Ready to ring · waiting for the team (${k}/${hum.length})`, sub, locked: true };
-  return { text: hum.length > 1 ? `Ring the Gatekeeper Bell (${k}/${hum.length} ready)` : 'Ring the Gatekeeper Bell: call the Gatekeeper now', sub };
+  const live = G.players.filter(q => q.state !== 'dead'), inn = live.filter(q => inRoom(G.nightRoom, q.x, q.y, -8)).length;
+  const team = inn < live.length ? ` · ${inn}/${live.length} in the arena` : '';
+  if (it.ready.has(p)) return { text: `Ready to ring · waiting for the team (${k}/${hum.length} ready${team})`, sub, locked: true };
+  return { text: hum.length > 1 || inn < live.length ? `Ring the Gatekeeper Bell (${k}/${hum.length} ready${team})` : 'Ring the Gatekeeper Bell: call the Gatekeeper now', sub: sub + ' · the whole team must be in the arena' };
 }
 function useBell(it, p) {
   it.ready.add(p); sfx('bell', it.x, it.y); burst(it.x, it.y - 18, '#ffd44a', 12, 60, 0.5, { glow: true });
   floatText(p.x, p.y - 30, 'Ready to ring!', '#ffe6a0', 0.9);
 }
 function ringBell(by) {
-  G.bellToll = BELL_TOLL; G.bellTier = bellTier();
+  G.bellToll = BELL_TOLL; G.bellTier = bellTier(); G.bellWant = false;
+  const c = G.circle; if (c) { c.r = c.rf; if (c.tx != null) { c.x = c.tx; c.y = c.ty; } } // the fire closes in at once: only the arena is left
   const it = G.bell; if (it) { shock(it.x, it.y - 14, 120, '#ffd44a', 0.8); pillar(it.x, it.y, '#ffd44a', 110, 18, 1); }
   shake(5); sfx('bell'); setTimeout(() => sfx('bell'), 450);
   setBanner('The bell tolls', `The Gatekeeper comes in ${BELL_TOLL}s${G.bellTier ? ' · early-bell reward ' + '★'.repeat(G.bellTier) : ''}`, 3.5, '#ffe6a0');
@@ -7930,12 +7957,14 @@ function updateBell(dt) {
   }
   if (bellOpenIn() > 0) return;
   if (!G.bellOpenSaid) { G.bellOpenSaid = true; setBanner('The Gatekeeper Bell can be rung', 'Ring it in the arena (☾) when the team is ready. Earlier = bigger reward.', 3.5, '#ffe6a0'); sfx('bell'); }
+  // the bell only rings with every living Krystalker inside the arena
+  const live = G.players.filter(q => q.state !== 'dead'), allIn = live.length && live.every(q => inRoom(G.nightRoom, q.x, q.y, -8));
   const hum = G.players.filter(q => !q.isBot && q.state === 'up');
-  if (hum.length) { if (hum.every(q => G.bell.ready.has(q))) ringBell(hum.length === 1 ? hum[0] : null); return; }
-  // nobody human is standing: the bots ring when strong enough, or when most of the Act is gone
-  const up = G.players.filter(q => q.state !== 'dead'); if (!up.length) return;
-  const avg = up.reduce((a, q) => a + q.level, 0) / up.length;
-  if (avg >= GK_REC[G.day] + 2.5 || actElapsed() / actLen() > 0.95) ringBell(up[0]);
+  if (hum.length) { G.bellWant = hum.some(q => G.bell.ready.has(q)); if (allIn && hum.every(q => G.bell.ready.has(q))) ringBell(hum.length === 1 ? hum[0] : null); return; }
+  // nobody human is standing: the bots decide when strong enough (or when most of the Act is gone), gather, then ring
+  const avg = live.reduce((a, q) => a + q.level, 0) / Math.max(1, live.length);
+  if (avg >= GK_REC[G.day] + 2.5 || actElapsed() / actLen() > 0.9) G.bellWant = true;
+  if (G.bellWant && allIn) ringBell(live[0]);
 }
 // a bonus chest for the early bell (called when a Gatekeeper dies)
 function bellReward(e) {
