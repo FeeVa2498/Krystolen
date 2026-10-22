@@ -7088,7 +7088,8 @@ function startDay(n) {
   // two possible lairs, picked anew each Act (the same one can come twice); nobody knows which until the ring first closes
   G.nightRoom = pick(G.nightRooms); G.gkRevealed = false;
   const lab = n === 2 ? labCentre() : null, NR = G.nightRooms, mid = NR.length > 1 ? { x: (NR[0].px + NR[1].px) / 2, y: (NR[0].py + NR[1].py) / 2 } : null;
-  G.circle = G.fireMode === 'spread' ? spreadCircle(G.nightRoom) : circleFor(G.nightRoom, lab || mid, !!lab);
+  // (the ring used to centre on the Labyrinth in Act II; now it sweeps over the castle like anywhere else)
+  G.circle = G.fireMode === 'spread' ? spreadCircle(G.nightRoom) : circleFor(G.nightRoom, mid, false);
   if (G.fireMode === 'spread') planSpread(n);
   for (const p of G.players) { if (p.state !== 'up') { p.state = 'up'; p.invulnT = 2; } p.hp = p.maxHp; p.fightDowns = 0; p.phoenixUsed = false; clearStatus(p); }
   if (n > 1) { const old = G.inter.filter(i => i.kind === 'shrine' && (i.day || 0) < n && !(i.room && i.room.biome && i.room.biome.bossKilled)); /* conquered biomes keep their shrine */ for (const s of old) burst(s.x, s.y - 14, '#7ff0ff', 14, 60, 0.6, { glow: true }); G.inter = G.inter.filter(i => !old.includes(i)); }
