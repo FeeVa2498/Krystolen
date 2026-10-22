@@ -313,7 +313,7 @@ th { font-family: var(--display); letter-spacing: 0.08em; }
       </ol>
       <p><b>Elements and weaknesses:</b> Fire, Frost, Bleed, Poison, Shock, Shadow. Bosses list their weakness: matching hits deal +50%, matching damage over time deals double. A frozen boss is freeze-immune for 12s.</p>
       <p><b>Death.</b> Only during a Gatekeeper or Dungeon Master fight can a fallen ally be revived. Anywhere else, falling means death: you respawn at a shrine one level lower, and <b>all your gold</b> (plus that level's cost) stays where you fell. The spot is marked on your map and by an arrow at the edge of the screen. Die again before you get back and it is gone.</p>
-      <p><b>Flasks.</b> You start with 2 flasks (R): each heals 20% of your health. Standing at a Krystal Shrine with no enemies near refills your flasks and health. Six to eight small rooms hold <b>Krystal Fonts</b> (⚱): your map shows where they are, but not how to get there. Channel one for 5 seconds (taking damage breaks it) and <b>your own</b> flasks get +1 flask and heal more. <b>Each Font serves only one Krystalker</b>, so share them out; every Font is restored when Act II begins. Six upgrades (8 flasks, 65% each) is the most anyone can reach. You no longer heal over time on your own: flasks, shrines, healers and some gems or relics are your only healing.</p>
+      <p><b>Flasks.</b> You start with 2 flasks (R): each heals 20% of your health. Standing at a Krystal Shrine with no enemies near refills your flasks and health. Nine to twelve small rooms hold <b>Krystal Fonts</b> (⚱): your map shows where they are, but not how to get there. Channel one for 5 seconds (taking damage breaks it) and <b>your own</b> flasks get +1 flask and heal more. <b>Each Font serves only one Krystalker</b>, so share them out; every Font is restored when Act II begins. Six upgrades (8 flasks, 65% each) is the most anyone can reach, and only two Krystalkers per run can get there. You no longer heal over time on your own: flasks, shrines, healers and some gems or relics are your only healing.</p>
       <p><b>Downed during a boss:</b> teammates can revive you; each down makes the next revive slower (up to the third). Beating a Gatekeeper or Dungeon Master revives everyone on the spot. If the whole team is down, the expedition fails.</p>
       <p><b>Controls:</b> LMB attack · RMB secondary (melee) attack · Space movement skill · Q character skill · E ultimate (unlocks at level 10) · R drink a flask · T active item · F interact / revive · Shift sprint · G stickers.</p>
       <p><b>Sprint</b> drains stamina (the bar under your feet). Run it dry and you must wait until it is completely full again. Most Krystalkers cannot attack while sprinting; Crow, Rabbit, Serpent and Red Lizard can.</p>
@@ -3009,7 +3009,7 @@ function interPrompt(it, p) {
       return { text: `Level up to ${p.level + 1}`, cost: c, sub: '+8% health, +7% damage, full heal' };
     }
     case 'seal': return null;
-    case 'font': { if (it.used) return { text: `This Krystal Font is spent${it.by ? ' (' + it.by + ')' : ''} · it returns in Act II`, locked: true }; if ((p.flaskUp || 0) >= FLASK_UP_MAX) return { text: 'Your flasks are already at their strongest', locked: true }; if (fontBusy(it, p)) return { text: 'Someone is channelling this Font', locked: true }; if (p.fchan && p.fchan.it === it) return { text: 'Channelling… (do not get hit)', locked: true }; return { text: `Channel the Krystal Font (${FONT_CHANNEL}s)`, sub: `+1 flask and stronger (${flaskMax(p)} → ${flaskMax(p) + 1}, heal ${Math.round(flaskPct(p) * 100)}% → ${Math.round((flaskPct(p) + 0.075) * 100)}%). Only one Krystalker can take each Font; it returns in Act II.` }; }
+    case 'font': { if (it.used) return { text: `This Krystal Font is spent${it.by ? ' (' + it.by + ')' : ''} · it returns in Act II`, locked: true }; if ((p.flaskUp || 0) >= FLASK_UP_MAX) return { text: 'Your flasks are already at their strongest', locked: true }; if (flaskCapped(p)) return { text: 'Two Krystalkers already hold the strongest flasks: no one else can', locked: true }; if (fontBusy(it, p)) return { text: 'Someone is channelling this Font', locked: true }; if (p.fchan && p.fchan.it === it) return { text: 'Channelling… (do not get hit)', locked: true }; return { text: `Channel the Krystal Font (${FONT_CHANNEL}s)`, sub: `+1 flask and stronger (${flaskMax(p)} → ${flaskMax(p) + 1}, heal ${Math.round(flaskPct(p) * 100)}% → ${Math.round((flaskPct(p) + 0.075) * 100)}%). Only one Krystalker can take each Font; it returns in Act II.` }; }
     case 'altar': { const B = it.B, rec = chalRec(B); if (B.chal) return { text: `${B.name}: challenge in progress`, locked: true }; if (B.retryT > G.time) return { text: 'The altar is still cooling…', locked: true }; return { text: `Restore the altar: challenge the ${B.name}`, sub: `Recommended Lv ${rec} · the biome seals until its boss falls`, danger: rec > p.level }; }
     case 'bosschest': return it.taken.has(p) ? null : { text: `Open ${it.label}'s chest: choose 1 of 3 relics`, sub: oddsText(it.odds) };
     case 'portal': { if (it.opening) return null; const n = G.players.filter(q => q.state === 'up').length, k = [...it.ready].filter(q => q.state === 'up').length; return it.ready.has(p) ? { text: `Ready · waiting for the team (${k}/${n})`, locked: true } : { text: it.to === 'bazaar' ? `Step into the portal: The Bazaar (${k}/${n} ready)` : `Step into the portal: the Everfield (${k}/${n} ready)` }; }
@@ -4719,11 +4719,13 @@ function addNewcomerDialogue() {
 // ===== Krystal flasks: R drinks, shrines refill, six hidden Krystal Fonts: each Krystalker must channel a Font to upgrade their own flasks =====
 // Fonts: 6–8 per map (rolled with the map). Each Font serves ONE Krystalker per Act, and every Font is restored at the start of Act II.
 // Flask upgrades cap at FLASK_UP_MAX each. Even if every Font is taken in both Acts (at most 16 uses), three Krystalkers can never all max out (3×6 = 18).
-const FONT_MIN = 6, FONT_MAX = 8, FONT_CHANNEL = 5, FLASK_UP_MAX = 6;
+const FONT_MIN = 9, FONT_MAX = 12, FONT_CHANNEL = 5, FLASK_UP_MAX = 6;
 let FONT_COUNT = 6;
 function flaskMax(p) { return 2 + ((p && p.flaskUp) || 0); }
 function flaskPct(p) { return 0.2 + 0.075 * ((p && p.flaskUp) || 0); }
-function fontTaken(it, p) { return !!it.used || !!(p && (p.flaskUp || 0) >= FLASK_UP_MAX); }
+// at most two Krystalkers per run may reach the top: a third one's last upgrade is refused
+function flaskCapped(p) { if (!p) return false; const u = p.flaskUp || 0; if (u >= FLASK_UP_MAX) return true; return u === FLASK_UP_MAX - 1 && G.players.filter(q => q !== p && (q.flaskUp || 0) >= FLASK_UP_MAX).length >= 2; }
+function fontTaken(it, p) { return !!it.used || flaskCapped(p); }
 function fontBusy(it, p) { return G.players.some(q => q !== p && q.fchan && q.fchan.it === it); }
 function refillFlasks(p) { p.flasks = flaskMax(p); }
 function drinkFlask(p) {
@@ -6380,7 +6382,7 @@ function decideMode(p, A, vis) {
   { const m = joinPlan(p, A); if (m) return m; }
   if (A.helpT > 0 && H && H.state === 'up') { A.goal = { x: H.x, y: H.y, near: 40 }; return 'goto'; }
   // a Krystal Font close by is worth the detour right now (each Font serves only one of us)
-  { const m = fontPlan(p, A, vis, 480); if (m) return m; }
+  { const m = fontPlan(p, A, vis, 800); if (m) return m; }
   // coins
   let coin = null; bd = (G.botPlan && G.botPlan.B.lab ? 50 : 120) ** 2;
   for (const k of G.coins) { if (k.botSkip > G.time) continue; const dd = d2(k.x, k.y, p.x, p.y); if (dd < bd && losClear(p.x, p.y, k.x, k.y)) { bd = dd; coin = k; } }
@@ -6877,7 +6879,7 @@ function altarPlan(p, A) {
 
 // every bot channels each Krystal Font itself (the upgrade is personal); it goes to the nearest one it has not taken
 function fontPlan(p, A, vis, reach = 1300) {
-  if (G.phase !== 'day' || (vis.length && vis[0].d < 160) || (p.flaskUp || 0) >= FLASK_UP_MAX) return null;
+  if (G.phase !== 'day' || (vis.length && vis[0].d < 160) || flaskCapped(p)) return null;
   // share them out: a bot already 2 upgrades ahead of a teammate leaves the Fonts to the others
   const lowest = Math.min(...G.players.filter(q => q !== p && q.state !== 'dead').map(q => q.flaskUp || 0)); if ((p.flaskUp || 0) >= lowest + 2) return null;
   if (A.fontTgt && (fontTaken(A.fontTgt, p) || G.time > A.fontUntil)) { if (G.time > A.fontUntil && !fontTaken(A.fontTgt, p)) A.fontSkip = A.fontTgt; A.fontTgt = null; }
@@ -9153,6 +9155,7 @@ function drawHUD() {
   txt(`${Math.ceil(Math.max(0, focus.hp))} / ${focus.maxHp}`, tx + hpw / 2, y + 45.5 * s, 10, '#ffffff', 'center');
   const gp = 1 + (G.goldPulse > 0 ? G.goldPulse * 0.6 : 0); ctx.drawImage(SPR.coin.c, tx + 8 * s - 8 * s * gp, y + 66 * s - 8 * s * gp, 16 * s * gp, 16 * s * gp); G.goldUI = { x: tx + 8 * s, y: y + 66 * s };
   txt(`${Math.floor(focus.gold)}`, tx + 21 * s, y + 72 * s, 16, UI.gold);
+  { const fx = tx + 21 * s + Math.max(40 * s, ctx.measureText(String(Math.floor(focus.gold))).width + 14 * s); drawFlaskIcon(fx, y + 66 * s, 1.0 * s, (focus.flasks || 0) > 0); txt(`${focus.flasks ?? flaskMax(focus)}/${flaskMax(focus)}`, fx + 9 * s, y + 72 * s, 13, '#ff9aa8'); } // flasks: also when spectating
   const lc = levelCost(focus);
   if (lc != null) { const ok = focus.gold >= lc; txt(ok ? `Level up ready (${lc})` : `Next level ${lc}`, x + pw - 12 * s, y + 72 * s, 10, ok ? UI.cyan : '#f0d8b0', 'right'); }
   else txt('MAX LEVEL', x + pw - 12 * s, y + 72 * s, 10, UI.cyan, 'right');
@@ -9172,6 +9175,7 @@ function drawHUD() {
     portrait(p, x + 5 * s, ty + 4 * s, rh - 8 * s);
     txt(`${p.name}`, x + rh + 6 * s, ty + 15 * s, 10, CHARS[p.char].color);
     txt(`Lv ${p.level}`, x + rw - 8 * s, ty + 15 * s, 10, UI.cyan, 'right');
+    drawFlaskIcon(x + rw - 64 * s, ty + 11 * s, 0.75 * s, (p.flasks || 0) > 0); txt(`${p.flasks ?? flaskMax(p)}/${flaskMax(p)}`, x + rw - 57 * s, ty + 15 * s, 10, '#ff9aa8');
     const sl = stateLabel(p);
     if (sl) txt(sl, x + rh + 6 * s, ty + 30 * s, 10, p.state === 'downed' ? '#ff8a8a' : '#9fb4c8');
     else bar(x + rh + 6 * s, ty + 22 * s, rw - rh - 16 * s, 6 * s, p.hp / p.maxHp, '#5ad07a');
