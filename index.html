@@ -273,7 +273,7 @@ th { font-family: var(--display); letter-spacing: 0.08em; }
   <section id="scr-lord" class="screen" hidden>
     <div class="row"><div><p class="eyebrow" id="gate-eyebrow">Expedition Gate</p><h2 id="gate-title">Which Dungeon Master will you hunt?</h2></div>
       </div>
-    <div class="fireopt"><span class="fo-l">Rules</span><button class="btn fo" id="mode-classic">Classic<small>A ring of fire closes on the Gatekeeper · the night comes when the Act ends</small></button><button class="btn fo" id="mode-new">Krystolen rules <em>NEW</em><small>Fire spreads room by room · Gatekeeper Bell · Crossroads before Act II</small></button></div>
+    <div class="fireopt"><span class="fo-l">Rules</span><button class="btn fo" id="mode-classic">Classic<small>A ring of fire closes on the Gatekeeper · the night comes when the Act ends</small></button><button class="btn fo" id="mode-new">Krystolen rules <em>NEW</em><small>Gatekeeper Bell · monsters grow stronger · Act I time carries over · Crossroads before Act II</small></button></div>
     <div class="fireopt" id="watch-rand" hidden><span class="fo-l">Bots</span><button class="btn fo" id="rand-off">Pick the team<small>Choose the Krystalkers and the Dungeon Master below</small></button><button class="btn fo" id="rand-on">Random team &amp; boss<small>A new team and Dungeon Master every run</small></button></div>
     <div class="wteam" id="watch-team" hidden></div>
     <div class="lords" id="lords"></div>
@@ -6819,7 +6819,7 @@ const T_FARM = 170;
 // Act II is longer: it holds the Labyrinth
 const ACT_SCALE = [1, 1, 1.5];
 // Krystolen rules: both Acts share one time budget; whatever Act I leaves unused stretches Act II (G.actStretch)
-function stageDur(k) { const s = STAGES.find(s => s[0] === k); return s ? s[1] * (G && G.day ? ACT_SCALE[G.day] || 1 : 1) * (G && G.day === 2 && G.actStretch ? G.actStretch : 1) : 1; }
+function stageDur(k) { const s = STAGES.find(s => s[0] === k); return s ? s[1] * (G && G.day ? ACT_SCALE[G.day] || 1 : 1) * (G && G.day === 2 && G.actStretch ? G.actStretch : 1) * (k === 'farm' && G && G.day === 2 && (G.cross === 'embers' || G.cross === 'siege') ? 0.6 : 1) : 1; }
 function circleRadiusAt(stage, tLeft) {
   const c = G.circle;
   if (stage === 'farm') return c.r0;
@@ -8040,15 +8040,16 @@ function hazardTick(p, dt) {
 // (with rising danger) + Crossroads. The three parts stay separate switches inside the code.
 let WATCH_RAND = false;
 try { WATCH_RAND = localStorage.getItem('kry_wrand') === '1'; } catch (e) { }
+// (the room-by-room spreading fire was tried in v18 and removed in v18.9: both rule sets use the closing ring)
 function setRules(isNew) {
-  FIRE_MODE = isNew ? 'spread' : 'ring'; BELL_MODE = CROSS_MODE = !!isNew;
+  FIRE_MODE = 'ring'; BELL_MODE = CROSS_MODE = !!isNew;
   try { localStorage.setItem('kry_fire', FIRE_MODE); localStorage.setItem('kry_bell', isNew ? '1' : '0'); localStorage.setItem('kry_cross', isNew ? '1' : '0'); } catch (e) { }
 }
 // ---------- The Crossroads: after Gatekeeper I the team chooses how Act II goes ----------
 let CROSS_MODE = false;
 try { CROSS_MODE = localStorage.getItem('kry_cross') === '1'; } catch (e) { }
 const XROADS = {
-  embers: { name: 'Embers', col: '#ff8a3a', hazard: 'fire', desc: 'The fire runs faster · monsters drop +30% gold', spread: [0.38, 0.88] },
+  embers: { name: 'Embers', col: '#ff8a3a', hazard: 'fire', desc: 'The ring starts closing much sooner · monsters drop +30% gold', spread: [0.38, 0.88] },
   flood: { name: 'The Flood', col: '#4aa8ff', hazard: 'flood', desc: 'Water rises instead of fire: it slows, hurts less · extra chests everywhere' },
   blizzard: { name: 'Blizzard', col: '#bff4ff', hazard: 'frost', desc: 'Frost spreads: it Chills, then Freezes · the Gatekeeper leaves an extra relic chest' },
   night: { name: 'The Long Night', col: '#b48cff', hazard: 'dark', desc: 'Darkness spreads: you see almost nothing in it · the Gatekeeper pays double gold' },
@@ -8132,7 +8133,7 @@ function drawXroad(it) {
   const n = [...it.ready].filter(q => q.state === 'up').length; if (n) { ctx.font = `6px ${FONT}`; ctx.strokeText(n + ' vote' + (n > 1 ? 's' : ''), x, y + 16); ctx.fillStyle = '#fff'; ctx.fillText(n + ' vote' + (n > 1 ? 's' : ''), x, y + 16); }
 }
 
-setRules(FIRE_MODE === 'spread'); // older saves could mix the switches
+setRules(BELL_MODE || CROSS_MODE || FIRE_MODE === 'spread'); // older saves could mix the switches
 // ===== Rendering =====
 const cv = document.getElementById('game'), ctx = cv.getContext('2d');
 let W = 0, H = 0, ZOOM = 3, U = 1, DPR = 1, VIGNETTE = null;
@@ -9486,7 +9487,7 @@ function buildLords() {
   refreshLords();
 }
 function refreshLords() {
-  const NEW = FIRE_MODE === 'spread'; $('mode-classic').classList.toggle('sel', !NEW); $('mode-new').classList.toggle('sel', NEW);
+  const NEW = BELL_MODE; $('mode-classic').classList.toggle('sel', !NEW); $('mode-new').classList.toggle('sel', NEW);
   $('watch-rand').hidden = gateMode !== 'watch'; { const dim = gateMode === 'watch' && WATCH_RAND ? '0.35' : ''; $('watch-team').style.opacity = dim; $('lords').style.opacity = dim; } $('rand-off').classList.toggle('sel', !WATCH_RAND); $('rand-on').classList.toggle('sel', WATCH_RAND);
   for (const L of NIGHTLORDS) $('lord-' + L.id).classList.toggle('sel', L.id === chosenLord);
   buildWatchTeam();
