@@ -3207,7 +3207,7 @@ function recalcStats(p) {
   if (p.gems) for (const id of p.gems) { const g = GEM_BY_ID[id]; if (g && g.apply) g.apply(s); }
   s.armor = Math.min(0.6, s.armor); s.cdr = Math.min(0.6, s.cdr); s.crit = Math.min(1, s.crit); s.dodge = Math.min(0.4, s.dodge); s.statusRes = Math.min(0.7, s.statusRes); s.itemCdr = Math.min(0.6, s.itemCdr);
   passiveStats(p, s);
-  if (p.siegeT > (G ? G.time : 0)) { s.hpMul += 0.4; s.dmgAdd += 0.4; } // The Siege: 30s of fury on entering the Labyrinth
+  if (p.siegeT > (G ? G.time : 0)) { s.hpMul += 0.6; s.dmgAdd += 0.6; } // The Siege: 30s of fury on entering the Labyrinth
   const oldMax = p.maxHp || 0, L = p.level || 1;
   s.dmg = (1 + s.dmgAdd) * (1 + 0.07 * (L - 1));
   s.rateBase = s.rate; s.spdBase = s.spd;
@@ -8024,7 +8024,7 @@ const XROADS = {
   flood: { name: 'The Flood', col: '#4aa8ff', hazard: 'flood', desc: 'Water rises instead of fire: it slows, hurts less · extra chests everywhere' },
   blizzard: { name: 'Blizzard', col: '#bff4ff', hazard: 'frost', desc: 'Frost spreads: it Chills, then Freezes · the Gatekeeper leaves an extra relic chest' },
   night: { name: 'The Long Night', col: '#b48cff', hazard: 'dark', desc: 'Darkness spreads: you see almost nothing in it · the Gatekeeper pays double gold' },
-  siege: { name: 'The Siege', col: '#c8c8ff', hazard: 'fire', desc: 'Start at the Labyrinth altar, its challenge begins at once · +40% health and damage for 30s · the fire outside runs fast', spread: [0.33, 0.85] },
+  siege: { name: 'The Siege', col: '#c8c8ff', hazard: 'fire', desc: 'Start at the Labyrinth altar, its challenge begins at once · +60% health and damage for 30s · the fire outside runs fast', spread: [0.33, 0.85] },
 };
 function openCrossroads() {
   if (!G.crossMode || G.day !== 1 || G.inter.some(i => i.kind === 'xroad')) return;
