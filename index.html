@@ -2316,7 +2316,7 @@ function findPath(sx, sy, tx, ty, maxNodes = 26000) {
       const nx = cx + dx, ny = cy + dy; if (nx < 0 || ny < 0 || nx >= MW || ny >= MH) continue;
       const ni = ny * MW + nx; if (PF.seen[ni] === st) continue;
       if (G.map[ni] !== T_FLOOR && ni !== t) continue;
-      if (G.bmask && ni !== t && ((PF.stay >= 0 && G.bmask[ni] !== PF.stay) || (PF.avoid && PF.avoid.has(G.bmask[ni])))) continue;
+      if (G.bmask && ni !== t && ((PF.stay >= 0 && G.bmask[ni] !== PF.stay && G.bmask[c] === PF.stay && !(PF.open && PF.open.has(c))) || (PF.avoid && PF.avoid.has(G.bmask[ni])))) continue;
       PF.seen[ni] = st; PF.prev[ni] = c; PF.q[tl++] = ni;
     }
   }
@@ -2600,7 +2600,13 @@ function sealBlocks(e, nx, ny) {
   if (!G.chalOn) return false;
   const a = bmAt(e.x, e.y); if (a < 0) return false;
   const B = G.biomes[a]; if (!sealHolds(B)) return false;
-  return bmAt(nx, ny) !== a;
+  if (bmAt(nx, ny) === a) return false;
+  return !nearBurnt(B, e.x, e.y) && !nearBurnt(B, nx, ny);
+}
+/* a seal door the Wildfire has burnt open lets people through; the others stay shut */
+function nearBurnt(B, x, y) {
+  for (const S of B.seals) { if (!S.burnt) continue; for (const [tx, ty] of S.tiles) if (Math.abs((tx + 0.5) * TILE - x) < 26 && Math.abs((ty + 0.5) * TILE - y) < 26) return true; }
+  return false;
 }
 function chestOdds(rec) {
   return rec <= 2 ? { common: 60, rare: 32, epic: 7, legendary: 1 } : rec <= 5 ? { common: 42, rare: 40, epic: 15, legendary: 3 } : rec <= 8 ? { common: 25, rare: 42, epic: 26, legendary: 7 } : rec <= 11 ? { common: 10, rare: 38, epic: 38, legendary: 14 } : { common: 4, rare: 26, epic: 46, legendary: 24 };
@@ -2641,7 +2647,7 @@ function placeAltars() {
 }
 function startChallenge(B, p) {
   if (B.chal || B.bossKilled) return false;
-  B.chal = { t: 0, spawnT: 1, by: p, broken: false, failT: 0 };
+  B.chal = { t: 0, spawnT: 1, by: p, broken: false, failT: 0 }; for (const S of B.seals) S.burnt = false;
   G.chalOn = true;
   const altar = G.inter.find(i => i.kind === 'altar' && i.B === B);
   if (altar) { pillar(altar.x, altar.y, '#ff5a6a', 140, 22, 1.2); shock(altar.x, altar.y, 120, '#ff5a6a', 0.8); }
@@ -2688,17 +2694,24 @@ function updateChallenges(dt) {
   for (const B of G.biomes) {
     const C = B.chal; if (!C) continue;
     C.t += dt;
-    // the Wildfire burns through the seal
-    if (!C.broken && c && B.seals.some(S => S.tiles.some(([tx, ty]) => c.spread ? fireOut((tx + 0.5) * TILE, (ty + 0.5) * TILE) : Math.hypot((tx + 0.5) * TILE - c.x, (ty + 0.5) * TILE - c.y) > c.r))) {
-      C.broken = true; setBanner('The seal burns', '', 2, '#ffb070');
-      for (const S of B.seals) for (const [tx, ty] of S.tiles) burst((tx + 0.5) * TILE, (ty + 0.5) * TILE, '#ff8a2a', 8, 60, 0.6, { glow: true });
+    // the Wildfire burns open each seal door it reaches; doors it has not reached stay shut
+    if (!C.broken && c) {
+      const out = (tx, ty) => c.spread ? fireOut((tx + 0.5) * TILE, (ty + 0.5) * TILE) : Math.hypot((tx + 0.5) * TILE - c.x, (ty + 0.5) * TILE - c.y) > c.r;
+      let newly = 0;
+      const touched = B.lab && B.rooms.some(r => [[r.x, r.y], [r.x + r.w, r.y], [r.x, r.y + r.h], [r.x + r.w, r.y + r.h]].some(([x, y]) => out(x, y))); /* the Dream Palace has one gate: it burns as soon as the fire reaches any of its halls */
+      for (const S of B.seals) if (!S.burnt && (touched || S.tiles.some(([tx, ty]) => out(tx, ty)))) {
+        S.burnt = true; newly++;
+        for (const [tx, ty] of S.tiles) burst((tx + 0.5) * TILE, (ty + 0.5) * TILE, '#ff8a2a', 8, 60, 0.6, { glow: true });
+      }
+      if (B.seals.every(S => S.burnt)) C.broken = true;
+      if (newly) setBanner(C.broken ? 'The seal burns' : 'The fire burns a door open', C.broken ? '' : 'The other doors of the biome still hold.', 2, '#ffb070');
     }
     // anyone sealed in who slipped out (blinks, teleports) is put back
     if (!C.broken) for (const p of G.players) {
       if (p.state === 'dead') { p.sealB = null; continue; }
       const here = bmAt(p.x, p.y);
       if (here === B.id) { p.sealB = B; if (!hitsWall(p.x, p.y, p.r)) { p.inX = p.x; p.inY = p.y; } }
-      else if (p.sealB === B && p.inX != null) { p.x = p.inX; p.y = p.inY; p.dash = null; }
+      else if (p.sealB === B && p.inX != null) { if (nearBurnt(B, p.x, p.y) || nearBurnt(B, p.inX, p.inY)) { p.sealB = null; p.inX = null; } else { p.x = p.inX; p.y = p.inY; p.dash = null; } }
     }
     // the biome keeps spawning while the challenge lasts
     if (!B.lab && (C.spawnT -= dt) <= 0) { // (the Dream Palace never refills)
@@ -2751,6 +2764,7 @@ function drawChalVeils() {
     if (!sealHolds(B)) continue;
     for (const S of B.seals) for (const [tx, ty] of S.tiles) {
       const x = tx * TILE, y = ty * TILE;
+      if (S.burnt) { if (R() < 0.08) burst(x + 8, y + 8, '#ff8a2a', 1, 20, 0.6, { glow: true, g: -30 }); continue; }
       ctx.fillStyle = `rgba(200,106,255,${0.35 + 0.15 * Math.sin(G.time * 5 + tx + ty)})`; ctx.fillRect(x, y, TILE, TILE);
       ctx.strokeStyle = '#e8c8ff'; ctx.lineWidth = 1; ctx.strokeRect(x + 2, y + 2, TILE - 4, TILE - 4);
       if (R() < 0.04) burst(x + 8, y + 8, '#c86aff', 1, 20, 0.6, { glow: true, g: -20 });
@@ -3321,7 +3335,8 @@ function rollRewardCards(p, odds, elem) {
 }
 function itemValue(p, it) { // used by bots to pick
   if (it.active) return p.active ? 0.8 : 2.4;
-  return 1 + RARITY[it.rarity].rank * 1.2 + R() * 0.3;
+  const dmWeak = G && G.lord && ENEMY[G.lord] && ENEMY[G.lord].weak; /* bots know the run's Dungeon Master and lean toward its weakness */
+  return 1 + RARITY[it.rarity].rank * 1.2 + R() * 0.3 + (it.elem && it.elem === dmWeak ? 1.1 : 0);
 }
 // level costs (gold, spent at Krystal Shrines)
 const LEVEL_COST = [0, 0, 60, 90, 130, 180, 240, 310, 390, 480, 580, 700, 840, 1000, 1180, 1400];
@@ -5105,7 +5120,7 @@ function addBearDialogue() {
 // ===== Passives: every Krystalker has one always-on trait =====
 // base damage tuning: every Krystalker's basic attack lands near the same single-target DPS (~50 at level 1);
 // the supports (Polar Bear, Serpent, Goat, Beaver) a little lower (~42); area/chain kits a touch lower too (~44)
-const CHAR_DMG = { hedgehog: 1.14, crow: 1.34, pangolin: 0.5, reindeer: 1.6, rabbit: 1.09, wolf: 0.75, goat: 1.22, lizard: 0.54, serpent: 1.05, beaver: 1.15, owl: 0.88, monkey: 1.25, bear: 1.0 };
+const CHAR_DMG = { hedgehog: 1.14, crow: 1.34, pangolin: 0.5, reindeer: 1.6, rabbit: 1.09, wolf: 0.75, goat: 1.42, lizard: 0.54, serpent: 1.15, beaver: 1.6, owl: 0.88, monkey: 1.25, bear: 1.0 };
 const PASSIVES = {
   hedgehog: { name: 'Spiny Back', desc: 'Hits from behind you deal 40% less damage, and enemies that touch your back are pricked by your spines (damage and knockback).' },
   crow: { name: 'Arcane Echo', desc: 'Every fourth Arcane Orb explodes a second time a moment later.' },
@@ -6713,6 +6728,15 @@ function decideMode(p, A, vis) {
   if (A.fleeing > G.time && A.goal) return 'goto';
   if (A.pingEnemy && !A.pingEnemy.dead) { const pe = A.pingEnemy; if (d2(pe.x, pe.y, p.x, p.y) < 160 * 160 && losClear(p.x, p.y, pe.x, pe.y)) { A.target = pe; return 'fight'; } A.goal = { x: pe.x, y: pe.y, near: 60 }; return 'goto'; }
   const myB = biomeAt(p.x, p.y);
+  /* the ring has reached the Dream Palace: leave through the burnt gate and farm elsewhere */
+  if (myB && myB.lab && myB.chal && myB.seals.some(S => S.burnt)) {
+    const g = labGate();
+    if (g && safeAt(g.x, g.y + 30, 20, 8)) { botAnnounce(p, 'The fire reached the Dream Palace. Out, farm elsewhere!', 'labfire' + G.day); A.goal = { x: g.x, y: g.y + 30, near: 24 }; if (vis.length && vis[0].d < 50) return 'fight'; return 'goto'; }
+    /* the gate is already in the fire: hold the safe part of the palace and only fight what comes close */
+    if (vis.length && vis[0].d < 110 && safeAt(vis[0].e.x, vis[0].e.y, 10, 4)) return 'fight';
+    const sp = safePoint(p); if (d2(sp.x, sp.y, p.x, p.y) > 50 * 50) { A.goal = { x: sp.x, y: sp.y, near: 40 }; return 'goto'; }
+    return 'idle';
+  }
   if (myB && myB.chal) {
     if (myB.lab) { // in the Dream Palace the team moves as one: follow the leader, fight what is around the leader
       const ld = labLeader(myB);
@@ -7115,9 +7139,9 @@ function botAnnounce(p, msg, key) {
   feed(`${p.name}: ${msg}`, CHARS[p.char].color); p.sticker = { text: msg, t: 2.2 };
 }
 function pathRules(p, tx, ty) {
-  PF.stay = -1; PF.avoid = null; if (!G.chalOn) return;
+  PF.stay = -1; PF.avoid = null; PF.open = null; if (!G.chalOn) return;
   const here = bmAt(p.x, p.y), there = bmAt(tx, ty);
-  if (here >= 0 && sealHolds(G.biomes[here])) { PF.stay = here; return; }
+  if (here >= 0 && sealHolds(G.biomes[here])) { PF.stay = here; const ob = G.biomes[here].seals.filter(S => S.burnt); if (ob.length) { PF.open = new Set(); for (const S of ob) for (const [x, y] of S.tiles) PF.open.add(y * MW + x); } return; }
   for (const B of G.biomes) if (sealHolds(B) && B.id !== there) (PF.avoid || (PF.avoid = new Set())).add(B.id);
 }
 // a boss chest worth walking to: not yet opened by me, reachable, and the way is quiet
@@ -7183,7 +7207,7 @@ function updateBotPlan() {
   if (G.phase !== 'day' || (G.lab && G.lab.chal)) { G.botPlan = null; G.labGo = false; G.labGather = null; return; }
   if (G.chalOn && !(G.botPlan && G.botPlan.B.lab)) { G.botPlan = null; return; }
   const P0 = G.botPlan, T0 = teamLv(), labNow = G.lab && !G.lab.bossKilled && G.day === 2 && T0.avg >= 8.5 && T0.min >= 7;
-  const labReach = al => !G.circle || (G.circle.spread ? !fireOut(al.x, al.y, 40, 30) : Math.hypot(al.x - G.circle.x, al.y - G.circle.y) < G.circle.r - 40); // once inside, the Dream Palace is safe from the fire
+  const labReach = al => !G.circle || (G.lab.rooms.every(r => safeAt(r.px, r.py, 40, 45)) && safeAt(al.x, al.y, 40, 45)); /* the whole Dream Palace must stay inside the ring for the fight */
   if (P0 && !P0.B.bossKilled && !P0.B.chal && altarOf(P0.B) && (P0.B.lab ? labReach(altarOf(P0.B)) : campSafe(teamCentre(), altarOf(P0.B).x, altarOf(P0.B).y, 40, 30)) && (P0.B.lab || !labNow)) return;
   const T = teamLv(), c = teamCentre(); let best = null, bs = 1e12;
   for (const B of G.biomes) {
@@ -9878,6 +9902,7 @@ function drawHUD() {
     if (H0.state === 'downed') { txt(G.bossFight ? "YOU'RE DOWN" : `YOU'RE DOWN · ${Math.ceil(H0.downT)}s`, cx, H * 0.62, 24, '#ff8a8a', 'center'); txt(G.bossFight ? 'No timer during boss fights. Crawl toward a teammate.' : 'Crawl to a teammate. If the timer runs out you drop a level.', cx, H * 0.62 + 22 * s, 12, '#eef4fb', 'center', FONT2); }
     if (H0.state === 'dead') { const sp = camTarget(); txt(`RESPAWNING IN ${Math.ceil(H0.respawnT)} · YOUR GOLD AND A LEVEL WERE LEFT BEHIND`, cx, H * 0.62, 22, '#ff8a8a', 'center'); txt('1 · 2 · 3: watch a teammate', cx, H * 0.62 + 46 * U, 11, '#bfe9ff', 'center', FONT2); if (sp && sp !== H0) txt(`Spectating ${sp.name} · ${keyName(settings.binds.attack)} / ${keyName(settings.binds.skill)}: next teammate`, cx, H * 0.62 + 24 * s, 12, '#fff3e0', 'center', FONT2); }
   }
+  if (G.watch && G.lord && ENEMY[G.lord]) { const D = ENEMY[G.lord], wk = D.weak && ELEM[D.weak], t = `Dungeon Master: ${D.name}${wk ? ' · weak to ' + wk.name : ' · no weakness'}`, ww2 = 340 * s; panel(cx - ww2 / 2, H - pad - 58 * s, ww2, 24 * s, 0.7, 10 * s); txt(t, cx, H - pad - 41 * s, 10, wk ? wk.color : '#7ff0ff', 'center'); }
   if (G.watch) { const ww = 420 * s; panel(cx - ww / 2, H - pad - 30 * s, ww, 26 * s, 0.7, 10 * s); txt(`WATCHING BOTS · ${SIM_SPEED}x · Tab: next camera · 1-3: speed · V: reveal map & lair ${G.noFog ? "ON" : "off"} · Esc: menu`, cx, H - pad - 12 * s, 10, '#cfe8ff', 'center'); }
   if (H0 && !G.watch && !G.bigMap) drawEdgeMarkers(H0);
   if (G.stickerOpen) drawStickerWheel();
