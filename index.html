@@ -3254,7 +3254,7 @@ function recalcStats(p) {
   if (p.gems) for (const id of p.gems) { const g = GEM_BY_ID[id]; if (g && g.apply) g.apply(s); }
   s.armor = Math.min(0.6, s.armor); s.cdr = Math.min(0.6, s.cdr); s.crit = Math.min(1, s.crit); s.dodge = Math.min(0.4, s.dodge); s.statusRes = Math.min(0.7, s.statusRes); s.itemCdr = Math.min(0.6, s.itemCdr);
   passiveStats(p, s);
-  if (p.siegeT > (G ? G.time : 0)) { s.hpMul += 1; s.dmgAdd += 1; } // The Siege: 30s of fury on entering the Dream Palace
+  if (p.siegeOn && p.siegeIn) { s.hpMul += 1; s.dmgAdd += 1; } // The Siege: fury inside the Dream Palace, until death
   const oldMax = p.maxHp || 0, L = p.level || 1;
   s.dmg = (1 + s.dmgAdd) * (1 + 0.07 * (L - 1)) * (CHAR_DMG[p.char] || 1);
   s.rateBase = s.rate; s.spdBase = s.spd;
@@ -8563,7 +8563,7 @@ const XROADS = {
   flood: { name: 'The Flood', col: '#4aa8ff', hazard: 'flood', desc: 'Water rises instead of fire: it slows you as it hurts · extra chests everywhere' },
   blizzard: { name: 'Blizzard', col: '#bff4ff', hazard: 'frost', desc: 'Frost spreads: it Chills, then Freezes · the Gatekeeper leaves an extra relic chest' },
   night: { name: 'The Long Night', col: '#b48cff', hazard: 'dark', desc: 'Darkness spreads: you see almost nothing in it · the Gatekeeper pays double gold' },
-  siege: { name: 'The Siege', col: '#c8c8ff', hazard: 'fire', desc: 'Start at the Dream Palace altar, its challenge begins at once · +100% health and damage for 30s', spread: [0.33, 0.85] },
+  siege: { name: 'The Siege', col: '#c8c8ff', hazard: 'fire', desc: 'Start at the Dream Palace altar, its challenge begins at once · +100% health and damage while fighting in the Dream Palace, until you die', spread: [0.33, 0.85] },
 };
 function openCrossroads() {
   if (!G.crossMode || G.day !== 1 || G.inter.some(i => i.kind === 'xroad')) return;
@@ -8606,11 +8606,11 @@ function applyCross() {
   if (X.spread && G.fireMode === 'spread') { SPREAD_OVR = X.spread; planSpread(2); SPREAD_OVR = null; placeFireDoors(); }
   if (k === 'flood') for (const r of G.rooms) if (r.type === 'themed' && r.gx != null) { const q = randomFloorIn(r, [], 0, 2); addInter({ kind: 'chest', x: q.x, y: q.y }); }
   if (k === 'siege' && G.castle) {
-    // the team is carried straight to the Dream Palace altar, the challenge starts at once, and everyone gets 30s of fury
+    // the team is carried straight to the Dream Palace altar, the challenge starts at once, and everyone gets the Siege fury: it works inside the palace and lasts until death
     const altar = G.inter.find(i => i.kind === 'altar' && i.B === G.lab);
     if (altar && G.lab && !G.lab.bossKilled) {
       placeTeam(altar.x, altar.y + 34); startChallenge(G.lab, G.players[0]);
-      for (const p of G.players) { p.siegeT = G.time + 30; p.siegeOn = true; recalcStats(p); p.hp = p.maxHp; floatText(p.x, p.y - 34, 'Siege fury! 30s', '#ffb070', 1.4, 1.1); glow(p.x, p.y - 8, 40, '#ffb070', 0.6); }
+      for (const p of G.players) { p.siegeOn = true; p.siegeIn = true; recalcStats(p); p.hp = p.maxHp; floatText(p.x, p.y - 34, 'Siege fury!', '#ffb070', 1.4, 1.1); glow(p.x, p.y - 8, 40, '#ffb070', 0.6); }
     } else { const q = clearSpot((G.castle.x0 + 44.5) * TILE, (G.castle.y0 + 50) * TILE, 10); placeTeam(q.x, q.y); }
   }
   setBanner(`Act II · ${X.name}`, X.desc, 4, X.col);
@@ -8624,8 +8624,10 @@ function crossReward(e) {
 function updateSiegeFury() {
   for (const p of G.players) {
     if (!p.siegeOn) continue;
-    if (G.time >= p.siegeT) { p.siegeOn = false; recalcStats(p); floatText(p.x, p.y - 30, 'Fury fades', '#c8a080', 0.9); continue; }
-    if (R() < 0.25) burst(p.x + rr(-6, 6), p.y - rr(2, 18), '#ffb070', 1, 30, 0.5, { glow: true, g: -50 });
+    if (p.state !== 'up') { p.siegeOn = false; p.siegeIn = false; recalcStats(p); continue; } /* the fury lasts until you fall */
+    const inside = !!(G.lab && bmAt(p.x, p.y) === G.lab.id);
+    if (inside !== p.siegeIn) { p.siegeIn = inside; const hpK = p.hp / p.maxHp; recalcStats(p); p.hp = Math.min(p.maxHp, p.maxHp * hpK); floatText(p.x, p.y - 30, inside ? 'Siege fury!' : 'Fury sleeps outside the palace', inside ? '#ffb070' : '#c8a080', 0.9); }
+    if (inside && R() < 0.25) burst(p.x + rr(-6, 6), p.y - rr(2, 18), '#ffb070', 1, 30, 0.5, { glow: true, g: -50 });
   }
 }
 function crossGold(e) { if (G.cross === 'embers' && G.day === 2 && !e.xg) { e.xg = true; e.goldM = (e.goldM || 1) * 1.3; } }
@@ -8645,18 +8647,90 @@ function drawXroad(it) {
 setRules(true); // one rule set now: closing ring + Gatekeeper Bell + rising danger + shared time + Crossroads
 // ===== Corruptors: invaders from outside the world =====
 // Now and then (never while the ring is closing) a Corruptor tears into a biome the team has already conquered, always inside the ring.
-// It is a pool boss twisted by one of four corruptions, scaled a little above the team's strength at that moment.
+// There are four Corruptors (Nullmaw, Blightfather, Riftweaver, Shardveil), each scaled a little above the team's strength at that moment.
 // The biome turns purple and breeds corrupted monsters until the Corruptor dies. Each biome can be invaded once.
 // At most one Corruptor per Act and at least one per run. One that is left alive stays into the next Act, and no new one
 // comes while it lives. Killing it leaves a purple Font (one use: +1 flask for the whole team, for the rest of the run)
 // and a Corruptor chest of active items.
+// The four Corruptors: each a boss of its own, with its own body, moves and corruption mechanic
 const CORR_TYPES = [
-  { id: 'voidborn', title: 'Voidborn', color: '#c86aff', desc: 'Blinks behind its target every few seconds, leaving a pool of void where it stood (Gloom). Keep moving and never fight inside the pools.' },
-  { id: 'plague', title: 'Plaguebearer', color: '#a8e05a', desc: 'A sickly aura Withers everyone close to it (you deal less damage), and it keeps calling corrupted monsters to its side. Fight it from range and clear the adds.' },
-  { id: 'rift', title: 'Riftcaller', color: '#8a6aff', desc: 'Opens void rifts under its enemies that drag them toward a burning core. Step out of the circle as soon as it opens.' },
-  { id: 'mirror', title: 'Mirrorshade', color: '#e0b0ff', desc: 'At two thirds and one third of its health it splits off two mirror copies. They are weaker, but they hit hard together: burst them down.' },
+  { id: 'nullmaw', kind: 'voidborn', name: 'Nullmaw', title: 'The Hunger Between', color: '#c86aff', desc: 'A floating mouth from the nothing outside the world. It blinks behind its target every few seconds, leaving a pool of void where it stood (Gloom). Spirals of void, lunging bites. Keep moving and never fight inside the pools.' },
+  { id: 'blightfather', kind: 'plague', name: 'Blightfather', title: 'The Rot That Walks', color: '#a8e05a', desc: 'A bloated plague-priest swinging a censer. Its aura Withers everyone close to it (you deal less damage), it spills poison pools and keeps calling corrupted monsters to its side. Fight it from range and clear the adds.' },
+  { id: 'riftweaver', kind: 'rift', name: 'Riftweaver', title: 'The Spinner of Holes', color: '#8a6aff', desc: 'A spider that weaves tears in the world. It opens void rifts under its enemies that drag them toward a burning core, and shoots lines of webbed void. Step out of a rift the moment it opens.' },
+  { id: 'shardveil', kind: 'mirror', name: 'Shardveil', title: 'The Face in the Glass', color: '#e0b0ff', desc: 'A wraith behind a cracked mirror mask. At two thirds and one third of its health it splits off two mirror copies that fight beside it. Fans of glass shards and fast dashes. Burst the copies down.' },
 ];
-const CORR_INFO = 'Corruptors come from outside the world. One may tear into a biome you have already conquered (always inside the ring, never while it closes): the biome turns purple, breeds corrupted monsters, and is marked in purple on the map. Each is a pool boss twisted by a corruption, a little stronger than your team when it arrives. At most one per Act and at least one per run; one left alive stays into the next Act. Kill it for a purple Font (one use: +1 flask for the whole team for the rest of the run) and a Corruptor chest (choose 1 of 3 active items).';
+Object.assign(ENEMY, {
+  nullmaw: { weak: 'radiant', name: 'Nullmaw', hp: 19000, spd: 34, r: 17, dmg: 20, ai: 'boss', boss: true, dm: 1.3, fly: true, hitSt: ST('gloom', 2.5), shotSt: ST('gloom', 2, { ch: 0.2 }) },
+  blightfather: { weak: 'fire', name: 'Blightfather', hp: 21000, spd: 22, r: 18, dmg: 20, ai: 'boss', boss: true, dm: 1.3, hitSt: ST('wither', 3), shotSt: ST('wither', 2.5, { ch: 0.3 }) },
+  riftweaver: { weak: 'frost', name: 'Riftweaver', hp: 18500, spd: 38, r: 18, dmg: 20, ai: 'boss', boss: true, dm: 1.3, hitSt: ST('mire', 2), shotSt: ST('mire', 1.5, { ch: 0.3 }) },
+  shardveil: { weak: 'bleed', name: 'Shardveil', hp: 17500, spd: 40, r: 15, dmg: 20, ai: 'boss', boss: true, dm: 1.3, fly: true, hitSt: ST('bleed', 3, { dmg: 1.2 }), shotSt: ST('sunder', 2.5, { ch: 0.25 }) },
+});
+Object.assign(ENEMY_INFO, { nullmaw: CORR_TYPES[0].desc, blightfather: CORR_TYPES[1].desc, riftweaver: CORR_TYPES[2].desc, shardveil: CORR_TYPES[3].desc });
+for (const [k, r] of [['nullmaw', { res: { shadow: 0.5 }, stRes: { gloom: 0.8 } }], ['blightfather', { res: { poison: 0.5 }, stRes: { wither: 0.8 } }], ['riftweaver', { res: { shadow: 0.3, shock: 0.2 }, stRes: { mire: 0.6 } }], ['shardveil', { res: { radiant: 0.3, frost: 0.2 }, stRes: { sunder: 0.6 } }]])
+  BOSS_RES[k] = Object.assign({ imm: [], stImm: [], build: 2, chill: 5 }, r);
+Object.assign(ENEMY_DRAW, {
+  nullmaw(x, ph) {
+    const fl = ph == null ? 0 : Math.sin(ph) * 2;
+    x.translate(0, -10 - fl);
+    for (let i = 0; i < 5; i++) { const a = -0.9 + i * 0.45, w = ph == null ? 0 : Math.sin(ph * 1.3 + i) * 3; line(x, [[Math.sin(a) * 12, -6], [Math.sin(a) * 16 + w, 6], [Math.sin(a) * 14 - w, 14]], OUTL, 3.4); line(x, [[Math.sin(a) * 12, -6], [Math.sin(a) * 16 + w, 6], [Math.sin(a) * 14 - w, 14]], '#4a1a7a', 2); }
+    ell(x, 0, -20, 22, 19, '#2a1240', { lw: 1.2 });
+    ell(x, -4, -26, 12, 8, '#3e1c5e', { outline: false });
+    shape(x, '#0a0410', [-15, -20, 16, -4], c => { c.moveTo(-15, -14); c.quadraticCurveTo(0, -24, 16, -14); c.quadraticCurveTo(0, 2, -15, -14); c.closePath(); }, { lw: 1 });
+    for (let i = 0; i < 7; i++) { const tx = -12 + i * 4; poly(x, [[tx - 1.8, -16.6 + Math.abs(i - 3) * 0.6], [tx, -12 + Math.abs(i - 3) * 0.4], [tx + 1.8, -16.6 + Math.abs(i - 3) * 0.6]], '#f0e8ff', { lw: 0.4 }); poly(x, [[tx - 1.4, -7.6 - Math.abs(i - 3) * 0.6], [tx, -11 - Math.abs(i - 3) * 0.2], [tx + 1.4, -7.6 - Math.abs(i - 3) * 0.6]], '#d8c8f0', { lw: 0.4 }); }
+    x.fillStyle = 'rgba(200,106,255,0.5)'; x.beginPath(); x.arc(2, -12, 5, 0, Math.PI * 2); x.fill();
+    eye(x, -8, -31, 3.4, 3, '#c86aff', 0.6, 0.3); eye(x, 6, -32, 2.4, 2.2, '#c86aff', 0.6, 0.3); eye(x, 14, -27, 1.6, 1.6, '#c86aff', 0.6, 0.2);
+    hi(x, -12, -32, 3, 1.4, 0.25);
+  },
+  blightfather(x, ph) {
+    const s = legSwing(ph) * 1.2;
+    rrc(x, -9 + s, -10, 7, 10, 3, '#4a5a3a', { lw: 1 }); rrc(x, 3 - s, -10, 7, 10, 3, '#4a5a3a', { lw: 1 });
+    ell(x, 0, -22, 19, 16, '#6a7a4a', { lw: 1.2 });
+    ell(x, 3, -18, 12, 10, '#9aa86a', { outline: false });
+    for (const [a, b, r] of [[-8, -28, 2.6], [6, -14, 2.2], [-2, -12, 1.8], [10, -24, 2]]) { ell(x, a, b, r, r, '#c8d870', { lw: 0.5 }); ell(x, a - 0.6, b - 0.6, r * 0.4, r * 0.4, '#f0f8c0', { outline: false }); }
+    shape(x, '#3a3428', [-14, -48, 14, -30], c => { c.moveTo(-14, -30); c.quadraticCurveTo(-14, -48, 0, -48); c.quadraticCurveTo(14, -48, 14, -30); c.quadraticCurveTo(0, -34, -14, -30); c.closePath(); }, { lw: 1 });
+    ell(x, 2, -36, 7, 6, '#1a1810', { flat: true, outline: false });
+    eye(x, 0, -37, 1.4, 1.4, '#c8ff5a', 0.6, 0); eye(x, 5, -37, 1.4, 1.4, '#c8ff5a', 0.6, 0);
+    line(x, [[14, -26], [22, -18], [24, -8]], OUTL, 1.6); line(x, [[14, -26], [22, -18], [24, -8]], '#8a8a7a', 0.7);
+    rrc(x, 20, -8, 8, 9, 2.4, '#7a6a3a', { lw: 0.8 }); for (const k of [0, 3]) line(x, [[20.6, -6 + k], [27.4, -6 + k]], '#4a3a1a', 0.6);
+    x.fillStyle = 'rgba(168,224,90,0.5)'; for (const [a, b, r] of [[25, -12, 3], [27, -16, 2.4], [24, -19, 1.8]]) { x.beginPath(); x.arc(a, b, r, 0, Math.PI * 2); x.fill(); }
+  },
+  riftweaver(x, ph) {
+    const s = legSwing(ph) * 1.4;
+    for (const [k, lx, ly] of [[1, 8, -12], [1, 4, -12], [1, -2, -12], [1, -8, -12]]) for (const side of [-1, 1]) {
+      const ox = lx, swing = s * (lx > 0 ? 1 : -1) * side;
+      const kx = ox + side * 6 + swing, ky = ly - 14, fx0 = ox + side * 14 + swing * 1.4, fy0 = 0;
+      line(x, [[ox, ly], [kx + (lx * 0.8), ky], [fx0 + lx * 1.2, fy0]], OUTL, 3); line(x, [[ox, ly], [kx + (lx * 0.8), ky], [fx0 + lx * 1.2, fy0]], '#3a2a5a', 1.6);
+    }
+    ell(x, -12, -16, 16, 12, '#2a1a44', { lw: 1.2 });
+    line(x, [[-22, -18], [-16, -14], [-12, -20], [-6, -13]], '#c8a0ff', 2.2); line(x, [[-22, -18], [-16, -14], [-12, -20], [-6, -13]], '#ffffff', 0.7);
+    x.fillStyle = 'rgba(138,106,255,0.4)'; x.beginPath(); x.arc(-14, -16, 9, 0, Math.PI * 2); x.fill();
+    ell(x, 8, -15, 9, 7.4, '#3a2a5a', { lw: 1.1 });
+    for (const [a, b, r] of [[11, -18, 1.6], [14, -16, 1.4], [9, -20.4, 1.1], [13, -20, 1], [15.4, -13.4, 0.9]]) ell(x, a, b, r, r, '#d8a0ff', { lw: 0.4 });
+    poly(x, [[15, -11], [19, -8], [15.6, -9]], '#f0e8ff', { lw: 0.4 });
+  },
+  shardveil(x, ph) {
+    const fl = ph == null ? 0 : Math.sin(ph) * 1.6;
+    x.translate(0, -6 - fl);
+    shape(x, '#3a2a4e', [-14, -46, 14, 4], c => { c.moveTo(-12, 2); c.quadraticCurveTo(-9, -2, -6, 3); c.quadraticCurveTo(-3, -2, 0, 3); c.quadraticCurveTo(3, -2, 6, 3); c.quadraticCurveTo(9, -2, 12, 2); c.quadraticCurveTo(16, -26, 8, -40); c.quadraticCurveTo(0, -48, -8, -40); c.quadraticCurveTo(-16, -26, -12, 2); c.closePath(); }, { lw: 1.2 });
+    shape(x, '#f4f0ff', [-7, -42, 8, -26], c => { c.moveTo(-7, -38); c.quadraticCurveTo(0, -44, 8, -38); c.lineTo(6, -28); c.quadraticCurveTo(0, -24, -5, -28); c.closePath(); }, { lw: 0.9 });
+    line(x, [[1, -42], [-1, -36], [2, -32], [0, -26]], '#6a5a8a', 0.8);
+    ell(x, -2.4, -35, 1.4, 1.8, '#1a0a28', { outline: false }); ell(x, 4, -35, 1.4, 1.8, '#1a0a28', { outline: false });
+    for (const k of [-1, 1]) { x.save(); x.translate(k * 16, -20 + (ph == null ? 0 : Math.sin(ph + k) * 2)); x.rotate(k * 0.4); poly(x, [[0, -12], [3, -2], [0, 10], [-3, -2]], '#e0d0ff', { lw: 0.7 }); line(x, [[0, -10], [0, 8]], '#ffffff', 0.5); x.restore(); }
+    hi(x, -3, -40, 2.6, 1, 0.5);
+  },
+});
+Object.assign(ENEMY_BOX, { nullmaw: [60, 64], blightfather: [62, 56], riftweaver: [74, 44], shardveil: [52, 62] });
+{ const _b6 = buildArt6; buildArt6 = function () { _b6(); for (const k of ['nullmaw', 'blightfather', 'riftweaver', 'shardveil']) { const [w, h] = ENEMY_BOX[k]; SPR[k] = buildSet(ENEMY_DRAW[k], w, h, w / 2, h - 2, 3); } }; }
+{
+  const V = '#c86aff', B2 = '#a8e05a', RF = '#8a6aff', SH = '#e0b0ff';
+  Object.assign(BOSS_AI, {
+    nullmaw(e, tg, dd, spd, dt) { bossCycle(e, tg, dd, spd, dt, 50, 1.3, [(e) => P.spiral(e, 3, 2.2, 0.14, 75, 9, V), (e, t) => P.charge(e, t, 2, 300, 22, 0.5, 0.5), (e) => P.puddles(e, 28, 5, 6, 'shadow'), (e) => P.ring(e, 18, 90, 9, V, 2, 0.45)], [(e) => P.spiral(e, 4, 2.4, 0.12, 80, 9, V), (e, t) => P.charge(e, t, 3, 320, 22, 0.45, 0.5), (e) => P.puddles(e, 30, 5, 8, 'shadow'), (e, t) => P.fan(e, t, 9, 0.16, 140, 10, V, 3, 0.3)]); },
+    blightfather(e, tg, dd, spd, dt) { bossCycle(e, tg, dd, spd, dt, 90, 1.5, [(e) => P.puddles(e, 30, 5.5, 7, 'spore'), (e, t) => P.fan(e, t, 7, 0.18, 110, 10, B2, 2, 0.4), (e) => P.ring(e, 16, 85, 9, B2, 2, 0.5), (e, t) => P.slam(e, 60, 0.9, 24, 14, B2)], [(e) => P.puddles(e, 32, 5.5, 9, 'spore', 2), (e, t) => P.fan(e, t, 9, 0.16, 120, 10, B2, 3, 0.35), (e) => P.spiral(e, 3, 2.4, 0.14, 70, 9, B2), (e, t) => P.slam(e, 66, 0.8, 26, 18, B2)]); },
+    riftweaver(e, tg, dd, spd, dt) { const web = { st: ST('mire', 1.5), color: RF }; bossCycle(e, tg, dd, spd, dt, 60, 1.25, [(e, t) => P.lines(e, t, 2, 250, 20, 0.7, 24, 0.5, web), (e, t) => P.leap(e, t, 52, 0.85, 24, 14, RF), (e) => P.ring(e, 20, 95, 9, RF, 2, 0.4), (e) => P.rocks(e, 5, 24, 1, 20, 'crystal', { boom: RF })], [(e, t) => P.lines(e, t, 4, 260, 20, 0.6, 24, 0.4, web), (e, t) => P.leap(e, t, 56, 0.75, 26, 18, RF), (e) => P.spiral(e, 4, 2.4, 0.13, 78, 9, RF), (e) => P.rocks(e, 8, 24, 0.9, 22, 'crystal', { boom: RF })]); },
+    shardveil(e, tg, dd, spd, dt) { bossCycle(e, tg, dd, spd, dt, 70, 1.15, [(e, t) => P.fan(e, t, 5, 0.14, 160, 10, SH, 3, 0.25), (e, t) => P.charge(e, t, 2, 340, 22, 0.45, 0.4), (e) => P.ring(e, 22, 100, 9, SH, 2, 0.35)], [(e, t) => P.fan(e, t, 7, 0.12, 170, 10, SH, 4, 0.22), (e, t) => P.charge(e, t, 3, 360, 22, 0.4, 0.4), (e) => P.spiral(e, 4, 2.2, 0.12, 85, 9, SH), (e) => P.ring(e, 26, 105, 9, SH, 2, 0.3)]); },
+  });
+}
+const CORR_INFO = 'Corruptors come from outside the world. One may tear into a biome you have already conquered (always inside the ring, never while it closes): the biome turns purple, breeds corrupted monsters, and is marked in purple on the map. There are four of them (Nullmaw, Blightfather, Riftweaver, Shardveil), each with its own body, moves and corruption, a little stronger than your team when it arrives. At most one per Act and at least one per run; one left alive stays into the next Act. Kill it for a purple Font (one use: +1 flask for the whole team for the rest of the run) and a Corruptor chest (choose 1 of 3 active items).';
 function corrAlive() { return G.corrE && !G.corrE.dead ? G.corrE : null; }
 function corrPower() {
   const L = G.players.filter(q => q.state !== 'dead'); if (!L.length) return 1;
@@ -8672,21 +8746,20 @@ function corrCandidates(loose) {
 }
 function spawnCorruptor(B) {
   const room = corrNest(B); if (!room) return null;
-  const day = Math.min(2, G.day), pool = (day >= 2 ? NIGHT2_POOL : NIGHT1_POOL).filter(k => k !== G.night1 && k !== G.night2 && !(G.labGk || []).includes(k) && !(G.corrUsed || []).includes(k));
-  const type = pick(pool.length ? pool : (day >= 2 ? NIGHT2_POOL : NIGHT1_POOL));
-  const kind = pick(CORR_TYPES.filter(t => t.id !== G.corrLastKind)) || CORR_TYPES[0];
+  const day = Math.min(2, G.day);
+  const left = CORR_TYPES.filter(t => !(G.corrUsed || []).includes(t.id)), kind = pick(left.length ? left : CORR_TYPES), type = kind.id;
   const pw = corrPower(), base = GK_REC[day], k = clamp(pw / base, 0.45, 1.5);
-  const e = spawnEnemy(type, room.px, room.py, { hpMul: k * 0.9 });
-  e.dmgM *= clamp(k, 0.6, 1.3) * 1.05;
+  const e = spawnEnemy(type, room.px, room.py, { hpMul: k * 0.9 * (day >= 2 ? 1.7 : 1) });
+  e.dmgM *= clamp(k, 0.6, 1.3) * (day >= 2 ? 1.4 : 1);
   e.rec = Math.max(1, Math.round(pw + 1)); e.castle = true; e.corruptor = true; e.home = room; e.aggro = false; e.hx = room.px; e.hy = room.py; e.reset = 0;
-  e.variant = 'corrupt'; e.corrKind = kind.id; e.dispName = `${kind.title} ${e.def.name}`; e.corrB = B; e.corrT = 4;
+  e.corrKind = kind.kind; e.dispName = kind.name; e.corrB = B; e.corrT = 4;
   B.corrupted = true; B.corrLive = true; B.corrRoom = room;
   G.corrE = e; G.corrCount = (G.corrCount || 0) + 1; G.corrDone = G.corrDone || {}; G.corrDone[G.day] = true;
-  (G.corrUsed = G.corrUsed || []).push(type); G.corrLastKind = kind.id;
+  (G.corrUsed = G.corrUsed || []).push(type);
   G.corrCall = null; G.corrNextEval = G.time + 6;
   pillar(room.px, room.py, '#c86aff', 160, 26, 1.4); shock(room.px, room.py, 160, '#c86aff', 1); shake(7); sfx('rumble'); setTimeout(() => sfx('roar'), 300);
   for (let i = 0; i < 40; i++) burst(room.px + rr(-60, 60), room.py + rr(-40, 40), '#c86aff', 1, 60, 0.9, { glow: true, g: -40 });
-  setBanner('A Corruptor invades', `${e.dispName} has corrupted the ${B.name} (Lv ${e.rec}).`, 4, '#d88aff');
+  setBanner(`Corruptor: ${kind.name}`, `${kind.title} has corrupted the ${B.name} (Lv ${e.rec}).`, 4, kind.color);
   feed(`☠ A Corruptor, ${e.dispName}, has corrupted the ${B.name}! It is marked in purple on the map.`, '#d88aff');
   return e;
 }
@@ -8760,7 +8833,7 @@ function corrTick(e, dt) {
       for (const k of [-1, 1]) {
         const x = e.x + k * 44, y = e.y; const q = hitsWall(x, y, 10) ? { x: e.x, y: e.y } : { x, y };
         const c = spawnEnemy(e.type, q.x, q.y, { hpMul: 0.09 });
-        c.boss = false; c.home = room; c.hx = room.px; c.hy = room.py; c.aggro = true; c.variant = 'corrupt'; c.dmgM = e.dmgM * 0.45; c.rec = e.rec; c.corrMob = e.corrB; c.dispName = 'Mirror ' + e.def.name; c.scale = 0.8;
+        c.boss = false; c.home = room; c.hx = room.px; c.hy = room.py; c.aggro = true; c.variant = 'corrupt'; c.dmgM = e.dmgM * 0.45; c.rec = e.rec; c.corrMob = e.corrB; c.dispName = 'Mirror of ' + e.def.name; c.scale = 0.8;
         burst(q.x, q.y - 20, '#e0b0ff', 24, 90, 0.6, { glow: true });
       }
     }
@@ -8856,13 +8929,9 @@ function drawCorrMini(X, Y, s, big, x0, y0, bw, bh, ox, oy, mw, mh) {
 }
 // ---- Glossary ----
 function corrArchive(L) {
-  varSprite('emberdrake', 'corrupt'); L.appendChild(entry(spriteCanvas('emberdrake_corrupt', 128), 'Corruptors', 'Invaders from outside the world', CORR_INFO, '#d88aff'));
-  group(L, 'Corruptions');
-  const sprs = ['bramble', 'sporemother', 'thundertoad', 'frostfang'];
-  CORR_TYPES.forEach((t, i) => {
-    varSprite(sprs[i], 'corrupt'); const c = spriteCanvas(sprs[i] + '_corrupt', 128);
-    L.appendChild(entry(c, `${t.title} …`, 'Corruption · any pool boss', t.desc, t.color));
-  });
+  L.appendChild(entry(spriteCanvas('nullmaw', 128), 'Corruptors', 'Invaders from outside the world', CORR_INFO, '#d88aff'));
+  group(L, 'The four Corruptors');
+  for (const t of CORR_TYPES) L.appendChild(entry(spriteCanvas(t.id, 128), t.name, `${t.title} · weak to ${ELEM[ENEMY[t.id].weak].name}`, t.desc + '<br>' + resText(t.id), t.color));
 }
 
 // ---- bots: farm or fight it? One calls, everyone finishes what they are doing, they meet at the biome's entrance and go in together ----
