@@ -232,6 +232,8 @@ th { font-family: var(--display); letter-spacing: 0.08em; }
 .mphr { border: 0; border-top: 1px solid rgba(255,255,255,0.12); width: 100%; }
 .card.taken { opacity: 0.45; filter: grayscale(0.7); cursor: not-allowed; }
 .card .takenby { font-size: 12px; color: #ff9a8a; }
+#scr-archive .box { width: min(1100px, 94vw); height: min(72vh, 760px); grid-template-rows: auto minmax(0, 1fr); box-sizing: border-box; }
+#scr-archive .entries { max-height: none; height: 100%; min-height: 0; overflow-y: auto; align-content: start; }
 </style>
 
 <canvas id="game" aria-label="Krystolen game view"></canvas>
@@ -307,9 +309,9 @@ th { font-family: var(--display); letter-spacing: 0.08em; }
         <li><b>Boss chests.</b> Every boss drops a chest. Each player opens it once and picks 1 of 3 relics. Bosses with a higher recommended level give better odds. Unopened chests stay marked on your map.</li>
         <li><b>Gold</b> flies straight to your purse and is shared by the whole team. Rooms slowly refill with monsters to farm; a conquered biome only gets a few scattered stragglers. Two linked <b>teleporter rooms</b> (◎) connect far corners of the map.</li>
         <li><b>The Wildfire</b> ignites twice per Act and closes on a <b>Gatekeeper</b>; its last ring always holds the whole Gatekeeper arena. When a Gatekeeper falls its doors open, but the fire keeps burning outside the ring until the next Act is announced. Brave the flames to set off early and get a head start on Act II. Act II is longer and has stronger monsters. After Gatekeeper II a <b>portal</b> opens to <b>The Bazaar</b>. Its northern portal leads to the Dungeon Master's own arena.</li>
-        <li><b>The Labyrinth.</b> The whole castle is one great lair that sleeps until its altar is restored. Then every hall wakes at once (its monsters never come back once slain) and three tower guardians rise (Lv 10). Beat all three and the Keep's master rises in its wide throne hall (Lv 13). Clearing it is the surest way to max level (15). Plan for it in Act II with a full team.</li>
+        <li><b>The Dream Palace.</b> The whole castle is one great lair that sleeps until its altar is restored. Then every hall wakes at once (its monsters never come back once slain) and three tower guardians rise (Lv 10). Beat all three and the Keep's master rises in its wide throne hall (Lv 13). Clearing it is the surest way to max level (15). Plan for it in Act II with a full team.</li>
         <li><b>Dead?</b> Press 1, 2 or 3 to watch a teammate. If they are sealed in a challenge, you only see what is right around them.</li>
-        <li><b>Recommended level.</b> Bosses and Labyrinth monsters have a recommended level (Gatekeeper I: 5, Gatekeeper II: 10, Dungeon Master: 15). Every level you are below it, you deal 8% less damage and take 12% more. Cleared rooms slowly refill with monsters to farm.</li>
+        <li><b>Recommended level.</b> Bosses and Dream Palace monsters have a recommended level (Gatekeeper I: 5, Gatekeeper II: 10, Dungeon Master: 15). Every level you are below it, you deal 8% less damage and take 12% more. Cleared rooms slowly refill with monsters to farm.</li>
       </ol>
       <p><b>Elements and weaknesses:</b> Fire, Frost, Bleed, Poison, Shock, Shadow. Bosses list their weakness: matching hits deal +50%, matching damage over time deals double. A frozen boss is freeze-immune for 12s.</p>
       <p><b>Death.</b> Only during a Gatekeeper or Dungeon Master fight can a fallen ally be revived. Anywhere else, falling means death: you respawn at a shrine one level lower, and <b>all your gold</b> (plus that level's cost) stays where you fell. The spot is marked on your map and by an arrow at the edge of the screen. Die again before you get back and it is gone.</p>
@@ -932,6 +934,13 @@ function makeFloor(t, v, seed) {
     for (let i = 0; i < 3; i++) { const cx = rnd() * 64, cy = rnd() * 64, r = 14 + rnd() * 18, gg = x.createRadialGradient(cx, cy, 1, cx, cy, r); gg.addColorStop(0, rnd() < 0.5 ? 'rgba(200,90,255,0.35)' : 'rgba(90,160,255,0.3)'); gg.addColorStop(1, 'rgba(0,0,0,0)'); x.fillStyle = gg; x.fillRect(0, 0, S, S); }
     for (let i = 0; i < 14; i++) { x.fillStyle = `rgba(255,255,255,${0.4 + rnd() * 0.6})`; const r = rnd() < 0.85 ? 0.7 : 1.4; x.beginPath(); x.arc(rnd() * 64, rnd() * 64, r, 0, Math.PI * 2); x.fill(); }
     x.strokeStyle = 'rgba(180,120,255,0.25)'; x.lineWidth = 1; x.strokeRect(0.5, 0.5, 63, 63);
+  } else if (t.kind === 'dream') {
+    // pale marble with soft cloud swirls and a few stars (the Dream Palace)
+    const g = x.createLinearGradient(0, 0, 64, 64); g.addColorStop(0, light(base, 0.12)); g.addColorStop(1, dark(base, 0.08)); x.fillStyle = g; x.fillRect(0, 0, S, S);
+    for (let i = 0; i < 3; i++) { const cx = rnd() * 64, cy = rnd() * 64, r = 12 + rnd() * 16, gg = x.createRadialGradient(cx, cy, 1, cx, cy, r); gg.addColorStop(0, rnd() < 0.5 ? 'rgba(255,220,250,0.35)' : 'rgba(200,220,255,0.3)'); gg.addColorStop(1, 'rgba(255,255,255,0)'); x.fillStyle = gg; x.fillRect(0, 0, S, S); }
+    x.strokeStyle = t.hall ? 'rgba(255,230,170,0.35)' : 'rgba(255,240,200,0.45)'; x.lineWidth = 1.2; x.strokeRect(1, 1, 62, 62);
+    if (v === 1) { x.strokeStyle = 'rgba(255,235,180,0.5)'; x.beginPath(); x.moveTo(32, 18); x.lineTo(35, 29); x.lineTo(46, 32); x.lineTo(35, 35); x.lineTo(32, 46); x.lineTo(29, 35); x.lineTo(18, 32); x.lineTo(29, 29); x.closePath(); x.stroke(); }
+    for (let i = 0; i < 6; i++) { x.fillStyle = `rgba(255,255,255,${0.3 + rnd() * 0.5})`; x.beginPath(); x.arc(rnd() * 64, rnd() * 64, 0.8, 0, Math.PI * 2); x.fill(); }
   } else if (t.kind === 'orange') {
     x.fillStyle = '#7a3e12'; x.fillRect(0, 0, S, S);
     x.beginPath(); x.roundRect(3, 3, 58, 58, 8); const g = x.createLinearGradient(0, 0, 0, 64); g.addColorStop(0, '#ffc45a'); g.addColorStop(0.5, '#ef9a30'); g.addColorStop(1, '#c8691e'); x.fillStyle = g; x.fill();
@@ -1669,7 +1678,7 @@ Object.assign(HUB_DRAW, {
 Object.assign(PROP_DRAW, {
   icepillar(x) { poly(x, [[-6, 0], [-7, -16], [-3, -24], [3, -25], [7, -17], [6, 0]], '#bfe6fa', { lw: 0.9 }); poly(x, [[-3, -2], [-3.6, -18], [0, -22], [1.6, -14], [0.6, -2]], '#ffffff', { outline: false }); ell(x, 0, 0, 7, 1.8, '#e8faff', { outline: false }); },
 });
-for (const t of [{ name: 'castle', kind: 'plaza', base: '#9a98aa' }, { name: 'castlehall', kind: 'plaza', base: '#8a8496' }, { name: 'void', kind: 'void', base: '#2a1650' }]) { TH[t.name] = THEMES.length; THEMES.push(t); }
+for (const t of [{ name: 'castle', kind: 'plaza', base: '#9a98aa' }, { name: 'castlehall', kind: 'plaza', base: '#8a8496' }, { name: 'void', kind: 'void', base: '#2a1650' }, { name: 'dream', kind: 'dream', base: '#b8a6e0' }, { name: 'dreamhall', kind: 'dream', base: '#a898d0', hall: true }]) { TH[t.name] = THEMES.length; THEMES.push(t); }
 function stoneTex(seed, face) {
   const S = 64, c = mkCanvas(S, S), x = c.getContext('2d'), rnd = seededRand(seed);
   x.fillStyle = face ? '#4a4a5c' : '#6a6a80'; x.fillRect(0, 0, S, S);
@@ -1678,10 +1687,21 @@ function stoneTex(seed, face) {
   if (face) { x.fillStyle = 'rgba(20,16,30,0.35)'; x.fillRect(0, S - 10, S, 10); x.fillStyle = '#5ab04a'; for (let i = 0; i < 3; i++) { const gx = rnd() * 60; x.beginPath(); x.arc(gx, S - 4, 3, 0, Math.PI * 2); x.fill(); } }
   return c;
 }
+// the Dream Palace: pearly lavender stone, pale gold seams, a few stars caught in the walls
+function dreamWallTex(seed, face) {
+  const S = 64, c = mkCanvas(S, S), x = c.getContext('2d'), rnd = seededRand(seed);
+  const g = x.createLinearGradient(0, 0, 0, S); g.addColorStop(0, face ? '#6a5a9a' : '#9a88cc'); g.addColorStop(1, face ? '#4a3a78' : '#7e6cb4'); x.fillStyle = g; x.fillRect(0, 0, S, S);
+  const rows = face ? 4 : 3, h = S / rows;
+  for (let r = 0; r < rows; r++) { const off = (r % 2) * 14; for (let bx = -14; bx < S; bx += 28) { const t = (rnd() - 0.5) * 0.16, base = face ? '#8a78c0' : '#b8a8e8', col = t > 0 ? light(base, t) : dark(base, -t); x.fillStyle = col; x.beginPath(); x.roundRect(bx + off + 1.5, r * h + 1.5, 25, h - 3, 4); x.fill(); x.strokeStyle = 'rgba(255,230,170,0.35)'; x.lineWidth = 1; x.stroke(); } }
+  for (let i = 0; i < 5; i++) { x.fillStyle = `rgba(255,255,255,${0.4 + rnd() * 0.5})`; x.beginPath(); x.arc(rnd() * 64, rnd() * 64, rnd() < 0.8 ? 0.8 : 1.5, 0, Math.PI * 2); x.fill(); }
+  if (face) { const fg = x.createLinearGradient(0, 44, 0, 64); fg.addColorStop(0, 'rgba(40,20,70,0)'); fg.addColorStop(1, 'rgba(40,20,70,0.55)'); x.fillStyle = fg; x.fillRect(0, 44, S, 20); }
+  return c;
+}
 function buildArt4() {
   for (const k of ['phoenix', 'rimehorn', 'stormcoil', 'sovereign', 'sovereign2', 'vesper']) { const [w, h] = ENEMY_BOX[k]; SPR[k] = buildSet(ENEMY_DRAW[k], w, h, w / 2, h - 2, 3); }
   TEX.castleTop = [0, 1, 2].map(i => stoneTex(900 + i * 13, false));
   TEX.castleFace = [0, 1, 2].map(i => stoneTex(950 + i * 17, true));
+  TEX.dreamTop = [0, 1, 2].map(i => dreamWallTex(1100 + i * 7, false)); TEX.dreamFace = [0, 1, 2].map(i => dreamWallTex(1150 + i * 11, true));
   darkFantasy();
 }
 // ===== dark fantasy pass: grim, desaturated dungeon stone instead of a sunny meadow =====
@@ -1720,7 +1740,7 @@ function abyssTex(seed) {
   return c;
 }
 function darkFantasy() {
-  TEX.floor.forEach((set, i) => { if (THEMES[i].kind !== 'void') for (const c of set) gradeTex(c, '#7e7688', 0.5); });
+  TEX.floor.forEach((set, i) => { if (THEMES[i].kind !== 'void' && THEMES[i].kind !== 'dream') for (const c of set) gradeTex(c, '#7e7688', 0.5); });
   TEX.canopy = [0, 1, 2].map(i => dunTex(700 + i * 11, false));
   TEX.hedge = [0, 1, 2].map(i => dunTex(760 + i * 13, true));
   TEX.forest = [0, 1, 2].map(i => abyssTex(820 + i * 7));
@@ -2056,9 +2076,10 @@ function generateDungeon() {
   const NB = byDist.length, nE = Math.max(1, Math.round(NB * 0.28)), nN = Math.round(NB * 0.28), nH = Math.round(NB * 0.24);
   G.biomes = [];
   const cellBiome = {}, cellTier = {};
+  const usedTpl = new Set();
   byDist.forEach((o, i) => {
     const tier = i < nE ? 1 : i < nE + nN ? 2 : i < nE + nN + nH ? 3 : 4;
-    const tpl = themes[i % themes.length];
+    const tpl = pickBiomeTpl(tier, usedTpl); /* each tier draws from its own pool */
     const B = { id: i, tpl, tier, rooms: [], bossRoom: null, bossKilled: false, cells: o.cl };
     G.biomes.push(B); for (const k of o.cl) { cellBiome[k] = B; cellTier[k] = tier; }
   });
@@ -2226,7 +2247,7 @@ const MAPCOL = {};
 function tileMapColor(i) {
   const t = G.map[i];
   if (t === T_FLOOR || t === T_DOOR || t === T_CRATE) return THEMES[G.theme[i]].base;
-  if (t === T_WALL) return G.wstyle[i] ? '#6a6a7e' : '#2f5a32';
+  if (t === T_WALL) return G.wstyle[i] === 3 ? '#9a88cc' : G.wstyle[i] ? '#6a6a7e' : '#2f5a32';
   if (t === T_PROP) return G.prop.get(i) === 'water' ? '#4a9ab8' : G.prop.get(i) === 'lava' ? '#e8602a' : '#6a5a48';
   return '#10241a';
 }
@@ -2446,23 +2467,23 @@ const BOSS_LORE = {
   emberdrake: 'A young dragon, already a furnace.',
   bonecolossus: 'Built from every Krystalker who failed before you.',
 };
-// ===== The Labyrinth: a fixed triangular fortress (3 corner towers + central keep) at a random spot each run =====
+// ===== The Dream Palace: a fixed triangular fortress (3 corner towers + central keep) at a random spot each run =====
 const TIER_REC = [0, 1, 3, 5, 8];
 const TIER_HP = [1, 0.8, 1, 1.3, 1.65], TIER_DMG = [1, 0.85, 1, 1.15, 1.3];
 const TIER_NAME = ['', 'Easy', 'Normal', 'Hard', 'Deadly'];
-// the Labyrinth: its halls hold the strongest monsters in the realm
+// the Dream Palace: its halls hold the strongest monsters in the realm
 const LAB_HP = 0.85, LAB_DMG = 0.75, LAB_GOLD = 1.2; // the whole castle wakes at once, so its monsters are a little softer
 const LAB_BOSS_HP = 1.0, /* tower Gatekeepers: 1.9 → 1.33 → 1.0 */ LAB_BOSS_DMG = 1.3, KEEP_HP = 1.65, /* 2.2 → 1.65 */ KEEP_DMG = 1.3;
 const TIER_COL = ['', '#7ae07a', '#ffe06a', '#ff9a4a', '#ff5a6a'];
-const CASTLE_TPL = { id: 'castle', name: 'The Labyrinth', floor: 'castle', elem: null, mobs: { bonewalker: 3, shardling: 2, brute: 1, hushling: 2, frostling: 1, emberling: 1, shade: 1, boar: 1 }, boss: null };
+const CASTLE_TPL = { id: 'castle', name: 'The Dream Palace', floor: 'castle', elem: null, mobs: { bonewalker: 3, shardling: 2, brute: 1, hushling: 2, frostling: 1, emberling: 1, shade: 1, boar: 1 }, boss: null };
 // west half + centre; the east half is mirrored (x' = 89 - x - w, point x' = 88 - x)
 const CASTLE_ROOMS = [
-  ['north', 37, 1, 15, 13, 'tower', 'North Tower'], ['keep', 31, 15, 27, 18, 'keep', 'The Keep'], ['hall', 39, 38, 11, 7, 'hall', 'Gate Hall'],
-  ['sw', 2, 32, 15, 13, 'tower', 'West Tower'], ['w1', 27, 38, 7, 7, 'chamber', 'Barracks'], ['w2', 17, 26, 7, 7, 'chamber', 'Armory'], ['w3', 6, 16, 7, 7, 'chamber', 'Crypt'], ['w4', 20, 4, 9, 7, 'chamber', 'Gallery'],
+  ['north', 34, 1, 21, 13, 'tower', 'North Tower'], ['keep', 31, 15, 27, 18, 'keep', 'The Keep'], ['hall', 39, 38, 11, 7, 'hall', 'Gate Hall'],
+  ['sw', 2, 26, 14, 19, 'tower', 'West Tower'], ['w1', 27, 38, 7, 7, 'chamber', 'Barracks'], ['w2', 17, 26, 7, 7, 'chamber', 'Armory'], ['w3', 6, 16, 7, 7, 'chamber', 'Crypt'], ['w4', 20, 4, 9, 7, 'chamber', 'Gallery'],
 ];
 const CASTLE_PATHS = [
   [[44, 38], [44, 32]],
-  [[39, 41], [33, 41]], [[30, 38], [30, 34], [21, 34], [21, 32]], [[17, 29], [10, 29], [10, 33]], [[20, 26], [20, 24], [9, 24], [9, 22]], [[12, 19], [24, 19], [24, 10]], [[28, 7], [38, 7]],
+  [[39, 41], [33, 41]], [[30, 38], [30, 34], [21, 34], [21, 32]], [[17, 29], [10, 29], [10, 33]], [[20, 26], [20, 23], [9, 23], [9, 22]], [[12, 19], [24, 19], [24, 10]], [[28, 7], [38, 7]],
 ];
 const MIRROR = { sw: 'se', w1: 'e1', w2: 'e2', w3: 'e3', w4: 'e4' };
 const MIRROR_NAME = { 'West Tower': 'East Tower', Barracks: 'Barracks', Armory: 'Chapel', Crypt: 'Ossuary', Gallery: 'Library' };
@@ -2474,7 +2495,7 @@ function buildCastle(cg) {
   const ox = cg.gx0 * CW, oy = cg.gy0 * CH;
   // stone mass: a triangle plus the three corner towers
   const inTri = (x, y) => { const t = (y + 4) / 51; const half = t * 50; return y <= 47 && y >= -4 && Math.abs(x - 44.5) <= half; };
-  const towers = [[2, 32, 15, 13], [72, 32, 15, 13], [37, 1, 15, 13]];
+  const towers = [[2, 26, 14, 19], [73, 26, 14, 19], [34, 1, 21, 13]];
   for (let y = 0; y < 48; y++) for (let x = 0; x < 90; x++) {
     const inT = towers.some(([a, b, w, h]) => x >= a - 2 && x < a + w + 2 && y >= b - 2 && y < b + h + 2);
     if (inTri(x, y) || inT) { const X = ox + x, Y = oy + y; if (tget(X, Y) === T_VOID) tset(X, Y, T_WALL); }
@@ -2483,22 +2504,22 @@ function buildCastle(cg) {
   for (const d of CASTLE_ROOMS) { defs.push(d); if (MIRROR[d[0]]) defs.push([MIRROR[d[0]], 89 - d[1] - d[3], d[2], d[3], d[4], d[5], MIRROR_NAME[d[6]] || d[6]]); }
   G.castle = { x0: ox, y0: oy, rooms: [] };
   for (const [id, x, y, w, h, sub, name] of defs) {
-    const r = makeRoom(null, null, 'castle', { x: ox + x, y: oy + y, w, h, th: sub === 'chamber' || sub === 'hall' ? TH.castlehall : TH.castle, tpl: CASTLE_TPL });
+    const r = makeRoom(null, null, 'castle', { x: ox + x, y: oy + y, w, h, th: sub === 'chamber' || sub === 'hall' ? TH.dreamhall : TH.dream, tpl: CASTLE_TPL });
     Object.assign(r, { castle: true, sub, key: id, cname: name, danger: 4, rec: sub === 'keep' ? 11 : 10, cleared: false, hasBoss: false });
     G.castle.rooms.push(r); G.castle[id] = r;
   }
   const paths = [];
   for (const P of CASTLE_PATHS) { paths.push(P); if (P[0][0] !== 44 || P[P.length - 1][0] !== 44) paths.push(P.map(([x, y]) => [88 - x, y])); }
-  for (const P of paths) for (let i = 0; i < P.length - 1; i++) castleCarve(ox + P[i][0], oy + P[i][1], ox + P[i + 1][0], oy + P[i + 1][1], TH.castlehall);
+  for (const P of paths) for (let i = 0; i < P.length - 1; i++) castleCarve(ox + P[i][0], oy + P[i][1], ox + P[i + 1][0], oy + P[i + 1][1], TH.dreamhall);
   // main gate: straight down out of the Gate Hall to the room below
-  const gx = ox + 44; castleCarve(gx, oy + 44, gx, oy + 47, TH.castlehall);
+  const gx = ox + 44; castleCarve(gx, oy + 44, gx, oy + 47, TH.dreamhall);
   const B = G.grid[cg.gate[0]][cg.gate[1]];
   if (B) {
     const bx = clamp(gx, B.x + CORR, B.x + B.w - 1 - CORR);
     if (bx === gx) carveV(oy + 48, B.y - 1, gx); else { const my = oy + 49; carveV(oy + 48, my, gx); carveH(gx, bx, my); carveV(my, B.y - 1, bx); }
     const kn = doorKey(B, 'n'); B.doorPos[kn] = bx; B.doors[kn] = 'castle'; B.doorTiles[kn] = doorTilesFor(B, kn);
   }
-  for (let y = -1; y < 50; y++) for (let x = -1; x < 91; x++) { const X = ox + x, Y = oy + y; if (X >= 0 && Y >= 0 && X < MW && Y < MH && tget(X, Y) === T_WALL && (y >= 0 && y < 48 && x >= 0 && x < 90)) G.wstyle[Y * MW + X] = 1; }
+  for (let y = -1; y < 50; y++) for (let x = -1; x < 91; x++) { const X = ox + x, Y = oy + y; if (X >= 0 && Y >= 0 && X < MW && Y < MH && tget(X, Y) === T_WALL && (y >= 0 && y < 48 && x >= 0 && x < 90)) G.wstyle[Y * MW + X] = 3; /* pearly dream walls */ }
   G.castle.towers = [G.castle.north, G.castle.sw, G.castle.se]; G.castle.keepRoom = G.castle.keep;
 }
 function decorateCastle(room) {
@@ -2507,8 +2528,8 @@ function decorateCastle(room) {
   else if (room.sub === 'chamber') { const ks = ['bones', 'grave', 'barrel', 'brazier']; P(room.x + 1, room.y + 1, pick(ks)); P(room.x + room.w - 2, room.y + room.h - 2, pick(ks)); }
   else if (room.sub === 'hall') { P(room.x + 1, room.y + 1, 'brazier'); P(room.x + room.w - 2, room.y + 1, 'brazier'); }
 }
-// the whole Labyrinth is one lair: its monsters wake when the challenge starts, roam every hall, and never come back once slain
-function labArea() { const C = G.castle; if (!C) return null; if (!C.all) C.all = { x: C.x0, y: C.y0, w: 90, h: 48, px: (C.x0 + 45) * TILE, py: (C.y0 + 30) * TILE, type: 'castle', castle: true, all: true, cname: 'The Labyrinth', rec: 10, tpl: CASTLE_TPL }; return C.all; }
+// the whole Dream Palace is one lair: its monsters wake when the challenge starts, roam every hall, and never come back once slain
+function labArea() { const C = G.castle; if (!C) return null; if (!C.all) C.all = { x: C.x0, y: C.y0, w: 90, h: 48, px: (C.x0 + 45) * TILE, py: (C.y0 + 30) * TILE, type: 'castle', castle: true, all: true, cname: 'The Dream Palace', rec: 10, tpl: CASTLE_TPL }; return C.all; }
 function labActive() { return !!(G.lab && G.lab.chal); }
 function spawnLabMobs() {
   if (!G.castle || G.labMobsDone) return; G.labMobsDone = true;
@@ -2520,7 +2541,7 @@ function spawnLabMobs() {
   }
 }
 // castle bosses: three Gatekeepers in the towers, a Dungeon Master in the Keep
-function spawnCastleBosses() { /* the Labyrinth's guardians now rise only when its challenge begins */ }
+function spawnCastleBosses() { /* the Dream Palace's guardians now rise only when its challenge begins */ }
 function spawnLabTowers() {
   if (!G.castle) return;
   if (!G.labGk) { const used = [G.night1, G.night2]; G.labGk = shuffle([...NIGHT1_POOL, ...NIGHT2_POOL].filter(k => !used.includes(k))).slice(0, 3); }
@@ -2530,7 +2551,7 @@ function spawnLabTowers() {
 function spawnKeep() {
   const dms = DM_IDS.filter(k => k !== G.lord && k !== 'sovereign');
   const k = G.labDm || (G.labDm = pick(dms)); castleBoss(k, G.castle.keep, 0.75 * KEEP_HP, KEEP_DMG); G.castle.keep.bossType = k; G.castle.keep.hasBoss = true;
-  setBanner('The Keep opens', `${ENEMY[k].name} rises at the heart of the Labyrinth.`, 3, '#ff8a8a'); shake(6);
+  setBanner('The Keep opens', `${ENEMY[k].name} rises at the heart of the Dream Palace.`, 3, '#ff8a8a'); shake(6);
 }
 function oldSpawnCastleBosses() {
   if (!G.castle) return;
@@ -2543,10 +2564,11 @@ function oldSpawnCastleBosses() {
 function castleBoss(type, room, hpMul, dmgMul) {
   const e = spawnEnemy(type, room.px, room.py, { hpMul });
   e.dmgM *= dmgMul; e.rec = room.rec; e.castle = true; e.home = room; e.aggro = false; e.hx = room.px; e.hy = room.py; e.reset = 0; room.boss = e;
+  e.variant = 'dream'; e.dispName = 'Dreaming ' + e.def.name; // a dream-born copy: its own ghostly look and name
   return e;
 }
 // ===== Biome challenges: restore a broken altar, the biome seals, its boss rises somewhere inside =====
-// Each biome (and the Labyrinth) owns a tile mask. While its challenge runs and the seal holds,
+// Each biome (and the Dream Palace) owns a tile mask. While its challenge runs and the seal holds,
 // nobody inside can leave, newcomers can walk in (and are then sealed too), and vision is split
 // between the inside and the outside.
 const CHAL_SPAWN_T = 5, CHAL_FAIL_T = 1.5;
@@ -2558,11 +2580,13 @@ function buildBiomeMask() {
   for (const B of G.biomes) {
     for (const r of B.rooms) for (let y = r.y - 1; y <= r.y + r.h; y++) for (let x = r.x - 1; x <= r.x + r.w; x++) if (x >= 0 && y >= 0 && x < MW && y < MH) G.bmask[y * MW + x] = B.id;
     for (const i of B.corr || []) G.bmask[i] = B.id;
+    /* the corridor walls belong to the biome too, so the veil never pinches a corridor */
+    for (const i of B.corr || []) { const cx = i % MW, cy = (i / MW) | 0; for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) { const j = (cy + dy) * MW + cx + dx; if (j >= 0 && j < MW * MH && G.bmask[j] < 0 && G.map[j] !== T_FLOOR && G.map[j] !== T_DOOR) G.bmask[j] = B.id; } }
     for (const fr of G.fontRooms || []) if (fr.host && fr.host.biome === B) { for (let y = fr.y - 1; y <= fr.y + fr.h; y++) for (let x = fr.x - 1; x <= fr.x + fr.w; x++) G.bmask[y * MW + x] = B.id; for (const [cx, cy] of fr.cor) G.bmask[cy * MW + cx] = B.id; }
     B.seals = []; for (const r of B.rooms) for (const k of r.extDoors || []) B.seals.push({ room: r, key: k, tiles: r.doorTiles[k] });
   }
   if (G.castle) {
-    const C = G.castle, L = { id: G.biomes.length, lab: true, tpl: CASTLE_TPL, tier: 4, rooms: C.rooms, rec: 10, name: 'The Labyrinth', altarRoom: C.hall, seals: [], bossKilled: false };
+    const C = G.castle, L = { id: G.biomes.length, lab: true, tpl: CASTLE_TPL, tier: 4, rooms: C.rooms, rec: 10, name: 'The Dream Palace', altarRoom: C.hall, seals: [], bossKilled: false };
     G.biomes.push(L); G.lab = L; C.biome = L;
     for (let y = 0; y < 48; y++) for (let x = 0; x < 90; x++) { const X = C.x0 + x, Y = C.y0 + y; if (tget(X, Y) !== T_VOID) G.bmask[Y * MW + X] = L.id; }
     const gx = C.x0 + 44, gy = C.y0 + 47; L.seals.push({ room: C.hall, key: 'gate', tiles: [[gx - 1, gy], [gx, gy], [gx + 1, gy]] });
@@ -2622,8 +2646,9 @@ function startChallenge(B, p) {
   const altar = G.inter.find(i => i.kind === 'altar' && i.B === B);
   if (altar) { pillar(altar.x, altar.y, '#ff5a6a', 140, 22, 1.2); shock(altar.x, altar.y, 120, '#ff5a6a', 0.8); }
   shake(6); sfx('rumble');
+  if (!B.lab) { for (const r of B.rooms) revealRoom(r); for (const i of B.corr || []) revealTile(i); }
   for (const S of B.seals) for (const [tx, ty] of S.tiles) burst((tx + 0.5) * TILE, (ty + 0.5) * TILE, '#c86aff', 6, 50, 0.6, { glow: true });
-  if (B.lab) { spawnLabMobs(); spawnLabTowers(); setBanner('The Labyrinth wakes', 'Every hall stirs and three guardians rise in the towers.', 3, '#ff8a8a'); }
+  if (B.lab) { spawnLabMobs(); spawnLabTowers(); setBanner('The Dream Palace wakes', 'Every hall stirs and three guardians rise in the towers.', 3, '#ff8a8a'); }
   else {
     const empty = B.rooms.filter(r => !G.players.some(q => q.state !== 'dead' && inRoom(r, q.x, q.y, 20)));
     const room = pick(empty.length ? empty : B.rooms), type = B.tpl.boss[Math.min(1, G.day - 1)];
@@ -2632,7 +2657,7 @@ function startChallenge(B, p) {
     B.chal.boss = e; B.bossRoom = room; room.hasBoss = true;
     setBanner(`${B.name}: challenge`, `${e.def.name} awakens in the biome.`, 3, '#ff8a8a');
   }
-  if (p) feed(`${p.isBot ? p.name : 'You'} restored the altar: ${B.lab ? "the Labyrinth" : "the " + B.name} is sealed.`, '#ff9a8a');
+  if (p) feed(`${p.isBot ? p.name : 'You'} restored the altar: ${B.lab ? "the Dream Palace" : "the " + B.name} is sealed.`, '#ff9a8a');
   return true;
 }
 function chalInside(B) { return G.players.filter(q => (q.state === 'up' || q.state === 'downed') && bmAt(q.x, q.y) === B.id); }
@@ -2676,7 +2701,7 @@ function updateChallenges(dt) {
       else if (p.sealB === B && p.inX != null) { p.x = p.inX; p.y = p.inY; p.dash = null; }
     }
     // the biome keeps spawning while the challenge lasts
-    if (!B.lab && (C.spawnT -= dt) <= 0) { // (the Labyrinth never refills)
+    if (!B.lab && (C.spawnT -= dt) <= 0) { // (the Dream Palace never refills)
       C.spawnT = CHAL_SPAWN_T;
       for (const r of B.rooms) {
         if (B.lab && (r.sub === 'tower' || r.sub === 'keep')) continue;
@@ -2801,11 +2826,11 @@ function damage(target, amt, src, o = {}) {
     if (target.hp <= 0) downPlayer(target); else playerAfterHurt(target);
     return amt;
   }
-  if (target.labMob && !labActive()) { if (src && !src.isBot && src.team === 'player' && (target.oorT || 0) < G.time) { target.oorT = G.time + 1.5; floatText(target.x, target.y - target.r - 12, 'Dormant: restore the Labyrinth altar', '#c8c8ff', 0.9); } return 0; }
+  if (target.labMob && !labActive()) { if (src && !src.isBot && src.team === 'player' && (target.oorT || 0) < G.time) { target.oorT = G.time + 1.5; floatText(target.x, target.y - target.r - 12, 'Dormant: restore the Dream Palace altar', '#c8c8ff', 0.9); } return 0; }
   if (target.invT > 0) { if (settings.dmgNumbers && R() < 0.2) floatText(target.x, target.y - target.r - 12, 'immune', '#9aa4bd', 0.4); return 0; }
   // rooms can only be fought from inside: attacks from the corridor do nothing
   const lair = lairOf(target);
-  if (lair && src && src.team === 'player' && !o.minion && !inRoom(lair, src.x, src.y, 14)) { if (!src.isBot && (target.oorT || 0) < G.time) { target.oorT = G.time + 1.2; floatText(target.x, target.y - target.r - 12, 'Enter the room to fight', '#ffe6a0', 0.8); } return 0; }
+  if (lair && src && src.team === 'player' && !o.minion && !inRoom(lair, src.x, src.y, 14) && !chalReach(lair, src)) { if (!src.isBot && (target.oorT || 0) < G.time) { target.oorT = G.time + 1.2; floatText(target.x, target.y - target.r - 12, 'Enter the room to fight', '#ffe6a0', 0.8); } return 0; }
   if (!target.aggro) aggroRoom(target);
   let crit = false;
   if (src && src.team === 'player') { const r = playerHitMods(src, target, amt, o); amt = r.amt; crit = r.crit; }
@@ -2858,9 +2883,16 @@ function explode(x, y, r, dmg, src, o = {}) {
 }
 
 // ===== Enemy hurtboxes: an upright capsule covering the whole sprite, not just the feet =====
+// dream-born (Dream Palace) and corrupted (Corruptor) copies of a monster get their own recoloured sprite set
+function varSprite(key, v) {
+  const k = key + '_' + v; if (SPR[k]) return SPR[k]; const S = SPR[key]; if (!S) return null;
+  const col = v === 'dream' ? '#c9a2ff' : '#4a0a7a', a = v === 'dream' ? 0.5 : 0.72;
+  const T = { walk: S.walk.map(f => tintFrame(f, col, a)), flash: S.flash, idle: tintFrame(S.idle, col, a), flashIdle: S.flashIdle }; SPR[k] = T; return T;
+}
+function sprOf(e) { if (e.variant) { const T = varSprite(e.sprite || e.type, e.variant); if (T) return T; } return SPR[e.sprite + (e.tint ? '_d2' : '')] || SPR[e.sprite] || SPR[e.type]; }
 function hurtBox(e) {
   if (e.hbTop != null) return;
-  const S = SPR[e.sprite + (e.tint ? '_d2' : '')] || SPR[e.sprite] || SPR[e.type], f = S && S.idle, sc = e.scale || 1;
+  const S = sprOf(e), f = S && S.idle, sc = e.scale || 1;
   if (!f) { e.hbTop = e.r * 2; e.hbR = e.r; return; }
   e.hbR = Math.max(e.r, Math.min(f.w * sc * 0.34, f.oy * sc * 0.42));
   e.hbTop = Math.max(e.hbR * 1.6, f.oy * sc * 0.88);
@@ -3030,7 +3062,7 @@ function useInter(it, p) {
   const pr = interPrompt(it, p); if (!pr || pr.locked) return false;
   if (pr.cost && p.gold < pr.cost) { if (!p.isBot) floatText(p.x, p.y - 30, 'Not enough gold', '#ff8a8a'); return false; }
   switch (it.kind) {
-    case 'chest': if (!p.isBot) sfx('chest'); p.gold -= pr.cost; it.used = true; if (!it.free) p.chests = (p.chests || 0) + 1; if (!p.isBot) questEvent('chest'); burst(it.x, it.y - 6, it.rare ? '#c070ff' : '#ffd44a', 22, 90, 0.6, { glow: true }); glow(it.x, it.y - 8, 30, it.rare ? '#c070ff' : '#ffd44a', 0.4); giveItem(p, rollRelic(p, it.rare ? ODDS.rareChest : it.free ? ODDS.room1 : ODDS.chest)); break;
+    case 'chest': if (!p.isBot) sfx('chest'); p.gold -= pr.cost; it.used = true; if (!it.free) p.chests = (p.chests || 0) + 1; if (!p.isBot) questEvent('chest'); burst(it.x, it.y - 6, it.rare ? '#c070ff' : '#ffd44a', 22, 90, 0.6, { glow: true }); glow(it.x, it.y - 8, 30, it.rare ? '#c070ff' : '#ffd44a', 0.4); if (R() < (it.rare ? 0.18 : 0.1)) { giveItem(p, pick(ACTIVES.filter(a => !p.active || a.id !== p.active.id))); } else giveItem(p, rollRelic(p, it.rare ? ODDS.rareChest : it.free ? ODDS.room1 : ODDS.chest)); /* chests sometimes hold an active item */ break;
     case 'stand': if (!p.isBot) sfx('buy'); p.gold -= pr.cost; it.used = true; burst(it.x, it.y, '#ffd44a', 12, 60); if (it.item.id === 'stew') { p.hp = p.maxHp; clearStatus(p); floatText(p.x, p.y - 30, 'Full health', '#7ae07a'); } else giveItem(p, it.item); break;
     case 'altar': startChallenge(it.B, p); break;
     case 'font': startFont(it, p); break;
@@ -3208,7 +3240,7 @@ function recalcStats(p) {
   if (p.gems) for (const id of p.gems) { const g = GEM_BY_ID[id]; if (g && g.apply) g.apply(s); }
   s.armor = Math.min(0.6, s.armor); s.cdr = Math.min(0.6, s.cdr); s.crit = Math.min(1, s.crit); s.dodge = Math.min(0.4, s.dodge); s.statusRes = Math.min(0.7, s.statusRes); s.itemCdr = Math.min(0.6, s.itemCdr);
   passiveStats(p, s);
-  if (p.siegeT > (G ? G.time : 0)) { s.hpMul += 1; s.dmgAdd += 1; } // The Siege: 30s of fury on entering the Labyrinth
+  if (p.siegeT > (G ? G.time : 0)) { s.hpMul += 1; s.dmgAdd += 1; } // The Siege: 30s of fury on entering the Dream Palace
   const oldMax = p.maxHp || 0, L = p.level || 1;
   s.dmg = (1 + s.dmgAdd) * (1 + 0.07 * (L - 1)) * (CHAR_DMG[p.char] || 1);
   s.rateBase = s.rate; s.spdBase = s.spd;
@@ -3233,9 +3265,34 @@ function announceItem(p, item) {
   const col = item.rarity ? RARITY[item.rarity].color : item.color;
   floatText(p.x, p.y - 30, item.name, col, 1.4);
   burst(p.x, p.y - 12, col, 16, 70, 0.6, { glow: true });
-  if (!p.isBot) feed(`You got ${item.name}: ${item.desc}`, col);
-  else feed(`${p.name} got ${item.name}`, '#e8d8c0');
+  const me = p === human() && !NET.role, who = me ? 'You' : p.name, kind = item.active ? 'Active item' : item.rarity ? RARITY[item.rarity].name + ' relic' : 'Item';
+  feed(`${who} got ${item.name}: ${item.desc}`, me ? col : '#e8d8c0');
+  itemToast(who, CHARS[p.char] ? CHARS[p.char].color : '#ffffff', item.name, col, kind, item.desc, item.id);
   p.stats.items++;
+}
+// a pickup card at the bottom of the screen: who got what, and what it does
+function itemToast(who, whoCol, name, col, kind, desc, id) {
+  const T = G.toasts || (G.toasts = []); T.push({ who, whoCol, name, col, kind, desc, id, born: performance.now() });
+  while (T.length > 3) T.shift();
+}
+function drawItemToasts(bottom, s) {
+  const T = G.toasts; if (!T || !T.length) return;
+  const now = performance.now(), cx = W / 2, w = Math.min(W - 40, 560 * s), h = 44 * s; let y = bottom;
+  for (let i = T.length - 1; i >= 0; i--) {
+    const t = T[i], age = (now - t.born) / 1000; if (age > 6) { T.splice(i, 1); continue; }
+    const a = Math.min(1, age * 4, (6 - age) * 1.5); ctx.globalAlpha = a; y -= h + 6 * s;
+    panel(cx - w / 2, y, w, h, 0.88, 10 * s);
+    ctx.fillStyle = t.col; ctx.fillRect(cx - w / 2 + 3 * s, y + 6 * s, 3 * s, h - 12 * s);
+    const it = ALL_ITEMS[t.id]; if (it) ctx.drawImage(itemIcon(it, 64), cx - w / 2 + 12 * s, y + 6 * s, 32 * s, 32 * s);
+    const tx = cx - w / 2 + 52 * s;
+    ctx.font = `${Math.round(12 * s)}px ${FONT2}`; ctx.textAlign = 'left'; ctx.fillStyle = t.whoCol; const wl = `${t.who} got `; ctx.fillText(wl, tx, y + 18 * s);
+    const ww = ctx.measureText(wl).width; ctx.fillStyle = t.col; ctx.fillText(`${t.name}`, tx + ww, y + 18 * s);
+    const nw = ctx.measureText(t.name).width; ctx.fillStyle = '#b8a890'; ctx.fillText(`  · ${t.kind}`, tx + ww + nw, y + 18 * s);
+    ctx.font = `${Math.round(11 * s)}px ${FONT2}`; ctx.fillStyle = '#efe6d6';
+    let d = t.desc.replace(/<[^>]+>/g, ''); const maxW = w - 62 * s; while (d.length > 8 && ctx.measureText(d).width > maxW) d = d.slice(0, -2); if (d.length < t.desc.replace(/<[^>]+>/g, '').length) d = d.slice(0, -1) + '…';
+    ctx.fillText(d, tx, y + 34 * s);
+  }
+  ctx.globalAlpha = 1;
 }
 const ODDS = {
   chest: { common: 70, rare: 25, epic: 5, legendary: 0 },
@@ -4116,13 +4173,13 @@ const LEGEND_GEMS = [
   Lg('p_after', 'pangolin', 'Aftershock', 'Quake strikes again 0.6s later for 60% damage.', { id: 'pq3', text: 'Foundation: win a run as Pangolin', type: 'win', n: 1 }),
   Lg('r_over', 'reindeer', 'Overcharge', 'Arc Bolt jumps to 2 more enemies.', { id: 'rq1', text: 'Wanderer: discover 10 different biomes as Reindeer', type: 'biome', n: 10 }),
   Lg('r_ram', 'reindeer', "Ram's Fury", 'Antler Charge stuns twice as long and Sunders enemies hit.', { id: 'rq2', text: 'Storm-born: defeat the Thunder Toad as Reindeer', type: 'gk', target: 'thundertoad', n: 1 }),
-  Lg('r_twin', 'reindeer', 'Twin Tablet', 'The tablet lasts 10s and zaps two enemies at once.', { id: 'rq3', text: 'The way home: conquer the Labyrinth Keep as Reindeer', type: 'keep', n: 1 }),
+  Lg('r_twin', 'reindeer', 'Twin Tablet', 'The tablet lasts 10s and zaps two enemies at once.', { id: 'rq3', text: 'The way home: conquer the Dream Palace Keep as Reindeer', type: 'keep', n: 1 }),
   Lg('b_big', 'rabbit', 'Big Flask', 'A wider cloud that stacks poison twice as fast.', { id: 'bq1', text: 'Herbalist: defeat 250 monsters as Rabbit', type: 'kill', n: 250 }),
   Lg('b_spread', 'rabbit', 'Contagion', 'When a poisoned enemy dies, its poison spreads to enemies nearby.', { id: 'bq2', text: 'Antidote: defeat the Sporemother as Rabbit', type: 'gk', target: 'sporemother', n: 1 }),
   Lg('b_life', 'rabbit', 'Lifebloom', 'Bloom heals you 1.5% of max health for every stack it consumes.', { id: 'bq3', text: 'Cure-all: win a run as Rabbit', type: 'win', n: 1 }),
   Lg('w_double', 'wolf', 'Double Bolt', 'The Ballista holds two bolts: fire twice before you reload.', { id: 'wq1', text: 'Steady hands: 30 perfect reloads in a row as Wolf', type: 'streak', n: 30 }),
   Lg('w_volley', 'wolf', 'Fated Volley', 'Fated Shot fires three beams in a fan.', { id: 'wq2', text: 'Apex: reach level 15 in a run as Wolf', type: 'level', n: 15 }),
-  Lg('w_exec', 'wolf', 'Execution', 'Fated Shot deals double damage to enemies below 40% health.', { id: 'wq3', text: 'The strongest: defeat 3 Labyrinth bosses in one run as Wolf', type: 'castle3', n: 3 }),
+  Lg('w_exec', 'wolf', 'Execution', 'Fated Shot deals double damage to enemies below 40% health.', { id: 'wq3', text: 'The strongest: defeat 3 Dream Palace bosses in one run as Wolf', type: 'castle3', n: 3 }),
 ];
 const GEM_BY_ID = {}; for (const g of [...GEM_LIST, ...LEGEND_GEMS]) GEM_BY_ID[g.id] = g;
 const GEM_SLOT = { lmb: { name: 'Attack', color: '#ff7a5a' }, sp: { name: 'Utility', color: '#5ad0ff' }, q: { name: 'Skill', color: '#ffc83a' } };
@@ -4721,7 +4778,7 @@ function addNewcomerDialogue() {
 // Flask upgrades cap at FLASK_UP_MAX each. Even if every Font is taken in both Acts (at most 16 uses), three Krystalkers can never all max out (3×6 = 18).
 const FONT_MIN = 9, FONT_MAX = 12, FONT_CHANNEL = 5, FLASK_UP_MAX = 6;
 let FONT_COUNT = 6;
-function flaskMax(p) { return 2 + ((p && p.flaskUp) || 0); }
+function flaskMax(p) { return 2 + ((p && p.flaskUp) || 0) + ((p && p.flaskBonus) || 0); }
 function flaskPct(p) { return 0.2 + 0.075 * ((p && p.flaskUp) || 0); }
 // at most two Krystalkers per run may reach the top: a third one's last upgrade is refused
 function flaskCapped(p) { if (!p) return false; const u = p.flaskUp || 0; if (u >= FLASK_UP_MAX) return true; return u === FLASK_UP_MAX - 1 && G.players.filter(q => q !== p && (q.flaskUp || 0) >= FLASK_UP_MAX).length >= 2; }
@@ -5190,7 +5247,9 @@ function schedule(t, fn) { G.delayed.push({ t, fn }); }
 function updateDelayed(dt) { for (let i = G.delayed.length - 1; i >= 0; i--) { const d = G.delayed[i]; d.t -= dt; if (d.t <= 0) { G.delayed.splice(i, 1); d.fn(); } } }
 // the room a monster belongs to (its "lair"); room monsters only notice players inside it
 function lairOf(e) { if (e.boss && !e.castle) return null; if (e.labMob) return labArea(); const r = e.home || e.room; return r && (r.type === 'themed' || r.type === 'castle') ? r : null; }
-function inLair(e, p, m = 10) { const L = lairOf(e); return !L || inRoom(L, p.x, p.y, m); }
+function inLair(e, p, m = 10) { const L = lairOf(e); return !L || inRoom(L, p.x, p.y, m) || chalReach(L, p); }
+/* while a biome's challenge runs, its corridors count as part of every room in it */
+function chalReach(L, p) { const B = L && L.biome; return !!(B && B.chal && G.bmask && bmAt(p.x, p.y) === B.id); }
 function nearestUp(e, maxD = 1e9) {
   let best = null, bd = maxD * maxD;
   if (G.minions && !e.boss) for (const m of G.minions) { if (m.state !== 'up' || !inLair(e, m)) continue; const dd = d2(m.x, m.y, e.x, e.y) * 1.3; if (dd < bd) { bd = dd; best = m; } }
@@ -5281,14 +5340,14 @@ function updateEnemy(e, dt) {
   if (!e.boss) for (let i = G.traps.length - 1; i >= 0; i--) { const t = G.traps[i]; if (d2(t.x, t.y, e.x, e.y) < (e.r + 9) ** 2) { G.traps.splice(i, 1); e.stunT = Math.max(e.stunT, e.champ ? 0.8 : 2.2); damage(e, 25 * t.owner.st.dmg, t.owner); burst(t.x, t.y, '#c9ccd4', 10, 50, 0.4, { shape: 'spark' }); } }
   if (e.dead) return;
   if (e.mover) { e.mover(e, dt); }
-  if (e.labMob && !labActive()) { if (e.aggro) mobReset(e, false); return; } // dormant until the Labyrinth challenge starts
+  if (e.labMob && !labActive()) { if (e.aggro) mobReset(e, false); return; } // dormant until the Dream Palace challenge starts
   if (e.stunT > 0) { e.stunT -= dt; return; }
   if (hasSt(e, 'hush')) { e.cd = Math.max(e.cd, 0.25); if (e.busy > 0.3 && (e.boss || e.champ)) e.busy -= dt; }
   const gloomed = hasSt(e, 'gloom');
   const slow = 1 - stAmt(e, 'mire');
   if (!e.aggro) {
     const p = nearestUp(e, gloomed ? 60 : e.champ ? 170 : 140);
-    if (e.castle) { if (G.players.some(q => q.state === 'up' && inRoom(e.home, q.x, q.y, -10))) { e.aggro = true; if (G.players.some(q => !q.isBot && inRoom(e.home, q.x, q.y, 0))) setBanner(e.def.name, `Labyrinth boss · Recommended Lv ${e.home.rec}`, 2.6, '#ffd44a'); } return; }
+    if (e.castle) { if (G.players.some(q => q.state === 'up' && inRoom(e.home, q.x, q.y, -10))) { e.aggro = true; if (G.players.some(q => !q.isBot && inRoom(e.home, q.x, q.y, 0))) setBanner(e.dispName || e.def.name, e.corruptor ? `Corruptor · Lv ${e.rec} · it resets if everyone leaves its room` : `Dream Palace boss · Recommended Lv ${e.home.rec}`, 2.6, e.corruptor ? '#d88aff' : '#ffd44a'); } return; }
     if (p && (!e.champ || inRoom(e.room, p.x, p.y)) && losClear(e.x, e.y, p.x, p.y)) aggroRoom(e);
     else { if (e.t % 3 < dt) e.wander = R() * Math.PI * 2; if (e.wander != null && e.t % 3 < 0.8 && !e.def.objective) { moveEnt(e, Math.cos(e.wander) * 12 * dt, Math.sin(e.wander) * 12 * dt); e.moving = true; e.face = Math.cos(e.wander) >= 0 ? 1 : -1; } return; }
   }
@@ -5403,13 +5462,13 @@ const AI = {
   champ(e, tg, dd, spd, dt) {
     if (e.busy > 0) { e.busy -= dt; return; }
     const c = CHAMPS[e.type];
-    const keep = c.base === 'caster' || c.base === 'shardling' || c.base === 'frostling' ? 110 : 30;
+    const keep = c.keep || (c.base === 'caster' || c.base === 'shardling' || c.base === 'frostling' ? 110 : 30);
     if (dd > keep) enemyMoveToward(e, tg, spd, dt, e.los); else e.face = tg.x >= e.x ? 1 : -1;
     e.cd -= dt;
     if (e.cd <= 0) {
       e.cd = rr(1.6, 2.4);
       const a = c.kit[e.pi = ((e.pi ?? -1) + 1) % c.kit.length];
-      const col = { grub: '#9be46a', caster: '#d8a0ff', boar: '#ffb35a', brute: '#ff8a3c', shardling: '#7ff0ff', bonewalker: '#e8e0cc', wasp: '#ffd23a', slime: '#5ad0a0', frostling: '#bff4ff', emberling: '#ff8a2a', shade: '#8a6ad8' }[c.base];
+      const col = c.col || { grub: '#9be46a', caster: '#d8a0ff', boar: '#ffb35a', brute: '#ff8a3c', shardling: '#7ff0ff', bonewalker: '#e8e0cc', wasp: '#ffd23a', slime: '#5ad0a0', frostling: '#bff4ff', emberling: '#ff8a2a', shade: '#8a6ad8' }[c.base];
       if (a === 'slam') e.busy = P.leap(e, tg, 40, 0.8, 16, 12, col);
       if (a === 'ring') e.busy = P.ring(e, 16, 85, 9, col, 2, 0.4);
       if (a === 'summon') e.busy = P.summon(e, c.minion, 3);
@@ -5555,7 +5614,7 @@ function castleLeash(e, dt) {
 function castleBossDead(e) {
   const room = e.home; room.bossDone = 99; room.cleared = true;
   feed(`${e.def.name} of the ${room.cname} is defeated!`, '#ffd44a');
-  setBanner(`${room.cname} conquered`, e.def.lord ? 'The Keep falls! Legendary rewards await.' : 'A Labyrinth boss falls.', 3, '#ffd44a');
+  setBanner(`${room.cname} conquered`, e.def.lord ? 'The Keep falls! Legendary rewards await.' : 'A Dream Palace boss falls.', 3, '#ffd44a');
   dropBossChest(e.x, e.y, room.rec, e.def.name, ENEMY[e.type].weak ? null : null);
   dropGold(e.x, e.y, room.sub === 'keep' ? 1200 : 600);
   // a Krystal Shrine rises where the guardian fell: rest to heal fully, level up (the Keep too)
@@ -6090,6 +6149,294 @@ const HAZ_TEXT = {
   vesper: 'Shadow hands rise and dark motes fall.', sovereign: 'Krystal spikes erupt under you.', sovereign2: 'Shadow tentacles grab and violet meteors fall, on top of its own meteor storm.',
 };
 for (const k in HAZ_TEXT) if (ENEMY_INFO[k]) ENEMY_INFO[k] += ' Arena: ' + HAZ_TEXT[k] + ' It repositions often.';
+// ===== Biome pools: every biome belongs to one or more difficulty tiers, and each run draws its biomes from those pools =====
+// Five newer biomes join the pool, each with its own monsters, room bosses and a terrain hazard:
+//   Rat Warren (easy, swarms)            Thornwood (thorn patches: Bleed + slow)
+//   Sunken Tomb (quicksand pulls you in)  Storm Spire (lightning strikes the floor)
+//   Abyssal Rift (void rifts drag you toward their core)
+
+// ---- monsters ----
+Object.assign(ENEMY, {
+  rat: { name: 'Warren Rat', hp: 20, spd: 70, r: 4, dmg: 6, gold: [8, 12], ai: 'melee', hitSt: ST('wither', 2, { ch: 0.35 }) },
+  ratshaman: { name: 'Rat Shaman', hp: 30, spd: 36, r: 5, dmg: 6, gold: [14, 20], ai: 'ranged', shot: { spd: 110, dmg: 9, color: '#b8e05a' }, shotSt: ST('wither', 3, { ch: 0.5 }) },
+  thornling: { name: 'Thornling', hp: 46, spd: 44, r: 5, dmg: 9, gold: [16, 22], ai: 'melee', hitSt: ST('bleed', 3, { dmg: 1, ch: 0.6 }) },
+  scarab: { name: 'Tomb Scarab', hp: 36, spd: 64, r: 5, dmg: 9, gold: [14, 20], ai: 'melee', hitSt: ST('sunder', 2.5, { ch: 0.4 }) },
+  mummy: { name: 'Wrapped Dead', hp: 110, spd: 26, r: 6, dmg: 14, gold: [22, 30], ai: 'melee', kbRes: 0.4, hitSt: ST('mire', 2) },
+  sparkwisp: { name: 'Spark Wisp', hp: 30, spd: 58, r: 5, dmg: 7, gold: [16, 22], ai: 'ranged', fly: true, shot: { spd: 150, dmg: 10, color: '#ffe24a' }, shotSt: ST('hush', 1.5, { ch: 0.4 }) },
+  golem: { name: 'Storm Golem', hp: 170, spd: 24, r: 8, dmg: 16, gold: [30, 40], ai: 'melee', kbRes: 0.2, hitSt: ST('sunder', 3) },
+  voidspawn: { name: 'Voidspawn', hp: 38, spd: 56, r: 5, dmg: 10, gold: [16, 22], ai: 'melee', hitSt: ST('gloom', 2, { ch: 0.4 }), deathVoid: true },
+  eyestalk: { name: 'Eyestalk', hp: 60, spd: 10, r: 6, dmg: 8, gold: [20, 26], ai: 'ranged', kbRes: 0.1, shot: { spd: 130, dmg: 12, color: '#c86aff' }, shotSt: ST('gloom', 2, { ch: 0.4 }) },
+});
+Object.assign(MOB_WEAK, { rat: 'fire', ratshaman: 'radiant', thornling: 'fire', scarab: 'frost', mummy: 'fire', sparkwisp: 'poison', golem: 'poison', voidspawn: 'radiant', eyestalk: 'bleed' });
+for (const k of ['rat', 'ratshaman', 'thornling', 'scarab', 'mummy', 'sparkwisp', 'golem', 'voidspawn', 'eyestalk']) ENEMY[k].weak = MOB_WEAK[k];
+Object.assign(PUDDLE_KIND, { rat: 'spore', ratshaman: 'spore', thornling: 'root', mummy: 'slime', scarab: 'slime', golem: 'slime', sparkwisp: 'slime', voidspawn: 'shadow', eyestalk: 'shadow' });
+Object.assign(ENEMY_INFO, {
+  rat: 'Comes in big packs and bites fast. Its plague bite Withers you.',
+  ratshaman: 'Hangs back and lobs plague bolts (Wither).',
+  thornling: 'A walking bramble. Its thorns make you Bleed.',
+  scarab: 'Scuttles in fast. Its mandibles Sunder your armor.',
+  mummy: 'Slow and very tough. Its grasp leaves you in the Mire.',
+  sparkwisp: 'A flying spark that fires fast bolts. Getting hit can Hush you (no skills).',
+  golem: 'A slow stone guardian charged with lightning. Hard to push, hits hard (Sunder).',
+  voidspawn: 'Rushes you and bursts into a pool of void when it dies (Gloom). Step out of the pool.',
+  eyestalk: 'A rooted eye that barely moves and fires long void bolts (Gloom).',
+});
+// ---- room bosses for the new biomes ----
+const NEW_CHAMPS = {
+  ratking: { name: 'Rat King', base: 'rat', scale: 4, hp: 1250, kit: ['charge', 'summon', 'ring'], minion: 'rat', col: '#b8e05a' },
+  plaguelord: { name: 'Plague Lord', base: 'ratshaman', scale: 2.6, hp: 1250, kit: ['spray', 'puddle', 'summon', 'spiral'], minion: 'rat', d2: true, col: '#b8e05a', keep: 110 },
+  briarmother: { name: 'Briar Mother', base: 'thornling', scale: 2.5, hp: 1350, kit: ['slam', 'puddle', 'summon', 'ring'], minion: 'thornling', col: '#9ad04a' },
+  thornqueen: { name: 'Thorn Queen', base: 'thornling', scale: 2.7, hp: 1350, kit: ['slam', 'puddle', 'summon', 'ring', 'spiral'], minion: 'thornling', d2: true, col: '#9ad04a' },
+  scarablord: { name: 'Scarab Lord', base: 'scarab', scale: 2.6, hp: 1400, kit: ['charge', 'charge', 'summon', 'ring'], minion: 'scarab', col: '#e8c860' },
+  pharaoh: { name: 'Sand Pharaoh', base: 'mummy', scale: 2.3, hp: 1500, kit: ['slam', 'puddle', 'summon', 'spiral', 'ring'], minion: 'scarab', d2: true, col: '#e8c860', armor: 0.15 },
+  stormgolem: { name: 'Storm Colossus', base: 'golem', scale: 2.1, hp: 1700, kit: ['slam', 'ring', 'rocks'], minion: 'sparkwisp', col: '#ffe24a', armor: 0.15 },
+  thundergolem: { name: 'Thunder Colossus', base: 'golem', scale: 2.3, hp: 1700, kit: ['slam', 'ring', 'rocks', 'spiral'], minion: 'sparkwisp', d2: true, col: '#ffe24a', armor: 0.2 },
+  riftmaw: { name: 'Rift Maw', base: 'eyestalk', scale: 2.6, hp: 1350, kit: ['spiral', 'spray', 'summon', 'puddle'], minion: 'voidspawn', col: '#c86aff', keep: 120 },
+  voidtyrant: { name: 'Void Tyrant', base: 'eyestalk', scale: 2.8, hp: 1350, kit: ['spiral', 'spray', 'summon', 'puddle', 'ring', 'rocks'], minion: 'voidspawn', d2: true, col: '#c86aff', keep: 120 },
+};
+Object.assign(CHAMPS, NEW_CHAMPS);
+for (const k in NEW_CHAMPS) { const c = CHAMPS[k], b = ENEMY[c.base]; ENEMY[k] = { weak: b.weak, name: c.name, hp: c.hp, spd: b.spd * 0.8, r: Math.min(18, b.r * c.scale * 0.8), dmg: b.dmg * 1.35, gold: [150, 220], ai: 'champ', champ: true, sprite: c.base, scale: c.scale, tint: c.d2, kbRes: 0.1, hitSt: longer(b.hitSt), shotSt: longer(b.shotSt) }; }
+// ---- the new biomes ----
+ROOM_POOL.push(
+  { id: 'warren', elem: 'poison', name: 'Rat Warren', floor: 'warren', patch: 'stone', sizes: [[17, 13], [19, 15]], props: ['barrel', 'bones', 'log'], mobs: { rat: 9, ratshaman: 2 }, boss: ['ratking', 'plaguelord'], pool: [1, 2], swarm: true },
+  { id: 'thorn', elem: 'bleed', name: 'Thornwood', floor: 'thorn', patch: 'grass', sizes: [[17, 13], [19, 15], [21, 15]], props: ['thornbush', 'deadtree', 'stump'], mobs: { thornling: 6, wasp: 2 }, boss: ['briarmother', 'thornqueen'], pool: [1, 2], hazard: 'thorns' },
+  { id: 'tomb', elem: 'radiant', name: 'Sunken Tomb', floor: 'sand', patch: 'bone', sizes: [[19, 15], [21, 15], [23, 17]], props: ['urn', 'obelisk', 'bones'], mobs: { scarab: 5, mummy: 3 }, boss: ['scarablord', 'pharaoh'], pool: [2, 3], hazard: 'quicksand' },
+  { id: 'storm', elem: 'shock', name: 'Storm Spire', floor: 'storm', patch: 'crystal', sizes: [[19, 15], [21, 17]], props: ['rod', 'rock', 'crystal'], mobs: { sparkwisp: 5, golem: 2 }, boss: ['stormgolem', 'thundergolem'], pool: [3, 4], hazard: 'storm' },
+  { id: 'rift', elem: 'shadow', name: 'Abyssal Rift', floor: 'rift', patch: 'shadow', sizes: [[19, 15], [21, 17]], props: ['riftstone', 'deadtree', 'crystal'], mobs: { voidspawn: 6, eyestalk: 3 }, boss: ['riftmaw', 'voidtyrant'], pool: [4], hazard: 'rift' },
+);
+// difficulty pools for the older biomes
+const BIOME_POOLS = { burrow: [1], grove: [1, 2], den: [1, 2], meadow: [1, 2], bog: [1, 2], camp: [2, 3], hollow: [2, 3], frost: [2, 3], bones: [3, 4], ember: [3, 4], shadow: [3, 4] };
+for (const t of ROOM_POOL) if (!t.pool && BIOME_POOLS[t.id]) t.pool = BIOME_POOLS[t.id];
+const HZ_INFO = {
+  thorns: 'Thorn patches: walking through them slows you and makes you Bleed.',
+  quicksand: 'Quicksand: slows you and pulls you toward its centre, where it hurts.',
+  storm: 'Lightning: bolts strike the floor where a gold circle flashes. Step out of it.',
+  rift: 'Void rifts: they pulse, dragging you toward the core. The core Glooms and hurts.',
+};
+// pick a template for each biome from its tier's pool, avoiding repeats inside a run
+function pickBiomeTpl(tier, used) {
+  const all = ROOM_POOL.filter(t => t.boss);
+  let c = all.filter(t => (t.pool || [1, 2, 3, 4]).includes(tier) && !used.has(t.id));
+  if (!c.length) c = all.filter(t => !used.has(t.id) && Math.min(...(t.pool || [tier])) <= tier + 1 && Math.max(...(t.pool || [tier])) >= tier - 1);
+  if (!c.length) c = all.filter(t => !used.has(t.id));
+  if (!c.length) c = all;
+  const t = pick(c); used.add(t.id); return t;
+}
+
+// ---- floors ----
+for (const t of [
+  { name: 'warren', kind: 'dirt', base: '#9a7a5a' }, { name: 'thorn', kind: 'grass', base: '#4e6e3a' }, { name: 'sand', kind: 'dirt', base: '#d8bc80' },
+  { name: 'storm', kind: 'plaza', base: '#7a8aa4' }, { name: 'rift', kind: 'void', base: '#2a1a40' },
+]) { TH[t.name] = THEMES.length; THEMES.push(t); }
+
+// ---- art ----
+Object.assign(ENEMY_DRAW, {
+  rat(x, ph) {
+    const s = legSwing(ph) * 0.8;
+    for (const [lx, k] of [[-3.5, 1], [-1, -1], [2, 1], [4, -1]]) line(x, [[lx, -2.6], [lx + s * k * 0.6, 0]], '#5a4a40', 1.2);
+    line(x, [[-5, -4], [-9, -6], [-11, -4]], '#d89a8a', 0.9);
+    ell(x, -0.5, -4.4, 5.4, 3.4, '#8a7a6a');
+    ell(x, 0, -3.4, 3.6, 1.6, '#b8a898', { outline: false });
+    ell(x, 4.6, -5.4, 3, 2.6, '#9a8a7a');
+    ell(x, 3.4, -8, 1.6, 1.6, '#d89a8a', { lw: 0.5 });
+    ell(x, 7.4, -5, 0.8, 0.7, '#ff8a9a', { outline: false });
+    eye(x, 5.4, -6, 0.8, 0.9, '#ff3a3a', 0.6, 0.2);
+  },
+  ratshaman(x, ph) {
+    legs(x, '#6a5a4a', '#3a2a20', ph, 1.6, 2.4, 1.6);
+    x.translate(0, -bobAmt(ph));
+    poly(x, [[-5, -2.4], [-3.4, -11], [3.6, -11], [5, -2.4]], '#6a7a3a');
+    ell(x, 0.6, -13.4, 4.4, 4, '#9a8a7a');
+    poly(x, [[-4, -15], [0.6, -23], [5, -15]], '#5a6a2a', { lw: 0.6 });
+    ell(x, -2.4, -16.4, 1.4, 1.4, '#d89a8a', { lw: 0.4 });
+    eye(x, 2.4, -13.6, 0.9, 1, '#ff3a3a', 0.6, 0.2);
+    line(x, [[5, -4], [7, -16]], OUTL, 1.4); line(x, [[5, -4], [7, -16]], '#8a5a30', 0.7);
+    x.fillStyle = 'rgba(184,224,90,0.45)'; x.beginPath(); x.arc(7, -17.4, 3, 0, Math.PI * 2); x.fill();
+    ell(x, 7, -17.4, 1.6, 1.6, '#d8ff8a', { lw: 0.4 });
+  },
+  thornling(x, ph) {
+    legs(x, '#4a3a22', '#2a1a10', ph, 1.8, 2.6, 1.8);
+    x.translate(0, -bobAmt(ph));
+    ell(x, 0, -9, 6, 6.4, '#5a7a2e');
+    for (const [a, l] of [[-2.6, 5], [-1.6, 4], [-0.6, 5], [0.4, 4], [1.6, 5], [2.6, 4]]) { const cx = Math.cos(a - Math.PI / 2) * 5.4, cy = -9 + Math.sin(a - Math.PI / 2) * 5.6; poly(x, [[cx - 1, cy], [cx + Math.cos(a - Math.PI / 2) * l, cy + Math.sin(a - Math.PI / 2) * l], [cx + 1, cy]], '#c8b070', { lw: 0.4 }); }
+    ell(x, 1.6, -9.6, 1, 1.2, '#ffe24a', { outline: false }); ell(x, 4, -9.6, 1, 1.2, '#ffe24a', { outline: false });
+    line(x, [[1.4, -6.6], [4.4, -6.8]], OUTL, 0.6);
+    hi(x, -2.4, -12, 1.6, 0.8, 0.3);
+  },
+  scarab(x, ph) {
+    const s = legSwing(ph) * 0.9;
+    for (const [lx, k] of [[-4, 1], [-1, -1], [2, 1]]) { line(x, [[lx, -3.6], [lx + s * k - 1.6, 0]], OUTL, 1.8); line(x, [[lx, -3.6], [lx + s * k - 1.6, 0]], '#2a4a5a', 0.9); }
+    ell(x, -1, -5.6, 6, 4, '#2a6a7a');
+    line(x, [[-1, -9.4], [-1, -2]], '#1a3a4a', 0.8);
+    ell(x, 5, -5, 2.6, 2.2, '#1a4a5a');
+    poly(x, [[6.6, -6], [9.6, -7.6], [7.6, -5]], '#e8c860', { lw: 0.5 }); poly(x, [[6.6, -4.4], [9.6, -3], [7.6, -4]], '#e8c860', { lw: 0.5 });
+    eye(x, 5.6, -5.8, 0.7, 0.8, '#ffe24a', 0.6, 0.2);
+    hi(x, -3, -8, 2.4, 1, 0.55);
+  },
+  mummy(x, ph) {
+    legs(x, '#d8c8a0', '#8a7a5a', ph, 2, 3, 2.2);
+    x.translate(0, -bobAmt(ph));
+    rrc(x, -5, -14, 10, 12, 3, '#e8dcb8');
+    for (let i = 0; i < 4; i++) line(x, [[-5, -12 + i * 3], [5, -13.4 + i * 3]], '#b8a880', 0.7);
+    ell(x, 0.6, -17.6, 4.4, 4.2, '#e8dcb8');
+    line(x, [[-3.6, -18.4], [4.6, -19.4]], '#b8a880', 0.7); line(x, [[-3.4, -16], [4.8, -16.6]], '#b8a880', 0.7);
+    ell(x, 2.4, -17.8, 1.4, 0.9, '#1a1010', { flat: true, outline: false }); ell(x, 2.4, -17.8, 0.5, 0.5, '#7ff0ff', { outline: false });
+    line(x, [[4.6, -11], [9, -11.4]], OUTL, 2.2); line(x, [[4.6, -11], [9, -11.4]], '#e8dcb8', 1.3);
+    line(x, [[-4, -3], [-6, 0]], '#e8dcb8', 0.7);
+  },
+  sparkwisp(x, ph) {
+    const fl = ph == null ? 0 : Math.sin(ph * 1.4) * 1.2;
+    x.translate(0, -7 - fl);
+    x.fillStyle = 'rgba(255,226,74,0.35)'; x.beginPath(); x.arc(0, -7, 8, 0, Math.PI * 2); x.fill();
+    shape(x, '#ffe24a', [-6, -15, 6, 1], c => { c.moveTo(0, -15); c.lineTo(4, -9); c.lineTo(1.4, -9); c.lineTo(5, -2); c.lineTo(-1, -6.4); c.lineTo(1, -6.4); c.lineTo(-4, -12); c.lineTo(-1, -12); c.closePath(); }, { lw: 0.6 });
+    ell(x, 0, -8, 3.4, 3.4, '#fffbe0', { lw: 0.5 });
+    ell(x, 0.4, -8.4, 0.8, 1, '#3a2a0a', { outline: false }); ell(x, 2.2, -8.4, 0.8, 1, '#3a2a0a', { outline: false });
+  },
+  golem(x, ph) {
+    legs(x, '#6a7080', '#3a3e4a', ph, 3, 3.4, 3.4);
+    x.translate(0, -bobAmt(ph) * 0.5);
+    rrc(x, -8, -18, 16, 15, 4, '#8a90a4');
+    for (const [a, b] of [[-5, -15], [2, -12], [-2, -7]]) line(x, [[a, b], [a + 3, b + 2], [a + 1, b + 4]], '#ffe24a', 0.8);
+    rrc(x, -11, -16, 4, 10, 2, '#7a8094'); rrc(x, 7, -16, 4, 10, 2, '#7a8094');
+    rrc(x, -4, -24, 9, 7, 2.4, '#9aa0b4');
+    ell(x, 1.4, -21, 3, 1, '#ffe24a', { flat: true, lw: 0.4 });
+    poly(x, [[-1, -24], [0.6, -28], [2, -24]], '#ffe24a', { lw: 0.4 });
+    hi(x, -5, -16, 2.4, 1, 0.3);
+  },
+  voidspawn(x, ph) {
+    legs(x, '#3a2050', '#1a0a28', ph, 1.8, 2.4, 1.8);
+    x.translate(0, -bobAmt(ph));
+    shape(x, '#5a2a8a', [-6, -14, 6, -2], c => { c.moveTo(-6, -3); c.quadraticCurveTo(-7, -12, 0, -14); c.quadraticCurveTo(7, -12, 6, -3); c.quadraticCurveTo(0, -1, -6, -3); c.closePath(); });
+    x.fillStyle = 'rgba(200,106,255,0.5)'; x.beginPath(); x.arc(0.6, -8.4, 4, 0, Math.PI * 2); x.fill();
+    ell(x, 1, -8.4, 2.4, 2.4, '#e8c8ff', { lw: 0.5 }); ell(x, 1.6, -8.4, 1, 1.4, '#1a0a28', { outline: false });
+    for (const k of [-1, 1]) line(x, [[k * 3, -13], [k * 5, -17]], '#c86aff', 0.8);
+  },
+  eyestalk(x, ph) {
+    const sw = ph == null ? 0 : Math.sin(ph * 0.6) * 1.2;
+    ell(x, 0, -1, 7, 2.2, '#3a2050');
+    for (const k of [-1, 1]) line(x, [[k * 3, -1], [k * 6, 0]], '#5a2a8a', 1.4);
+    line(x, [[0, -2], [sw * 0.5, -9], [sw, -14]], OUTL, 4.4); line(x, [[0, -2], [sw * 0.5, -9], [sw, -14]], '#6a3a9a', 3);
+    ell(x, sw, -18, 5.6, 5.4, '#f0e8f8');
+    ell(x, sw + 1.4, -18, 3, 3.2, '#c86aff', { lw: 0.5 }); ell(x, sw + 1.8, -18, 1.4, 2.2, '#1a0a28', { outline: false });
+    hi(x, sw - 2, -20.4, 1.6, 0.8, 0.7);
+  },
+});
+Object.assign(ENEMY_BOX, { rat: [24, 14], ratshaman: [20, 26], thornling: [22, 22], scarab: [24, 16], mummy: [22, 28], sparkwisp: [18, 30], golem: [30, 34], voidspawn: [18, 20], eyestalk: [18, 30] });
+Object.assign(PROP_DRAW, {
+  thornbush(x) { for (const [cx, cy, r] of [[-3, -5, 5], [3, -6, 5], [0, -9, 4.6]]) ell(x, cx, cy, r, r * 0.8, '#4a6a2a', { lw: 0.6 }); for (let i = 0; i < 9; i++) { const a = i * 0.7, cx = Math.cos(a) * 6, cy = -6 + Math.sin(a) * 4.6; poly(x, [[cx - 0.8, cy], [cx + Math.cos(a) * 3, cy + Math.sin(a) * 3], [cx + 0.8, cy]], '#d8c890', { lw: 0.3 }); } },
+  urn(x) { shape(x, '#c88a4a', [-5, -14, 5, 0], c => { c.moveTo(-3, 0); c.quadraticCurveTo(-7, -6, -3, -11); c.lineTo(-3.4, -14); c.lineTo(3.4, -14); c.lineTo(3, -11); c.quadraticCurveTo(7, -6, 3, 0); c.closePath(); }, { lw: 0.7 }); line(x, [[-5, -6], [5, -6]], '#e8c860', 0.9); hi(x, -2.4, -9, 1.2, 2, 0.4); },
+  obelisk(x) { poly(x, [[-4, 0], [-3, -20], [0, -24], [3, -20], [4, 0]], '#c8b080', { lw: 0.8 }); for (const y of [-16, -11, -6]) line(x, [[-1.6, y], [1.6, y]], '#8a6a3a', 0.8); ell(x, 0, -19, 1, 1.2, '#7ff0ff', { outline: false }); },
+  rod(x) { line(x, [[0, 0], [0, -22]], OUTL, 2.4); line(x, [[0, 0], [0, -22]], '#a8b0c4', 1.3); for (const y of [-18, -13]) line(x, [[-3, y], [3, y]], '#a8b0c4', 0.9); ell(x, 0, -23, 2, 2, '#ffe24a', { lw: 0.5 }); ell(x, 0, 0, 4, 1.2, '#5a6070', { outline: false }); },
+  riftstone(x) { poly(x, [[-5, 0], [-6, -9], [-2, -16], [3, -14], [6, -6], [4, 0]], '#3a2a50', { lw: 0.8 }); line(x, [[-1, -13], [1, -8], [-1, -4]], '#c86aff', 1.1); x.fillStyle = 'rgba(200,106,255,0.3)'; x.beginPath(); x.arc(0, -8, 6, 0, Math.PI * 2); x.fill(); },
+});
+function buildArt6() {
+  for (const k of ['rat', 'ratshaman', 'thornling', 'scarab', 'mummy', 'sparkwisp', 'golem', 'voidspawn', 'eyestalk']) {
+    const [w, h] = ENEMY_BOX[k]; SPR[k] = buildSet(ENEMY_DRAW[k], w, h, w / 2, h - 2, RS);
+    const S = SPR[k]; const T = { walk: S.walk.map(f => tintFrame(f, '#ff3a2a', 0.28)), flash: S.flash }; T.idle = tintFrame(S.idle, '#ff3a2a', 0.28); T.flashIdle = S.flashIdle; SPR[k + '_d2'] = T;
+  }
+  for (const k of ['thornbush', 'urn', 'obelisk', 'rod', 'riftstone']) SPR.props[k] = cacheDraw(18, 26, 9, 23, x => PROP_DRAW[k](x));
+}
+{ const _b4 = buildArt4; buildArt4 = function () { _b4(); buildArt6(); }; }
+
+// ---- deaths that leave something behind ----
+{ const _kill = killEnemy; killEnemy = function (e, src) { const was = e.dead; _kill(e, src); if (!was && e.dead && e.def.deathVoid) { ezone({ x: e.x, y: e.y, r: 18, life: 2.6, delay: 0.35, dmg: 4, dmgM: e.dmgM, kind: 'shadow', src: e }); burst(e.x, e.y - 4, '#c86aff', 14, 80, 0.5, { glow: true }); } }; }
+
+// ---- terrain hazards: patches are laid when the dungeon is built (same on every machine), effects run on the host ----
+{ const _gen = generateDungeon; generateDungeon = function () { G.bhz = []; return _gen.apply(this, arguments); }; }
+{ const _deco = decorateRoom; decorateRoom = function (room) {
+  _deco(room);
+  const tpl = room.tpl; if (!tpl || !tpl.hazard || tpl.hazard === 'storm' || room.type !== 'themed') return;
+  const n = tpl.hazard === 'thorns' ? ri(3, 5) : tpl.hazard === 'quicksand' ? ri(2, 3) : ri(1, 2);
+  const r0 = tpl.hazard === 'thorns' ? [18, 26] : tpl.hazard === 'quicksand' ? [26, 34] : [16, 16];
+  for (let i = 0, tries = 0; i < n && tries < 40; tries++) {
+    const tx = ri(room.x + 3, room.x + room.w - 4), ty = ri(room.y + 3, room.y + room.h - 4);
+    if (Math.abs(tx - room.cx) <= 2 && Math.abs(ty - room.cy) <= 2) continue;
+    const x = (tx + 0.5) * TILE, y = (ty + 0.5) * TILE;
+    if (hitsWall(x, y, 8) || G.bhz.some(z => Math.hypot(z.x - x, z.y - y) < 70)) continue;
+    G.bhz.push({ kind: tpl.hazard, x, y, r: ri(r0[0], r0[1]), room, pull: tpl.hazard === 'rift' ? 78 : 0, ph: R() * 6, on: true, tier: room.danger || 1 });
+    i++;
+  }
+}; }
+function hzScale(tier) { return (1 + 0.25 * ((tier || 1) - 1)) * (G.day >= 2 ? 1.5 : 1); }
+function updateBiomeHz(dt) {
+  if (G.hub || NET.role === 'guest') return;
+  const live = G.players.filter(p => p.state === 'up' && !p.escaped);
+  for (const z of G.bhz || []) {
+    if (z.temp) { z.life -= dt; if (z.life <= 0) { z.dead = true; continue; } }
+    else if (z.kind === 'rift') { z.ph += dt; z.on = (z.ph % 7) < 4; }
+    for (const p of live) {
+      const reach = z.kind === 'rift' ? z.pull : z.r, dd = Math.hypot(p.x - z.x, p.y - z.y);
+      if (dd > reach) continue;
+      p.hzT = (p.hzT || 0) - dt;
+      if (z.kind === 'thorns') {
+        applyStatus(p, 'mire', 0.25, { amt: 0.35 });
+        if (p.hzT <= 0) { p.hzT = 0.6; damage(p, 2 * hzScale(z.tier), null); inflict(p, ST('bleed', 2.5, { dmg: 1 * hzScale(z.tier) }), null); }
+      } else if (z.kind === 'quicksand') {
+        applyStatus(p, 'mire', 0.25, { amt: 0.45 });
+        if (dd > 4) moveEnt(p, (z.x - p.x) / dd * 22 * dt, (z.y - p.y) / dd * 22 * dt);
+        if (dd < 10 && p.hzT <= 0) { p.hzT = 0.5; damage(p, 5 * hzScale(z.tier), null); }
+      } else if (z.kind === 'rift' && z.on) {
+        if (dd > 4) moveEnt(p, (z.x - p.x) / dd * 34 * dt, (z.y - p.y) / dd * 34 * dt);
+        if (dd < z.r && p.hzT <= 0) { p.hzT = 0.5; damage(p, 7 * hzScale(z.tier), null); inflict(p, ST('gloom', 2), null); }
+      }
+    }
+  }
+  if (G.bhz && G.bhz.some(z => z.dead)) G.bhz = G.bhz.filter(z => !z.dead);
+  // the Storm Spire calls lightning down on whoever stands in it, until the biome is conquered
+  G.stormT = (G.stormT || 0) - dt;
+  if (G.stormT > 0) return;
+  G.stormT = 0.5;
+  for (const B of G.biomes || []) {
+    if (!B.tpl || B.tpl.hazard !== 'storm' || B.bossKilled) continue;
+    const inB = live.filter(p => bmAt(p.x, p.y) === B.id); if (!inB.length) continue;
+    B.boltT = (B.boltT ?? 1.5) - 0.5; if (B.boltT > 0) continue;
+    B.boltT = Math.max(1.6, 3.4 - 0.4 * (B.tier - 1));
+    for (const p of inB) {
+      if (R() < 0.35) continue;
+      const a = R() * Math.PI * 2, d = rr(0, 36), x = p.x + Math.cos(a) * d + (p.vx || 0) * 0.5, y = p.y + Math.sin(a) * d + (p.vy || 0) * 0.5;
+      if (hitsWall(x, y, 4)) continue;
+      ezone({ x, y, r: 24, life: 1.3, delay: 1.15, dmg: 16 * hzScale(B.tier), kind: 'storm', st: ST('hush', 1.2), tickT: 0 });
+      schedule(1.15, () => { burst(x, y - 6, '#ffe24a', 16, 90, 0.4, { glow: true }); shock(x, y, 34, '#ffe24a', 0.3); sfx('zap', x, y, 0.6); });
+    }
+  }
+}
+function drawBiomeHz() {
+  const vx0 = G.cam.x - W / 2 / ZOOM - 60, vy0 = G.cam.y - H / 2 / ZOOM - 60, vx1 = vx0 + W / ZOOM + 120, vy1 = vy0 + H / ZOOM + 120;
+  for (const z of G.bhz || []) {
+    if (z.x < vx0 || z.x > vx1 || z.y < vy0 || z.y > vy1 || !spotSeen(z.x, z.y)) continue;
+    ctx.save();
+    if (z.kind === 'thorns') {
+      ctx.fillStyle = 'rgba(70,100,40,0.55)'; ctx.beginPath(); ctx.ellipse(z.x, z.y, z.r, z.r * 0.75, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = '#2a3a18'; ctx.lineWidth = 1.2;
+      for (let i = 0; i < 14; i++) { const a = i * 2.39 + z.ph, d = (i * 7) % z.r, px = z.x + Math.cos(a) * d, py = z.y + Math.sin(a) * d * 0.75; ctx.beginPath(); ctx.moveTo(px - 3, py + 1); ctx.lineTo(px, py - 4); ctx.lineTo(px + 3, py + 1); ctx.stroke(); ctx.fillStyle = '#d8c890'; ctx.fillRect(px - 0.5, py - 4.5, 1, 1); }
+    } else if (z.kind === 'quicksand') {
+      const g = ctx.createRadialGradient(z.x, z.y, 2, z.x, z.y, z.r); g.addColorStop(0, 'rgba(120,90,40,0.8)'); g.addColorStop(1, 'rgba(200,160,90,0.25)');
+      ctx.fillStyle = g; ctx.beginPath(); ctx.ellipse(z.x, z.y, z.r, z.r * 0.7, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = 'rgba(90,60,20,0.5)'; ctx.lineWidth = 1;
+      for (let k = 0; k < 3; k++) { const rr2 = ((G.time * 6 + k * z.r / 3) % z.r); ctx.beginPath(); ctx.ellipse(z.x, z.y, z.r - rr2, (z.r - rr2) * 0.7, 0, 0, Math.PI * 2); ctx.stroke(); }
+    } else if (z.kind === 'rift') {
+      const on = z.on, k = on ? 1 : 0.35;
+      ctx.strokeStyle = `rgba(200,106,255,${0.25 * k})`; ctx.setLineDash([4, 6]); ctx.lineDashOffset = G.time * 30; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(z.x, z.y, z.pull, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]);
+      const g = ctx.createRadialGradient(z.x, z.y, 1, z.x, z.y, z.r * 1.4); g.addColorStop(0, `rgba(10,0,20,${0.95})`); g.addColorStop(0.6, `rgba(120,40,200,${0.6 * k})`); g.addColorStop(1, 'rgba(120,40,200,0)');
+      ctx.fillStyle = g; ctx.beginPath(); ctx.arc(z.x, z.y, z.r * 1.4, 0, Math.PI * 2); ctx.fill();
+      if (on && R() < 0.5) { const a = R() * 6.28, d = z.pull * (0.6 + R() * 0.4); fx({ k: 'trail', x: z.x + Math.cos(a) * d, y: z.y + Math.sin(a) * d, x2: z.x, y2: z.y, color: '#c86aff', life: 0.25 }); }
+    }
+    ctx.restore();
+  }
+  // lightning warnings
+  for (const z of G.ezones) {
+    if (z.kind !== 'storm') continue;
+    const k = Math.min(1, z.t / (z.delay || 1));
+    if (z.t < z.delay) {
+      ctx.strokeStyle = `rgba(255,226,74,${0.4 + 0.5 * k})`; ctx.lineWidth = 1.4; ctx.beginPath(); ctx.arc(z.x, z.y, z.r, 0, Math.PI * 2); ctx.stroke();
+      ctx.fillStyle = `rgba(255,226,74,${0.18 * k})`; ctx.beginPath(); ctx.arc(z.x, z.y, z.r * k, 0, Math.PI * 2); ctx.fill();
+    } else {
+      ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.strokeStyle = 'rgba(255,250,200,0.95)'; ctx.lineWidth = 2.4;
+      ctx.beginPath(); let px = z.x, py = z.y - 140; ctx.moveTo(px, py); for (let i = 0; i < 6; i++) { px = z.x + rr(-8, 8); py += 140 / 6; ctx.lineTo(px, py); } ctx.lineTo(z.x, z.y); ctx.stroke();
+      ctx.fillStyle = 'rgba(255,240,150,0.45)'; ctx.beginPath(); ctx.arc(z.x, z.y, z.r, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+    }
+  }
+}
 // ===== Bot AI =====
 // one difficulty: allied Krystalkers always play as well as they can
 const BOT_SKILL = { err: 0.04, react: 0.11, dodge: 0.85, perfect: 0.85, lead: 1, heatSmart: 0.95 };
@@ -6162,6 +6509,25 @@ function visibleEnemies(p, range) {
   const out = [];
   for (const e of G.enemies) { if (e.dead || e.hidden || (e.labMob && !labActive())) continue; const L = lairOf(e); if (L && !inRoom(L, p.x, p.y, 12)) continue; const dd = d2(e.x, e.y, p.x, p.y); if (dd < range * range && losClear(p.x, p.y - 4, e.x, e.y - 4)) out.push({ e, d: Math.sqrt(dd) }); }
   return out.sort((a, b) => a.d - b.d);
+}
+// active items: each one has a moment when it pays off
+function botActive(p, A, c, tgt) {
+  const id = p.active.id, big = tgt && (tgt.boss || tgt.champ || tgt.elite), td = tgt ? dist(p, tgt) : 1e9, near = r => clusterAt(p.x, p.y, r);
+  const aim = () => { if (tgt) { c.ax = tgt.x + (tgt.vx || 0) * 0.3; c.ay = tgt.y + (tgt.vy || 0) * 0.3; } };
+  let go = false;
+  if (id === 'jar') go = tgt && td < 150 && (big || clusterAt(tgt.x, tgt.y, 140) >= 3);
+  else if (id === 'meteor') go = tgt && td < 155 && td > 30 && (big || clusterAt(tgt.x, tgt.y, 50) >= 3);
+  else if (id === 'horn') go = tgt && td < 200 && (big || near(160) >= 4);
+  else if (id === 'smoke') go = p.hp < p.maxHp * 0.3 && near(90) > 0;
+  else if (id === 'traps') go = near(70) >= 3 || (big && td < 50);
+  else if (id === 'totem') go = tgt && td < 220 && G.players.filter(q => q.state === 'up' && d2(q.x, q.y, p.x, p.y) < 80 * 80 && q.hp < q.maxHp * 0.65).length >= 1 && (big || near(160) >= 2);
+  else if (id === 'nova') go = near(80) >= 3 || (big && td < 70) || (p.hp < p.maxHp * 0.4 && near(60) >= 1);
+  else if (id === 'pulse') go = near(70) >= 2 || (big && td < 60);
+  else if (id === 'blink') {
+    if (p.hp < p.maxHp * 0.3 && tgt && td < 60) { const a = Math.atan2(p.y - tgt.y, p.x - tgt.x); c.mx = Math.cos(a); c.my = Math.sin(a); go = true; }
+    else if (!A.nVis && A.mode === 'goto' && A.goal && d2(A.goal.x, A.goal.y, p.x, p.y) > 260 * 260 && (c.mx || c.my)) go = true;
+  }
+  if (go) { aim(); c.itemP = true; }
 }
 function clusterAt(x, y, r) { let n = 0; for (const e of G.enemies) if (!e.dead && d2(e.x, e.y, x, y) < r * r) n++; return n; }
 
@@ -6268,6 +6634,7 @@ function botControl(p, dt) {
     if (p.active.id === 'brew' && p.hp < p.maxHp * 0.45) c.itemP = true;
     if (p.active.id === 'bubble' && p.hp < p.maxHp * 0.3 && A.nVis > 0) c.itemP = true;
     if (p.active.id === 'bomb' && tgt && (tgt.elite || tgt.boss || clusterAt(tgt.x, tgt.y, 40) >= 3) && dist(p, tgt) < 150) c.itemP = true;
+    botActive(p, A, c, tgt);
   }
   // sprint between rooms and when fleeing at low health
   // stamina like a player: start a sprint only with a good reserve, stop before running dry
@@ -6347,7 +6714,7 @@ function decideMode(p, A, vis) {
   if (A.pingEnemy && !A.pingEnemy.dead) { const pe = A.pingEnemy; if (d2(pe.x, pe.y, p.x, p.y) < 160 * 160 && losClear(p.x, p.y, pe.x, pe.y)) { A.target = pe; return 'fight'; } A.goal = { x: pe.x, y: pe.y, near: 60 }; return 'goto'; }
   const myB = biomeAt(p.x, p.y);
   if (myB && myB.chal) {
-    if (myB.lab) { // in the Labyrinth the team moves as one: follow the leader, fight what is around the leader
+    if (myB.lab) { // in the Dream Palace the team moves as one: follow the leader, fight what is around the leader
       const ld = labLeader(myB);
       if (ld && ld !== p) {
         const dl = Math.hypot(ld.x - p.x, ld.y - p.y);
@@ -6378,6 +6745,8 @@ function decideMode(p, A, vis) {
       if (sh && !(G.botPlan && G.botPlan.B.lab && d2(sh.x, sh.y, p.x, p.y) > 900 * 900) && safeAt(sh.x, sh.y, 30, Math.min(30, Math.hypot(sh.x - p.x, sh.y - p.y) / 80 + 4))) { botAnnounce(p, 'Levelling up at the shrine', 'lvl' + p.level); A.goal = { x: sh.x, y: sh.y, near: 18, use: true, it: sh }; return 'goto'; }
     } }
   if (vis.length && vis[0].d < (rushing ? 120 : 200) && (vis[0].e.aggro || vis[0].d < 150) && (!(vis[0].e.champ || vis[0].e.castle) || botCanFight(p, vis[0].e.room || vis[0].e.home))) return 'fight';
+  { const m = corrPlan(p, A, vis); if (m) return m; }
+  { const m = cfontPlan(p, A, vis); if (m) return m; }
   if (A.pingSpot && A.pingSpotUntil > G.time && safeAt(A.pingSpot.x, A.pingSpot.y, 20)) { if (d2(p.x, p.y, A.pingSpot.x, A.pingSpot.y) < 40 * 40) A.pingSpot = null; else { A.goal = { x: A.pingSpot.x + rr(-16, 16), y: A.pingSpot.y + rr(-16, 16), near: 30 }; return 'goto'; } }
   { const m = joinPlan(p, A); if (m) return m; }
   if (A.helpT > 0 && H && H.state === 'up') { A.goal = { x: H.x, y: H.y, near: 40 }; return 'goto'; }
@@ -6388,7 +6757,7 @@ function decideMode(p, A, vis) {
   for (const k of G.coins) { if (k.botSkip > G.time) continue; const dd = d2(k.x, k.y, p.x, p.y); if (dd < bd && losClear(p.x, p.y, k.x, k.y)) { bd = dd; coin = k; } }
   if (coin) { A.goal = { x: coin.x, y: coin.y, near: 4 }; return 'goto'; }
   const lc = levelCost(p);
-  // the team agreed on the Labyrinth: go there now, everything else can wait
+  // the team agreed on the Dream Palace: go there now, everything else can wait
   if (G.botPlan && G.botPlan.B.lab) { const m = altarPlan(p, A); if (m) return m; }
   // wounded and nothing around: rest at a shrine before the next room (the next pull will hurt)
   const planNear = G.botPlan && altarOf(G.botPlan.B) && d2(p.x, p.y, altarOf(G.botPlan.B).x, altarOf(G.botPlan.B).y) < 450 * 450;
@@ -6424,7 +6793,7 @@ function botCanFight(p, room) {
   const A = p.ai; if (!A.riskT || G.time > A.riskT) { const [a, b] = RISK[A.pers] || [0, 1]; A.risk = rr(a, b); A.riskT = G.time + 20; }
   const rec = roomRec(room);
   const team = G.players.filter(q => q.state === 'up' && (d2(q.x, q.y, p.x, p.y) < 700 * 700 || d2(q.x, q.y, room.px, room.py) < 500 * 500 || (q.ai && q.ai.camp === room))).length;
-  if (room.castle) return p.level >= rec - 1 && team >= 3; // the Labyrinth punishes anyone under-leveled or alone
+  if (room.castle) return p.level >= rec - 1 && team >= 3; // the Dream Palace punishes anyone under-leveled or alone
   const power = p.level + relicCount(p) * 0.12 - (4 - team) * 1.0;
   if (rec <= p.level && team >= 2) return true;
   return power + A.risk >= rec;
@@ -6440,7 +6809,7 @@ function pickCamp(p, relaxed) {
   for (const r of G.rooms) {
     if (!(r.type === 'themed' || r.type === 'castle') || r.spawnedDay !== G.day) continue;
     if (r.cleared && r.alive < 3) continue; // cleared rooms refill with stragglers: still worth a visit
-    if (r.castle && (r.sub === 'tower' || r.sub === 'keep')) continue; // Labyrinth bosses are raided as a planned team (embersPlan)
+    if (r.castle && (r.sub === 'tower' || r.sub === 'keep')) continue; // Dream Palace bosses are raided as a planned team (embersPlan)
     { const rb = bmAt(r.px, r.py); if (rb >= 0 && sealHolds(G.biomes[rb]) && rb !== bmAt(p.x, p.y)) continue; }
     const bossAlive = r.type === 'castle' ? (r.hasBoss && !r.bossDone) : (r.hasBoss && !r.bossKilled && r.bossDone !== G.day);
     if (r.alive <= 0 && !bossAlive) continue;
@@ -6523,6 +6892,7 @@ function fightMove(p, A, tgt, c, dt, stayZone) {
   if (tgt.type === 'shellback' && !tgt.spinning) { const bx = tgt.x - tgt.face * (pd * 0.9 + 20), by = tgt.y + A.strafe * 20; mvA = Math.atan2(by - p.y, bx - p.x); if (Math.hypot(bx - p.x, by - p.y) < 14) mvA = away + A.strafe * Math.PI / 2; }
   if (stayZone && G.circle && !G.circle.spread && Math.hypot(p.x - G.circle.x, p.y - G.circle.y) > G.circle.r - 30) mvA = Math.atan2(G.circle.y - p.y, G.circle.x - p.x);
   for (const z of G.ezones) if (d2(p.x, p.y, z.x, z.y) < (z.r + 6) ** 2) { mvA = Math.atan2(p.y - z.y, p.x - z.x); break; }
+  for (const z of G.bhz || []) if (z.on !== false && d2(p.x, p.y, z.x, z.y) < (z.r + 4) ** 2) { mvA = Math.atan2(p.y - z.y, p.x - z.x); break; }
   let mx = Math.cos(mvA), my = Math.sin(mvA);
   // room fights happen inside the room: never kite out into the corridor
   const lair = lairOf(tgt);
@@ -6690,7 +7060,7 @@ function oldHuntRoom(p) {
   return R0;
 }
 
-// ---- after Gatekeeper II: raid the Labyrinth as a team, then take the portal ----
+// ---- after Gatekeeper II: raid the Dream Palace as a team, then take the portal ----
 function teamStats() { const t = G.players; const lv = t.map(q => q.level); return { min: Math.min(...lv), avg: lv.reduce((a, b) => a + b, 0) / lv.length }; }
 function labTarget() {
   if (!G.castle) return null;
@@ -6725,7 +7095,7 @@ function embersPlan(p, A) {
   A.camp = R0;
   const bossUp = R0.boss && !R0.boss.dead && R0.bossDone !== 99;
   if (bossUp && !R0.boss.aggro) {
-    // gather at the door, then go in together: nobody pulls a Labyrinth boss alone
+    // gather at the door, then go in together: nobody pulls a Dream Palace boss alone
     if (!R0.gather || G.time > R0.gatherT) { const alive = G.players.filter(q => q.state === 'up'); const c = { x: alive.reduce((a, q) => a + q.x, 0) / Math.max(1, alive.length), y: alive.reduce((a, q) => a + q.y, 0) / Math.max(1, alive.length) }; R0.gather = exitPoint(R0, c); R0.gatherT = G.time + 20; }
     const g = R0.gather, ups = G.players.filter(q => q.state === 'up');
     if (p.hp < p.maxHp * 0.85) { const sh = nearestShrineNow(p); if (sh && d2(sh.x, sh.y, p.x, p.y) < 1400 * 1400) { A.goal = { x: sh.x + rr(-12, 12), y: sh.y + 20, near: 16 }; return 'goto'; } }
@@ -6781,13 +7151,13 @@ function chalHunt(p, A, B) {
     if (!boss) { const h = G.castle.hall; A.goal = { x: h.px + rr(-30, 30), y: h.py + rr(-20, 20), near: 40 }; return 'goto'; }
     // regroup before pulling the next guardian
     const room = boss.home;
-    // before the next guardian (above all the Keep): heal up at a Labyrinth shrine, drink if needed
+    // before the next guardian (above all the Keep): heal up at a Dream Palace shrine, drink if needed
     if (!boss.aggro && p.hp < p.maxHp * (room.sub === 'keep' ? 0.85 : 0.6)) { const sh = G.inter.filter(i => i.kind === 'shrine' && bmAt(i.x, i.y) === B.id).sort((a, b) => d2(a.x, a.y, p.x, p.y) - d2(b.x, b.y, p.x, p.y))[0]; if (sh) { botAnnounce(p, 'Healing up before the next guardian', 'labheal' + boss.type); A.goal = { x: sh.x + rr(-10, 10), y: sh.y + 22, near: 16 }; return 'goto'; } if (p.flasks > 0 && p.hp < p.maxHp * 0.6) A.drinkNow = true; A.goal = { x: p.x, y: p.y, near: 999 }; return 'idle'; }
     if (!boss.aggro && room.sub === 'keep') { const lc = levelCost(p), sh = lc != null && p.gold >= lc ? G.inter.find(i => i.kind === 'shrine' && bmAt(i.x, i.y) === B.id) : null; if (sh) { A.goal = { x: sh.x, y: sh.y, near: 18, use: true, it: sh }; return 'goto'; } }
     if (!boss.aggro) { const mates = G.players.filter(q => q.state === 'up' && bmAt(q.x, q.y) === B.id); const ex = exitPoint(room, teamCentre()); if (mates.some(q => d2(q.x, q.y, ex.x, ex.y) > 170 * 170) && d2(p.x, p.y, ex.x, ex.y) < 170 * 170) { A.goal = { x: ex.x + rr(-20, 20), y: ex.y + rr(-20, 20), near: 30 }; return 'goto'; } if (d2(p.x, p.y, ex.x, ex.y) > 170 * 170) { A.goal = { x: ex.x, y: ex.y, near: 40 }; return 'goto'; } }
   } else boss = B.chal && B.chal.boss;
   if (!boss || boss.dead) return null;
-  botAnnounce(p, `Challenging ${boss.def.name} in ${B.lab ? 'the Labyrinth' : 'the ' + B.name}!`, 'boss' + boss.type);
+  botAnnounce(p, `Challenging ${boss.def.name} in ${B.lab ? 'the Dream Palace' : 'the ' + B.name}!`, 'boss' + boss.type);
   A.target = boss;
   const room = boss.home || boss.room;
   if (room && inRoom(room, p.x, p.y, -6)) return 'fight';
@@ -6802,18 +7172,18 @@ function joinPlan(p, A) {
     if (!G.players.some(q => q !== p && q.state !== 'dead' && bmAt(q.x, q.y) === B.id)) continue;
     if (p.level < chalRec(B) - (B.lab ? 4 : 2)) continue;
     const r = B.lab ? G.castle.hall : B.altarRoom; if (!r || !campSafe(p, r.px, r.py, 40, 30)) continue;
-    botAnnounce(p, `Joining ${B.lab ? "the Labyrinth" : "the " + B.name} challenge`, 'join' + B.id);
+    botAnnounce(p, `Joining ${B.lab ? "the Dream Palace" : "the " + B.name} challenge`, 'join' + B.id);
     A.goal = { x: r.px + rr(-20, 20), y: r.py + rr(-20, 20), near: 40 }; return 'goto';
   }
   return null;
 }
-// the team picks one altar to restore together; at least two of us must stand in the biome (the whole team for the Labyrinth)
+// the team picks one altar to restore together; at least two of us must stand in the biome (the whole team for the Dream Palace)
 function updateBotPlan() {
   if (G.planT > G.time) return; G.planT = G.time + 3;
   if (G.phase !== 'day' || (G.lab && G.lab.chal)) { G.botPlan = null; G.labGo = false; G.labGather = null; return; }
   if (G.chalOn && !(G.botPlan && G.botPlan.B.lab)) { G.botPlan = null; return; }
   const P0 = G.botPlan, T0 = teamLv(), labNow = G.lab && !G.lab.bossKilled && G.day === 2 && T0.avg >= 8.5 && T0.min >= 7;
-  const labReach = al => !G.circle || (G.circle.spread ? !fireOut(al.x, al.y, 40, 30) : Math.hypot(al.x - G.circle.x, al.y - G.circle.y) < G.circle.r - 40); // once inside, the Labyrinth is safe from the fire
+  const labReach = al => !G.circle || (G.circle.spread ? !fireOut(al.x, al.y, 40, 30) : Math.hypot(al.x - G.circle.x, al.y - G.circle.y) < G.circle.r - 40); // once inside, the Dream Palace is safe from the fire
   if (P0 && !P0.B.bossKilled && !P0.B.chal && altarOf(P0.B) && (P0.B.lab ? labReach(altarOf(P0.B)) : campSafe(teamCentre(), altarOf(P0.B).x, altarOf(P0.B).y, 40, 30)) && (P0.B.lab || !labNow)) return;
   const T = teamLv(), c = teamCentre(); let best = null, bs = 1e12;
   for (const B of G.biomes) {
@@ -6829,7 +7199,7 @@ function updateBotPlan() {
   const was = G.botPlan && G.botPlan.B;
   G.botPlan = best ? { B: best, t: G.time } : null;
   if (best !== was) { G.labGo = false; G.labGather = null; }
-  if (best && best.lab && best !== was) { const caller = G.players.filter(q => q.isBot && q.state === 'up').sort((a, b) => b.level - a.level)[0]; if (caller) { feed(`${caller.name}: To the Labyrinth! Everyone, meet at its gate.`, CHARS[caller.char].color); caller.sticker = { text: 'Labyrinth!', t: 2 }; } }
+  if (best && best.lab && best !== was) { const caller = G.players.filter(q => q.isBot && q.state === 'up').sort((a, b) => b.level - a.level)[0]; if (caller) { feed(`${caller.name}: To the Dream Palace! Everyone, meet at its gate.`, CHARS[caller.char].color); caller.sticker = { text: 'Dream Palace!', t: 2 }; } }
 }
 // can this bot walk there right now? (another biome's seal can cut the way; cached for 3s)
 function canReach(p, A, x, y) {
@@ -6846,7 +7216,7 @@ function altarPlan(p, A) {
   const B = P0.B, al = altarOf(B); if (!al) return null;
   if (!B.lab && p.level < chalRec(B) - 2) return null;
   const inB = G.players.filter(q => q.state === 'up' && bmAt(q.x, q.y) === B.id && d2(q.x, q.y, al.x, al.y) < 260 * 260);
-  // the Labyrinth: the whole team gathers at the door first and goes in together (a human who never comes is waited for 60s)
+  // the Dream Palace: the whole team gathers at the door first and goes in together (a human who never comes is waited for 60s)
   let need = 2;
   if (B.lab && !G.labGo) {
     const gate = labGate(), live = G.players.filter(q => q.state !== 'dead');
@@ -6855,25 +7225,25 @@ function altarPlan(p, A) {
     const waited = G.time - G.labGather, bots = live.filter(q => q.isBot), humansAway = live.some(q => !q.isBot && !atGate.includes(q));
     const humanFar = live.some(q => !q.isBot && d2(q.x, q.y, gate.x, gate.y) > 900 * 900);
     const ready = atGate.length >= live.length || ((waited > 60 || (humanFar && waited > 20)) && bots.every(q => atGate.includes(q)) && humansAway) || (waited > 150 && atGate.length >= 2);
-    if (ready) { G.labGo = true; feed('The team is together: into the Labyrinth!', '#c8c8ff'); }
+    if (ready) { G.labGo = true; feed('The team is together: into the Dream Palace!', '#c8c8ff'); }
     else {
-      if (d2(p.x, p.y, gate.x, gate.y) < 150 * 150) { botAnnounce(p, `Waiting at the Labyrinth gate (${atGate.length}/${live.length})`, 'gate' + B.id); A.goal = { x: gate.x + rr(-40, 40), y: gate.y + rr(-10, 30), near: 40 }; return d2(p.x, p.y, gate.x, gate.y) < 60 * 60 ? 'idle' : 'goto'; }
-      if (!canReach(p, A, gate.x, gate.y)) { botAnnounce(p, 'The way to the Labyrinth is sealed off: I will come when it opens', 'noway' + B.id); return null; } // a seal blocks the road: do something useful meanwhile
-      botAnnounce(p, 'Heading to the Labyrinth gate', 'togate' + B.id); A.goal = { x: gate.x + rr(-30, 30), y: gate.y + rr(0, 30), near: 40 }; A.camp = null; return 'goto';
+      if (d2(p.x, p.y, gate.x, gate.y) < 150 * 150) { botAnnounce(p, `Waiting at the Dream Palace gate (${atGate.length}/${live.length})`, 'gate' + B.id); A.goal = { x: gate.x + rr(-40, 40), y: gate.y + rr(-10, 30), near: 40 }; return d2(p.x, p.y, gate.x, gate.y) < 60 * 60 ? 'idle' : 'goto'; }
+      if (!canReach(p, A, gate.x, gate.y)) { botAnnounce(p, 'The way to the Dream Palace is sealed off: I will come when it opens', 'noway' + B.id); return null; } // a seal blocks the road: do something useful meanwhile
+      botAnnounce(p, 'Heading to the Dream Palace gate', 'togate' + B.id); A.goal = { x: gate.x + rr(-30, 30), y: gate.y + rr(0, 30), near: 40 }; A.camp = null; return 'goto';
     }
   }
   if (B.lab) {
     const live = G.players.filter(q => q.state !== 'dead'); need = G.labGo ? Math.max(2, G.players.filter(q => q.state !== 'dead' && (bmAt(q.x, q.y) === B.id || d2(q.x, q.y, al.x, al.y) < 400 * 400)).length) : live.length;
     if (inB.length && !G.labGather) G.labGather = G.time;
     if (G.labGather && G.time - G.labGather > 60 && G.players.filter(q => q.isBot && q.state !== 'dead').every(q => inB.includes(q))) need = Math.max(2, inB.length);
-    if (inB.length < need && d2(p.x, p.y, al.x, al.y) < 140 * 140) { botAnnounce(p, `Waiting for the team at ${B.lab ? "the Labyrinth" : "the " + B.name} (${inB.length}/${live.length})`, 'wait' + B.id); }
+    if (inB.length < need && d2(p.x, p.y, al.x, al.y) < 140 * 140) { botAnnounce(p, `Waiting for the team at ${B.lab ? "the Dream Palace" : "the " + B.name} (${inB.length}/${live.length})`, 'wait' + B.id); }
   }
   const near = d2(p.x, p.y, al.x, al.y) < 120 * 120;
   if (near && inB.length >= need && inB.every(q => q.hp > q.maxHp * 0.35)) {
     const starter = inB.filter(q => q.isBot && !q.remote).sort((a, b) => d2(a.x, a.y, al.x, al.y) - d2(b.x, b.y, al.x, al.y))[0];
-    if (starter === p) { botAnnounce(p, `Initiating ${B.lab ? "the Labyrinth" : "the " + B.name} challenge!`, 'init' + B.id); A.goal = { x: al.x, y: al.y, near: 18, use: true, it: al }; return 'goto'; }
+    if (starter === p) { botAnnounce(p, `Initiating ${B.lab ? "the Dream Palace" : "the " + B.name} challenge!`, 'init' + B.id); A.goal = { x: al.x, y: al.y, near: 18, use: true, it: al }; return 'goto'; }
   }
-  if (!near) botAnnounce(p, `Heading to ${B.lab ? "the Labyrinth" : "the " + B.name} altar`, 'head' + B.id);
+  if (!near) botAnnounce(p, `Heading to ${B.lab ? "the Dream Palace" : "the " + B.name} altar`, 'head' + B.id);
   A.goal = { x: al.x + rr(-40, 40), y: al.y + rr(10, 40), near: 50 }; A.camp = null; return 'goto';
 }
 
@@ -6904,7 +7274,7 @@ const STICKERS = [
 const T_PREP = 60;
 const STAGES = [['farm', 150], ['shrink1', 25], ['hold', 55], ['shrink2', 30]];
 const T_FARM = 170;
-// Act II is longer: it holds the Labyrinth
+// Act II is longer: it holds the Dream Palace
 const ACT_SCALE = [1, 1, 1.5];
 // Krystolen rules: both Acts share one time budget; whatever Act I leaves unused stretches Act II (G.actStretch)
 function stageDur(k) { const s = STAGES.find(s => s[0] === k); return s ? s[1] * (G && G.day ? ACT_SCALE[G.day] || 1 : 1) * (G && G.day === 2 && G.actStretch ? G.actStretch : 1) * (k === 'farm' && G && G.day === 2 && G.cross === 'embers' ? 0.6 : 1) : 1; }
@@ -6975,7 +7345,7 @@ function startGame(charKey, watch, lord = 'warden', team = null, mp = null) {
 const GK_REC = [0, 5, 10], FINAL_REC = 15;
 // the later bosses are tuned for the recommended level: Gatekeeper II for Lv 10 with ultimates, the Dungeon Master for Lv 15
 const GK_HP = [0, 1, 1.7], GK_DMG = [0, 1, 1.2], FINAL_HP = 4.5, FINAL_DMG = 1.5;
-const BOSS_HP_NERF = 0.75; // every Gatekeeper, Labyrinth guardian and Dungeon Master
+const BOSS_HP_NERF = 0.75; // every Gatekeeper, Dream Palace guardian and Dungeon Master
 function tuneBoss(e, hp, dmg) { e.hp *= hp; e.maxHp *= hp; e.dmgM *= dmg; return e; }
 function setBanner(title, sub, life = 4.5, color) { G.banner = { title, sub, t: 0, life, color }; if (!G.hub) sfx('bell'); }
 function circleFor(room, centre, isLab) {
@@ -6983,10 +7353,10 @@ function circleFor(room, centre, isLab) {
   const far = Math.max(...[[0, 0], [mapW, 0], [0, mapH], [mapW, mapH]].map(([x, y]) => Math.hypot(x - cx, y - cy)));
   const half = Math.hypot(room.w, room.h) * TILE / 2, r0 = far + 40, rf = Math.max(196, half + 56); // the final ring always holds the whole Gatekeeper arena
   const c = { x: cx, y: cy, r: r0, r0, rf, rmid: Math.max(rf * 3, r0 * 0.45) };
-  if (centre) { c.fx = cx; c.fy = cy; c.tx = room.px; c.ty = room.py; c.rmid = Math.min(r0 - 40, Math.max(c.rmid, Math.hypot(cx - room.px, cy - room.py) + rf + 80, isLab ? Math.hypot(90, 48) * TILE / 2 + 48 : 0)); c.moveIn = isLab ? 'shrink2' : 'shrink1'; } /* the whole Labyrinth stays inside until the last closing */ // the ring drifts onto the Gatekeeper only in the last closing
+  if (centre) { c.fx = cx; c.fy = cy; c.tx = room.px; c.ty = room.py; c.rmid = Math.min(r0 - 40, Math.max(c.rmid, Math.hypot(cx - room.px, cy - room.py) + rf + 80, isLab ? Math.hypot(90, 48) * TILE / 2 + 48 : 0)); c.moveIn = isLab ? 'shrink2' : 'shrink1'; } /* the whole Dream Palace stays inside until the last closing */ // the ring drifts onto the Gatekeeper only in the last closing
   return c;
 }
-// Act II: the Wildfire closes around the Labyrinth first, so it is the last place the fire swallows
+// Act II: the Wildfire closes around the Dream Palace first, so it is the last place the fire swallows
 function labCentre() { const C = G.castle; if (!C || !G.lab || G.lab.bossKilled) return null; const a = labArea(); return { x: a.px, y: a.py }; }
 function rollMob(tpl) { const tot = Object.values(tpl.mobs).reduce((a, b) => a + b, 0); let r = R() * tot; for (const k in tpl.mobs) if ((r -= tpl.mobs[k]) < 0) return k; return 'grub'; }
 function populateRooms() {
@@ -6998,11 +7368,11 @@ function populateRooms() {
     if (room.locked) setRoomLocked(room, false);
     if (room.type === 'themed') {
       room.cleared = false; const tpl = room.tpl;
-      const n = Math.round(3 + Math.sqrt(room.w * room.h) * 0.36 + room.danger * 1.1 + (G.day - 1) * 2);
+      const n = Math.round((3 + Math.sqrt(room.w * room.h) * 0.36 + room.danger * 1.1 + (G.day - 1) * 2) * (tpl.swarm ? 1.4 : 1));
       room.n0 = n; room.refillT = 30;
       for (let i = 0; i < n; i++) { const q = randomFloorIn(room, G.players, 70, 1); const e = spawnEnemy(rollMob(tpl), q.x, q.y, { room, hpMul: TIER_HP[room.danger] }); e.dmgM *= TIER_DMG[room.danger]; }
     }
-    if (false) { // the Labyrinth fills only once, when its challenge starts (spawnLabMobs)
+    if (false) { // the Dream Palace fills only once, when its challenge starts (spawnLabMobs)
       const n = room.sub === 'tower' ? 3 : Math.round(4 + room.w * room.h / 12 + (G.day - 1) * 2);
       room.n0 = n; room.refillT = 40;
       for (let i = 0; i < n; i++) { const q = randomFloorIn(room, G.players, 30, 1); const e = spawnEnemy(rollMob(room.tpl), q.x, q.y, { room, hpMul: LAB_HP }); e.dmgM *= LAB_DMG; e.rec = room.rec; e.goldM *= LAB_GOLD; }
@@ -7099,7 +7469,7 @@ function startDay(n) {
   // two possible lairs, picked anew each Act (the same one can come twice); nobody knows which until the ring first closes
   G.nightRoom = pick(G.nightRooms); G.gkRevealed = false;
   const lab = n === 2 ? labCentre() : null, NR = G.nightRooms, mid = NR.length > 1 ? { x: (NR[0].px + NR[1].px) / 2, y: (NR[0].py + NR[1].py) / 2 } : null;
-  // (the ring used to centre on the Labyrinth in Act II; now it sweeps over the castle like anywhere else)
+  // (the ring used to centre on the Dream Palace in Act II; now it sweeps over the castle like anywhere else)
   G.circle = G.fireMode === 'spread' ? spreadCircle(G.nightRoom) : circleFor(G.nightRoom, mid, false);
   if (G.fireMode === 'spread') planSpread(n);
   for (const p of G.players) { if (p.state !== 'up') { p.state = 'up'; p.invulnT = 2; } p.hp = p.maxHp; p.fightDowns = 0; p.phoenixUsed = false; clearStatus(p); }
@@ -7176,7 +7546,7 @@ function onBossDead(e) {
     questEvent('dm', e.type); feed(`The ${e.def.name} falls!`, '#7ff0ff');
     // a proper boss death: chained explosions, the body flickering, then bursting rings of light
     const big = e.type === 'sovereign2';
-    G.deathFx = { t: 0, x: e.x, y: e.y, dur: big ? 4.6 : 2.8, big, spr: e.sprite + (e.tint ? '_d2' : ''), sc: e.scale || 1, boomT: 0, ring: false };
+    G.deathFx = { t: 0, x: e.x, y: e.y, dur: big ? 4.6 : 2.8, big, spr: e.variant ? (varSprite(e.sprite || e.type, e.variant), (e.sprite || e.type) + '_' + e.variant) : e.sprite + (e.tint ? '_d2' : ''), sc: e.scale || 1, boomT: 0, ring: false };
     for (const o of G.enemies) if (!o.dead && o !== e) { o.dead = true; burst(o.x, o.y, '#c86aff', 8, 60); }
     G.bullets = G.bullets.filter(b => b.team === 'player'); G.beams = []; G.walls = []; G.tele = []; G.delayed = []; G.ezones = [];
     for (const p of G.players) p.invulnT = 99;
@@ -7214,14 +7584,14 @@ function updatePortals(dt) {
     if (all || left <= 0) { G.inter = G.inter.filter(i => i !== it); if (it.to === 'bazaar') goBazaar(); else goEverfield(); return; }
   }
 }
-// after Gatekeeper II the Wildfire dies down: free time to farm and raid the Labyrinth before the portal
+// after Gatekeeper II the Wildfire dies down: free time to farm and raid the Dream Palace before the portal
 const EMBERS_MAX = 900;
 function startEmbers() {
   G.portalOpened = true; G.phase = 'embers'; G.embersT = 0; G.circle = null;
   for (const r of G.rooms) if (r.locked) setRoomLocked(r, false);
   openPortal(G.bossRoom.px, G.bossRoom.py, 'bazaar');
-  setBanner('The Wildfire dies down', 'The portal waits for you. Raid the Labyrinth to reach full strength before you step through.', 5, '#e0b0ff');
-  feed(`The Labyrinth's monsters are the strongest in the realm: its towers need a full team at Lv ${G.castle ? G.castle.north.rec : 10}+, the Keep Lv ${G.castle ? G.castle.keep.rec : 13}+.`, '#c8c8ff');
+  setBanner('The Wildfire dies down', 'The portal waits for you. Raid the Dream Palace to reach full strength before you step through.', 5, '#e0b0ff');
+  feed(`The Dream Palace's monsters are the strongest in the realm: its towers need a full team at Lv ${G.castle ? G.castle.north.rec : 10}+, the Keep Lv ${G.castle ? G.castle.keep.rec : 13}+.`, '#c8c8ff');
 }
 function labCleared() { return !G.castle || G.castle.rooms.every(r => !r.hasBoss || r.bossDone === 99); }
 function labFight(p) { return false; } // only Gatekeeper and Dungeon Master fights allow revives
@@ -7350,7 +7720,7 @@ function sendSticker(i) {
     if (s.act === 'nice') { b.ai.saidT = G.time; const l = pick(['Nice!', 'GG so far!', "Let's go!"]); feed(`${b.name}: ${l}`, CHARS[b.char].color); b.sticker = { text: l, t: 2 }; }
   }
 }
-// while a team fights inside the Labyrinth, the Wildfire cannot reach them and the night waits (up to 3 minutes)
+// while a team fights inside the Dream Palace, the Wildfire cannot reach them and the night waits (up to 3 minutes)
 function labHolding() { return !!(G.lab && G.lab.chal && (G.labHold || 0) < 180 && G.players.some(p => p.state !== 'dead' && bmAt(p.x, p.y) === G.lab.id)); }
 function circleDamage(dt) {
   const c = G.circle; if (!c || c.calm) return; // after a Gatekeeper falls the fire calms: walk out and heal on the way
@@ -7386,7 +7756,7 @@ function step(dt) {
         G.dayStage = STAGES[i + 1][0]; G.stageT = stageDur(STAGES[i + 1][0]);
         if (G.dayStage === 'shrink1' && !G.gkRevealed) { G.gkRevealed = true; revealRoom(G.nightRoom); setBanner('The Wildfire closes in', 'It closes on the Gatekeeper\'s lair (☾ on the map).', 3, '#ffb070'); placeBell(); }
         else if ((G.dayStage === 'shrink1' || G.dayStage === 'shrink2') && !c.spread) setBanner('The Wildfire spreads', '', 2.5, '#ffb070');
-      } else if (false && labHolding()) { G.stageT = 0.5; G.labHold = (G.labHold || 0) + 0.5; if (!G.labHoldMsg) { G.labHoldMsg = true; setBanner('The Labyrinth holds the night back', 'The Gatekeeper waits until the Labyrinth battle ends.', 3.5, '#c8c8ff'); } }
+      } else if (false && labHolding()) { G.stageT = 0.5; G.labHold = (G.labHold || 0) + 0.5; if (!G.labHoldMsg) { G.labHoldMsg = true; setBanner('The Dream Palace holds the night back', 'The Gatekeeper waits until the Dream Palace battle ends.', 3.5, '#c8c8ff'); } }
       else { c.r = c.rf; startNight(); }
     }
     G.ambushT -= dt; if (G.ambushT <= 0) { G.ambushT = 0.2; updateAmbush(); }
@@ -7402,7 +7772,7 @@ function step(dt) {
   if (G.phase === 'dawn') { G.dawnT += dt; const crOk = G.day !== 1 || !G.crossMode || crossroadsReady(dt); if (G.day === 1 && crOk && ((!G.choice && G.dawnT > 8 && G.inter.filter(i => i.kind === 'bosschest' && !i.used).every(i => G.players.every(p => i.taken.has(p) || p.state !== 'up'))) || G.dawnT > 30)) startDay(2); }
   G.flowT -= dt; if (G.flowT <= 0) { G.flowT = 0.35; updateFlow(); }
   if (G.phase === 'day' || G.phase === 'dawn' || G.phase === 'embers') updateRefill(dt);
-  updateChallenges(dt);
+  updateChallenges(dt); updateCorruptors(dt);
   const H0 = human();
   if (H0 && H0.state === 'dead' && (bindPressed('attack') || bindPressed('skill'))) G.specIdx++;
   if (H0 && !G.watch && G.bigMap && G.mapXf && (bindPressed('ping') || bindPressed('attack'))) { // click the full map to ping that spot
@@ -7451,7 +7821,7 @@ function step(dt) {
   circleDamage(dt);
   if (G.phase !== 'won' && G.phase !== 'lost') {
     const wiped = G.bossFight ? G.players.every(p => p.state === 'downed') && G.players.some(p => p.state === 'downed') : G.players.every(p => p.state === 'downed');
-    if (wiped) { G.wipeT += dt; if (G.wipeT > 1.5) { if (G.bossFight) endMatch(false); else { G.wipeT = 0; feed('The whole team fell in the Labyrinth. Everyone respawns at a shrine.', '#ff8a8a'); for (const p of G.players) if (p.state === 'downed') killPlayer(p); } } } else G.wipeT = 0;
+    if (wiped) { G.wipeT += dt; if (G.wipeT > 1.5) { if (G.bossFight) endMatch(false); else { G.wipeT = 0; feed('The whole team fell in the Dream Palace. Everyone respawns at a shrine.', '#ff8a8a'); for (const p of G.players) if (p.state === 'downed') killPlayer(p); } } } else G.wipeT = 0;
   }
   updateFxAll(dt);
 }
@@ -7467,7 +7837,7 @@ function teamReveal(dt) {
 function updateWorldCommon(dt) {
   updateMinions(dt); updateSouls(dt); updateDam(dt); updateGlaciers(dt); updatePassives(dt);
   updateBlackout(dt);
-  updateHazards(dt); updatePings(dt);
+  updateHazards(dt); updatePings(dt); if (typeof updateBiomeHz === 'function') updateBiomeHz(dt);
   updateDelayed(dt); updateSpawns(dt); updateBullets(dt); updateLobs(dt); updateZones(dt); updateEzones(dt); updateCoins(dt); updateOrbs(dt); updateMeteorsTotems(dt); updateTaunts(dt);
   for (const d of G.drops) d.t += dt;
   for (let i = G.totems.length - 1; i >= 0; i--) {
@@ -7500,7 +7870,7 @@ function updateFxAll(dt) {
 
 function roomIntro(room) {
   if (G.phase !== 'day' || !room) return;
-  if (room.type === 'castle') { const H1 = human(); if (H1 && H1.lastBiome !== G.lab) { H1.lastBiome = G.lab; setBanner('The Labyrinth', `${G.lab.bossKilled ? 'conquered ✓' : 'Lv ' + G.lab.rec}`, 2, '#c8c8e0'); } return; }
+  if (room.type === 'castle') { const H1 = human(); if (H1 && H1.lastBiome !== G.lab) { H1.lastBiome = G.lab; setBanner('The Dream Palace', `${G.lab.bossKilled ? 'conquered ✓' : 'Lv ' + G.lab.rec}`, 2, '#c8c8e0'); } return; }
   if (room.type !== 'themed') return;
   const rec = roomRec(room), H0 = human(), col = H0 && H0.level >= rec ? '#7ae07a' : H0 && H0.level >= rec - 2 ? '#ffe06a' : '#ff6a6a';
   const boss = room.hasBoss && room.bossDone !== G.day && !room.bossKilled;
@@ -7830,7 +8200,7 @@ const HUB_HINT = {
 // ===== Spreading Wildfire (Gate option): instead of a closing ring, the fire catches room by room =====
 // The map is a GW×GH grid of cells. Each Act the fire lights in the cells farthest from the Gatekeeper's arena and spreads
 // along the corridors one step at a time. Every cell gets a burn time; a cell is "smouldering" for SPREAD_WARN seconds first.
-// The arena and the way to it always burn last, so nobody is ever cut off. In Act II the Labyrinth burns just before the arena.
+// The arena and the way to it always burn last, so nobody is ever cut off. In Act II the Dream Palace burns just before the arena.
 let FIRE_MODE = 'ring';
 try { FIRE_MODE = localStorage.getItem('kry_fire') === 'spread' ? 'spread' : 'ring'; } catch (e) { }
 let SPREAD_OVR = null; // a Crossroads choice can make the fire faster
@@ -7880,7 +8250,7 @@ function planSpread(n) {
   const dI = bfsCells(adj, lit), raw = new Array(N).fill(0);
   for (let i = 0; i < N; i++) raw[i] = dI[i] >= 0 ? dI[i] : 0;
   const late = Math.max(...raw) + 1;
-  // Act II: while its guardian lives, the Labyrinth burns just before the arena
+  // Act II: while its guardian lives, the Dream Palace burns just before the arena
   if (n === 2 && G.castle && G.lab && !G.lab.bossKilled) for (const i of cellsOverlapping(G.castle.x0, G.castle.y0, 90, 48)) if (dA[i] > 0) raw[i] = Math.max(raw[i], late);
   // the way to the arena burns after everything beyond it, so the team is never cut off
   const order = reach.slice().sort((a, b) => dA[b] - dA[a]);
@@ -8169,21 +8539,21 @@ const XROADS = {
   flood: { name: 'The Flood', col: '#4aa8ff', hazard: 'flood', desc: 'Water rises instead of fire: it slows you as it hurts · extra chests everywhere' },
   blizzard: { name: 'Blizzard', col: '#bff4ff', hazard: 'frost', desc: 'Frost spreads: it Chills, then Freezes · the Gatekeeper leaves an extra relic chest' },
   night: { name: 'The Long Night', col: '#b48cff', hazard: 'dark', desc: 'Darkness spreads: you see almost nothing in it · the Gatekeeper pays double gold' },
-  siege: { name: 'The Siege', col: '#c8c8ff', hazard: 'fire', desc: 'Start at the Labyrinth altar, its challenge begins at once · +100% health and damage for 30s', spread: [0.33, 0.85] },
+  siege: { name: 'The Siege', col: '#c8c8ff', hazard: 'fire', desc: 'Start at the Dream Palace altar, its challenge begins at once · +100% health and damage for 30s', spread: [0.33, 0.85] },
 };
 function openCrossroads() {
   if (!G.crossMode || G.day !== 1 || G.inter.some(i => i.kind === 'xroad')) return;
   let keys = shuffle(['embers', 'flood', 'blizzard', 'night']).slice(0, 2);
   if (G.lab && !G.lab.bossKilled) keys.push('siege'); else keys.push(pick(['embers', 'flood', 'blizzard', 'night'].filter(k => !keys.includes(k))));
-  const gks = shuffle(NIGHT2_POOL.slice()), room = G.bossRoom || G.nightRoom;
-  keys.forEach((k, i) => { const q = clearSpot(room.px + (i - 1) * 64, room.py + 54, 12); addInter({ kind: 'xroad', x: q.x, y: q.y, r: 22, xk: k, gk: gks[i % gks.length], ready: new Set() }); });
+  const room = G.bossRoom || G.nightRoom;
+  keys.forEach((k, i) => { const q = clearSpot(room.px + (i - 1) * 64, room.py + 54, 12); addInter({ kind: 'xroad', x: q.x, y: q.y, r: 22, xk: k, ready: new Set() }); });
   setBanner('The Crossroads', 'Three ways into Act II. Stand at a gate and press F to vote.', 4, '#ffe6a0');
   G.crossT = 0;
 }
 function xroadPrompt(it, p) {
-  const X = XROADS[it.xk], gk = ENEMY[it.gk] ? ENEMY[it.gk].name : it.gk;
+  const X = XROADS[it.xk];
   if (it.ready.has(p)) return { text: `Voted: ${X.name} · waiting for the team`, sub: X.desc, locked: true };
-  return { text: `Vote: ${X.name} (Gatekeeper II: ${gk})`, sub: X.desc };
+  return { text: `Vote: ${X.name}`, sub: X.desc };
 }
 function useXroad(it, p) {
   for (const o of G.inter) if (o.kind === 'xroad') o.ready.delete(p);
@@ -8201,7 +8571,7 @@ function crossroadsReady(dt) {
   chooseCross(best); return true;
 }
 function chooseCross(g) {
-  G.cross = g.xk; G.hazard = XROADS[g.xk].hazard; G.night2 = g.gk;
+  G.cross = g.xk; G.hazard = XROADS[g.xk].hazard; // the gate no longer decides Gatekeeper II
   G.inter = G.inter.filter(i => i.kind !== 'xroad');
   feed(`The team takes ${XROADS[g.xk].name}.`, XROADS[g.xk].col);
 }
@@ -8212,7 +8582,7 @@ function applyCross() {
   if (X.spread && G.fireMode === 'spread') { SPREAD_OVR = X.spread; planSpread(2); SPREAD_OVR = null; placeFireDoors(); }
   if (k === 'flood') for (const r of G.rooms) if (r.type === 'themed' && r.gx != null) { const q = randomFloorIn(r, [], 0, 2); addInter({ kind: 'chest', x: q.x, y: q.y }); }
   if (k === 'siege' && G.castle) {
-    // the team is carried straight to the Labyrinth altar, the challenge starts at once, and everyone gets 30s of fury
+    // the team is carried straight to the Dream Palace altar, the challenge starts at once, and everyone gets 30s of fury
     const altar = G.inter.find(i => i.kind === 'altar' && i.B === G.lab);
     if (altar && G.lab && !G.lab.bossKilled) {
       placeTeam(altar.x, altar.y + 34); startChallenge(G.lab, G.players[0]);
@@ -8245,11 +8615,285 @@ function drawXroad(it) {
   ctx.fillStyle = g; ctx.beginPath(); ctx.ellipse(x, y - 22, 13 + Math.sin(t * 3) * 1, 23, 0, 0, Math.PI * 2); ctx.fill();
   ctx.restore();
   ctx.font = `bold 7px ${FONT}`; ctx.textAlign = 'center'; ctx.lineWidth = 2.4; ctx.strokeStyle = OUTL; ctx.strokeText(X.name, x, y - 52); ctx.fillStyle = X.col; ctx.fillText(X.name, x, y - 52);
-  const gk = ENEMY[it.gk] ? ENEMY[it.gk].name : ''; ctx.font = `5.5px ${FONT}`; ctx.strokeText(gk, x, y - 45); ctx.fillStyle = '#ffe6a0'; ctx.fillText(gk, x, y - 45);
   const n = [...it.ready].filter(q => q.state === 'up').length; if (n) { ctx.font = `6px ${FONT}`; ctx.strokeText(n + ' vote' + (n > 1 ? 's' : ''), x, y + 16); ctx.fillStyle = '#fff'; ctx.fillText(n + ' vote' + (n > 1 ? 's' : ''), x, y + 16); }
 }
 
 setRules(true); // one rule set now: closing ring + Gatekeeper Bell + rising danger + shared time + Crossroads
+// ===== Corruptors: invaders from outside the world =====
+// Now and then (never while the ring is closing) a Corruptor tears into a biome the team has already conquered, always inside the ring.
+// It is a pool boss twisted by one of four corruptions, scaled a little above the team's strength at that moment.
+// The biome turns purple and breeds corrupted monsters until the Corruptor dies. Each biome can be invaded once.
+// At most one Corruptor per Act and at least one per run. One that is left alive stays into the next Act, and no new one
+// comes while it lives. Killing it leaves a purple Font (one use: +1 flask for the whole team, for the rest of the run)
+// and a Corruptor chest of active items.
+const CORR_TYPES = [
+  { id: 'voidborn', title: 'Voidborn', color: '#c86aff', desc: 'Blinks behind its target every few seconds, leaving a pool of void where it stood (Gloom). Keep moving and never fight inside the pools.' },
+  { id: 'plague', title: 'Plaguebearer', color: '#a8e05a', desc: 'A sickly aura Withers everyone close to it (you deal less damage), and it keeps calling corrupted monsters to its side. Fight it from range and clear the adds.' },
+  { id: 'rift', title: 'Riftcaller', color: '#8a6aff', desc: 'Opens void rifts under its enemies that drag them toward a burning core. Step out of the circle as soon as it opens.' },
+  { id: 'mirror', title: 'Mirrorshade', color: '#e0b0ff', desc: 'At two thirds and one third of its health it splits off two mirror copies. They are weaker, but they hit hard together: burst them down.' },
+];
+const CORR_INFO = 'Corruptors come from outside the world. One may tear into a biome you have already conquered (always inside the ring, never while it closes): the biome turns purple, breeds corrupted monsters, and is marked in purple on the map. Each is a pool boss twisted by a corruption, a little stronger than your team when it arrives. At most one per Act and at least one per run; one left alive stays into the next Act. Kill it for a purple Font (one use: +1 flask for the whole team for the rest of the run) and a Corruptor chest (choose 1 of 3 active items).';
+function corrAlive() { return G.corrE && !G.corrE.dead ? G.corrE : null; }
+function corrPower() {
+  const L = G.players.filter(q => q.state !== 'dead'); if (!L.length) return 1;
+  return L.reduce((a, q) => a + q.level + relicCount(q) * 0.08, 0) / L.length;
+}
+function corrNest(B) {
+  const ok = B.rooms.filter(r => safeAt(r.px, r.py, 80, 40));
+  if (!ok.length) return null;
+  return ok.sort((a, b) => b.w * b.h - a.w * a.h)[0];
+}
+function corrCandidates(loose) {
+  return (G.biomes || []).filter(B => !B.lab && !B.corrupted && !B.chal && (B.bossKilled || loose) && corrNest(B));
+}
+function spawnCorruptor(B) {
+  const room = corrNest(B); if (!room) return null;
+  const day = Math.min(2, G.day), pool = (day >= 2 ? NIGHT2_POOL : NIGHT1_POOL).filter(k => k !== G.night1 && k !== G.night2 && !(G.labGk || []).includes(k) && !(G.corrUsed || []).includes(k));
+  const type = pick(pool.length ? pool : (day >= 2 ? NIGHT2_POOL : NIGHT1_POOL));
+  const kind = pick(CORR_TYPES.filter(t => t.id !== G.corrLastKind)) || CORR_TYPES[0];
+  const pw = corrPower(), base = GK_REC[day], k = clamp(pw / base, 0.45, 1.5);
+  const e = spawnEnemy(type, room.px, room.py, { hpMul: k * 0.9 });
+  e.dmgM *= clamp(k, 0.6, 1.3) * 1.05;
+  e.rec = Math.max(1, Math.round(pw + 1)); e.castle = true; e.corruptor = true; e.home = room; e.aggro = false; e.hx = room.px; e.hy = room.py; e.reset = 0;
+  e.variant = 'corrupt'; e.corrKind = kind.id; e.dispName = `${kind.title} ${e.def.name}`; e.corrB = B; e.corrT = 4;
+  B.corrupted = true; B.corrLive = true; B.corrRoom = room;
+  G.corrE = e; G.corrCount = (G.corrCount || 0) + 1; G.corrDone = G.corrDone || {}; G.corrDone[G.day] = true;
+  (G.corrUsed = G.corrUsed || []).push(type); G.corrLastKind = kind.id;
+  G.corrCall = null; G.corrNextEval = G.time + 6;
+  pillar(room.px, room.py, '#c86aff', 160, 26, 1.4); shock(room.px, room.py, 160, '#c86aff', 1); shake(7); sfx('rumble'); setTimeout(() => sfx('roar'), 300);
+  for (let i = 0; i < 40; i++) burst(room.px + rr(-60, 60), room.py + rr(-40, 40), '#c86aff', 1, 60, 0.9, { glow: true, g: -40 });
+  setBanner('A Corruptor invades', `${e.dispName} has corrupted the ${B.name} (Lv ${e.rec}).`, 4, '#d88aff');
+  feed(`☠ A Corruptor, ${e.dispName}, has corrupted the ${B.name}! It is marked in purple on the map.`, '#d88aff');
+  return e;
+}
+// host, every frame of the run
+function updateCorruptors(dt) {
+  if (G.hub || !G.biomes || G.phase === 'final' || G.phase === 'prep') return;
+  if (G.corrAct !== G.day) {
+    G.corrAct = G.day; G.corrAt = rr(0.25, 0.5);
+    G.corrRoll = G.day === 1 ? R() < 0.7 : (!G.corrCount || R() < 0.6);
+  }
+  const e = corrAlive();
+  if (e) corrTick(e, dt);
+  else if (G.corrE && G.corrE.dead) G.corrE = null;
+  // a new Corruptor: only in the day, never while the ring closes, at most one per Act, none while one lives
+  if (!e && G.phase === 'day' && G.corrRoll && !(G.corrDone && G.corrDone[G.day]) && G.dayStage !== 'shrink1' && G.dayStage !== 'shrink2' && G.day <= 2) {
+    const f = actElapsed() / actLen();
+    if (f >= G.corrAt && f < 0.85 && G.time > (G.corrTryT || 0)) {
+      G.corrTryT = G.time + 3;
+      let C = corrCandidates(false);
+      if (!C.length && G.day === 2 && !G.corrCount && f > 0.45) C = corrCandidates(true); // the run must see one
+      if (C.length) spawnCorruptor(pick(C));
+    }
+  }
+  // corrupted monsters keep crawling out of the biome while its Corruptor lives
+  if (e && G.phase === 'day') {
+    const B = e.corrB; B.corrSpawnT = (B.corrSpawnT ?? 3) - dt;
+    if (B.corrSpawnT <= 0) {
+      B.corrSpawnT = 9;
+      for (const r of B.rooms) {
+        if (r === e.home) continue;
+        const n = G.enemies.filter(o => !o.dead && o.corrMob === B && o.room === r).length; if (n >= 2) continue;
+        const q = randomFloorIn(r, G.players, 110, 1); corrMinion(B, r, q.x, q.y);
+      }
+    }
+  }
+  updateCorrCall(dt);
+}
+function corrMinion(B, r, x, y, aggro) {
+  const t = rollMob(B.tpl), tier = B.tier || 2;
+  const o = spawnEnemy(t, x, y, { room: r, extra: true, aggro: !!aggro, hpMul: TIER_HP[tier] * 1.5 });
+  o.dmgM *= TIER_DMG[tier] * 1.25; o.goldM *= 1.3; o.variant = 'corrupt'; o.corrMob = B; o.rec = Math.max(r.rec || 1, (G.corrE ? G.corrE.rec : 3) - 2);
+  burst(o.x, o.y - 6, '#c86aff', 10, 60, 0.5, { glow: true });
+  return o;
+}
+function corrTick(e, dt) {
+  const room = e.home;
+  if (!e.aggro && e.hp >= e.maxHp) { e.corrSplit = 0; e.corrT = 4; }
+  if (!e.aggro || e.busy > 0.6) return;
+  const inside = G.players.filter(q => q.state === 'up' && inRoom(room, q.x, q.y, 8)); if (!inside.length) return;
+  const tg = inside.reduce((a, q) => d2(q.x, q.y, e.x, e.y) < d2(a.x, a.y, e.x, e.y) ? q : a);
+  e.corrT -= dt;
+  if (e.corrKind === 'voidborn' && e.corrT <= 0) {
+    e.corrT = rr(7, 9);
+    ezone({ x: e.x, y: e.y, r: 30, life: 4.5, delay: 0.3, dmg: 6, dmgM: e.dmgM, kind: 'shadow', src: e });
+    const a = Math.atan2(e.y - tg.y, e.x - tg.x) + Math.PI + rr(-0.6, 0.6);
+    for (let d = 48; d >= 20; d -= 8) { const x = tg.x + Math.cos(a) * d, y = tg.y + Math.sin(a) * d; if (!hitsWall(x, y, e.r) && inRoom(room, x, y, -e.r)) { burst(e.x, e.y - 20, '#c86aff', 20, 90, 0.5, { glow: true }); e.x = x; e.y = y; burst(x, y - 20, '#c86aff', 20, 90, 0.5, { glow: true }); sfx('portal', x, y, 0.5); e.busy = Math.max(e.busy, 0.4); break; } }
+  }
+  if (e.corrKind === 'plague') {
+    e.auraT = (e.auraT || 0) - dt;
+    if (e.auraT <= 0) { e.auraT = 0.5; for (const q of inside) if (d2(q.x, q.y, e.x, e.y) < 110 * 110) applyStatus(q, 'wither', 1.2); if (R() < 0.5) burst(e.x + rr(-40, 40), e.y + rr(-30, 10), '#a8e05a', 2, 30, 0.8, { glow: true, g: -30 }); }
+    if (e.corrT <= 0) { e.corrT = 12; for (let i = 0; i < 2; i++) { const a = R() * 6.28, x = e.x + Math.cos(a) * 40, y = e.y + Math.sin(a) * 30; if (!hitsWall(x, y, 6)) corrMinion(e.corrB, room, x, y, true); } }
+  }
+  if (e.corrKind === 'rift' && e.corrT <= 0) {
+    e.corrT = rr(8.5, 10.5);
+    for (const q of inside.slice(0, 2)) { const x = q.x + rr(-14, 14), y = q.y + rr(-10, 10); if (hitsWall(x, y, 6)) continue; (G.bhz = G.bhz || []).push({ kind: 'rift', x, y, r: 16, pull: 85, ph: 0, on: true, tier: G.day >= 2 ? 4 : 3, life: 4.5, temp: true, room }); shock(x, y, 40, '#8a6aff', 0.4); }
+  }
+  if (e.corrKind === 'mirror') {
+    const want = e.hp < e.maxHp * 0.34 ? 2 : e.hp < e.maxHp * 0.67 ? 1 : 0;
+    if ((e.corrSplit || 0) < want) {
+      e.corrSplit = (e.corrSplit || 0) + 1; setBanner(e.dispName, 'It splits into mirror copies!', 2, '#e0b0ff');
+      for (const k of [-1, 1]) {
+        const x = e.x + k * 44, y = e.y; const q = hitsWall(x, y, 10) ? { x: e.x, y: e.y } : { x, y };
+        const c = spawnEnemy(e.type, q.x, q.y, { hpMul: 0.09 });
+        c.boss = false; c.home = room; c.hx = room.px; c.hy = room.py; c.aggro = true; c.variant = 'corrupt'; c.dmgM = e.dmgM * 0.45; c.rec = e.rec; c.corrMob = e.corrB; c.dispName = 'Mirror ' + e.def.name; c.scale = 0.8;
+        burst(q.x, q.y - 20, '#e0b0ff', 24, 90, 0.6, { glow: true });
+      }
+    }
+  }
+}
+// the Corruptor falls: it uses the Dream Palace boss machinery (castle flag), so its death comes through castleBossDead
+{ const _cbd = castleBossDead; castleBossDead = function (e) { if (e.corruptor) return corruptorDead(e); return _cbd(e); }; }
+function corruptorDead(e) {
+  const B = e.corrB, room = e.home; B.corrLive = false; G.corrE = null; G.corrCall = null;
+  for (const o of G.enemies) if (!o.dead && o.corrMob === B) { o.dead = true; burst(o.x, o.y - 6, '#c86aff', 10, 60, 0.5, { glow: true }); }
+  if (G.bhz) G.bhz = G.bhz.filter(z => !(z.temp && z.room === room));
+  setBanner('The Corruptor falls', `The ${B.name} is cleansed. A purple Font and a Corruptor chest remain.`, 3.5, '#d88aff');
+  feed(`${e.dispName} is destroyed! Drink the purple Font (+1 flask for everyone) and open the Corruptor chest.`, '#d88aff');
+  const q = clearSpot(e.x - 40, e.y, 12); addInter({ kind: 'cfont', x: q.x, y: q.y, r: 14 });
+  const ch = dropBossChest(e.x + 40, e.y, e.rec, 'Corruptor', null); ch.corr = true; ch.label = 'Corruptor';
+  dropGold(e.x, e.y, 120 * e.rec);
+  pillar(e.x, e.y, '#c86aff', 140, 24, 1.2); shock(e.x, e.y, 140, '#c86aff', 0.8);
+  questEvent('champ', e);
+}
+// interactions: the purple Font and the Corruptor chest
+{ const _ip = interPrompt; interPrompt = function (it, p) {
+  if (it.kind === 'cfont') return it.used ? null : { text: 'Drink from the corrupted Font', sub: 'One use for the whole team: everyone alive gains +1 flask for the rest of the run.' };
+  if (it.kind === 'bosschest' && it.corr) return it.taken.has(p) ? null : { text: 'Open the Corruptor chest: choose 1 of 3 active items', sub: p.active ? `Replaces ${p.active.name}` : 'You have no active item yet' };
+  return _ip(it, p);
+}; }
+{ const _ui = useInter; useInter = function (it, p) {
+  if (it.kind === 'cfont') {
+    if (it.used) return false; it.used = true;
+    for (const q of G.players) { if (q.state === 'dead') continue; q.flaskBonus = (q.flaskBonus || 0) + 1; q.flasks = Math.min(flaskMax(q), (q.flasks || 0) + 1); floatText(q.x, q.y - 30, '+1 flask', '#d88aff', 1.2); burst(q.x, q.y - 12, '#d88aff', 14, 60, 0.6, { glow: true }); }
+    pillar(it.x, it.y, '#d88aff', 100, 18, 1); sfx('revive', it.x, it.y);
+    feed(`${p === human() && !NET.role ? 'You' : p.name} drank from the corrupted Font: everyone gains +1 flask.`, '#d88aff');
+    return true;
+  }
+  if (it.kind === 'bosschest' && it.corr) return openCorrChest(it, p);
+  return _ui(it, p);
+}; }
+function openCorrChest(it, p) {
+  if (it.taken.has(p)) return false;
+  it.taken.add(p);
+  const cards = shuffle(ACTIVES.filter(a => !p.active || a.id !== p.active.id)).slice(0, 3);
+  burst(it.x, it.y - 8, '#d88aff', 20, 90, 0.6, { glow: true });
+  if (p.remote) netOfferChoice(p, cards, it.label);
+  else if (p.isBot) { const pref = ['nova', 'pulse', 'jar', 'meteor', 'horn', 'totem', 'bubble', 'brew', 'bomb', 'traps', 'smoke', 'blink']; cards.sort((a, b) => pref.indexOf(a.id) - pref.indexOf(b.id)); giveItem(p, cards[0]); }
+  else { G.choice = { cards, p, label: it.label }; showChoice(G.choice); }
+  if (G.players.every(q => it.taken.has(q))) it.used = true;
+  return true;
+}
+function drawCFont(it) {
+  const x = it.x, y = it.y, on = !it.used;
+  shadow(x, y, 9);
+  ctx.fillStyle = '#3a2a4a'; ctx.strokeStyle = OUTL; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.ellipse(x, y, 10, 4.5, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = '#4a3a5e'; ctx.fillRect(x - 3, y - 12, 6, 12); ctx.strokeRect(x - 3, y - 12, 6, 12);
+  ctx.fillStyle = '#5a4a70'; ctx.beginPath(); ctx.ellipse(x, y - 13, 9, 4, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  if (on) {
+    const g = ctx.createRadialGradient(x, y - 16, 1, x, y - 16, 24); g.addColorStop(0, `rgba(216,138,255,${0.6 + 0.2 * Math.sin(G.time * 3)})`); g.addColorStop(1, 'rgba(216,138,255,0)'); ctx.fillStyle = g; ctx.fillRect(x - 24, y - 40, 48, 48);
+    ctx.fillStyle = '#e8c0ff'; ctx.beginPath(); ctx.ellipse(x, y - 14, 6.5, 2.6, 0, 0, Math.PI * 2); ctx.fill();
+    const fy = y - 26 + Math.sin(G.time * 2) * 1.5; ctx.fillStyle = '#c86aff'; ctx.beginPath(); ctx.arc(x, fy, 4, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); ctx.fillStyle = '#e8d8c0'; ctx.fillRect(x - 1.5, fy - 7, 3, 3.5); ctx.strokeRect(x - 1.5, fy - 7, 3, 3.5);
+    if (R() < 0.15) burst(x + rr(-6, 6), y - 18, '#d88aff', 1, 20, 0.7, { glow: true, g: -40 });
+  } else { ctx.fillStyle = '#2a2034'; ctx.beginPath(); ctx.ellipse(x, y - 14, 6.5, 2.6, 0, 0, Math.PI * 2); ctx.fill(); }
+}
+// ---- the purple stain over a corrupted biome (world and map) ----
+const CORR_TINT = {};
+function corrCanvas(B) {
+  const k = B.id; if (CORR_TINT[k] && CORR_TINT[k].gen === G.genId) return CORR_TINT[k].c;
+  const c = mkCanvas(MW, MH), x = c.getContext('2d'), img = x.createImageData(MW, MH);
+  for (let i = 0; i < MW * MH; i++) if (G.bmask[i] === B.id) { img.data[i * 4] = 150; img.data[i * 4 + 1] = 40; img.data[i * 4 + 2] = 220; img.data[i * 4 + 3] = 255; }
+  x.putImageData(img, 0, 0); CORR_TINT[k] = { c, gen: G.genId }; return c;
+}
+function drawCorrTint() {
+  if (!G.biomes) return;
+  for (const B of G.biomes) {
+    if (!B.corrLive) continue;
+    const vx0 = Math.max(0, Math.floor((G.cam.x - W / 2 / ZOOM) / TILE) - 1), vy0 = Math.max(0, Math.floor((G.cam.y - H / 2 / ZOOM) / TILE) - 1);
+    const vw = Math.min(MW - vx0, Math.ceil(W / ZOOM / TILE) + 3), vh = Math.min(MH - vy0, Math.ceil(H / ZOOM / TILE) + 3);
+    if (vw <= 0 || vh <= 0) continue;
+    ctx.save(); ctx.imageSmoothingEnabled = false; ctx.globalAlpha = 0.2 + 0.05 * Math.sin(G.time * 1.6); ctx.globalCompositeOperation = 'multiply';
+    ctx.drawImage(corrCanvas(B), vx0, vy0, vw, vh, vx0 * TILE, vy0 * TILE, vw * TILE, vh * TILE);
+    ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 0.1;
+    ctx.drawImage(corrCanvas(B), vx0, vy0, vw, vh, vx0 * TILE, vy0 * TILE, vw * TILE, vh * TILE);
+    ctx.restore();
+    if (R() < 0.3) { const px = G.cam.x + rr(-W / 2, W / 2) / ZOOM, py = G.cam.y + rr(-H / 2, H / 2) / ZOOM; if (bmAt(px, py) === B.id) burst(px, py, '#c86aff', 1, 15, 1.2, { glow: true, g: -25 }); }
+  }
+}
+function drawCorrMini(X, Y, s, big, x0, y0, bw, bh, ox, oy, mw, mh) {
+  for (const B of G.biomes || []) {
+    if (!B.corrLive) continue;
+    ctx.save(); ctx.imageSmoothingEnabled = false; ctx.globalAlpha = 0.45 + 0.15 * Math.sin(G.time * 3);
+    ctx.drawImage(corrCanvas(B), x0, y0, bw, bh, ox, oy, mw, mh); ctx.restore();
+    const r = B.corrRoom; if (r) { txt('☠', X(r.cx + 0.5), Y(r.cy + 0.5) + 5 * s, big ? 18 : 13, '#e08aff', 'center'); if (big) txt('CORRUPTOR', X(r.cx + 0.5), Y(r.cy + 0.5) + 18 * s, 9, '#e08aff', 'center', FONT2); }
+  }
+  for (const it of G.inter) if (it.kind === 'cfont' && !it.used) { const px = X(it.x / TILE), py = Y(it.y / TILE); ctx.fillStyle = '#d88aff'; ctx.strokeStyle = UI.edge; ctx.lineWidth = s; ctx.beginPath(); ctx.arc(px, py, (big ? 4.5 : 3.4) * s, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); }
+}
+// ---- Glossary ----
+function corrArchive(L) {
+  varSprite('emberdrake', 'corrupt'); L.appendChild(entry(spriteCanvas('emberdrake_corrupt', 128), 'Corruptors', 'Invaders from outside the world', CORR_INFO, '#d88aff'));
+  group(L, 'Corruptions');
+  const sprs = ['bramble', 'sporemother', 'thundertoad', 'frostfang'];
+  CORR_TYPES.forEach((t, i) => {
+    varSprite(sprs[i], 'corrupt'); const c = spriteCanvas(sprs[i] + '_corrupt', 128);
+    L.appendChild(entry(c, `${t.title} …`, 'Corruption · any pool boss', t.desc, t.color));
+  });
+}
+
+// ---- bots: farm or fight it? One calls, everyone finishes what they are doing, they meet at the biome's entrance and go in together ----
+function updateCorrCall(dt) {
+  const e = corrAlive();
+  if (!e || G.phase !== 'day') { if (G.corrCall && !e) G.corrCall = null; return; }
+  const bots = G.players.filter(q => q.isBot && !q.remote && q.state === 'up');
+  if (!bots.length) return;
+  const C = G.corrCall, B = e.corrB;
+  if (!C) {
+    if (G.time < (G.corrNextEval || 0)) return; G.corrNextEval = G.time + 5;
+    const f = actElapsed() / actLen(); if (f > 0.82 || (G.botPlan && G.botPlan.B.lab) || G.bellWant) return;
+    if (!safeAt(e.home.px, e.home.py, 60, 20)) return;
+    const live = G.players.filter(q => q.state !== 'dead'), avg = live.reduce((a, q) => a + q.level, 0) / live.length;
+    const bold = bots.some(q => q.ai && q.ai.P === PERSONAS.Aggressive);
+    if (avg + (bold ? 1.5 : 0.8) < e.rec || live.length < 3) return; // not yet: keep farming and come back stronger
+    const by = bots.reduce((a, q) => q.level > a.level ? q : a);
+    const tc = teamCentre(); let best = null, bd = 1e12;
+    for (const S of B.seals) { const [tx, ty] = S.tiles[Math.floor(S.tiles.length / 2)]; const x = (tx + 0.5) * TILE, y = (ty + 0.5) * TILE; if (!safeAt(x, y, 30, 20)) continue; const dd = d2(x, y, tc.x, tc.y); if (dd < bd) { bd = dd; best = { x, y }; } }
+    if (!best) { const r = B.rooms.find(o => o !== e.home) || e.home; best = { x: r.px, y: r.py }; }
+    G.corrCall = { e, B, rally: best, t0: G.time, go: false, firstAt: 0 };
+    botAnnounce(by, `The Corruptor in the ${B.name}! Finish up, then meet at its entrance.`, 'corr' + G.corrCount);
+    feed(`${by.name} calls the team to fight ${e.dispName}. Bots will gather at the ${B.name}'s entrance.`, '#d88aff');
+    return;
+  }
+  if (C.e !== e) { G.corrCall = null; return; }
+  if (!C.go) {
+    const there = bots.filter(q => d2(q.x, q.y, C.rally.x, C.rally.y) < 110 * 110 || inRoom(e.home, q.x, q.y));
+    if (there.length && !C.firstAt) C.firstAt = G.time;
+    if (there.length >= bots.length || (C.firstAt && G.time - C.firstAt > 30) || G.time - C.t0 > 90) {
+      C.go = true; C.goT = G.time; botAnnounce(there[0] || bots[0], 'Everyone is here. Into the corrupted biome!', 'corrgo' + G.corrCount);
+    }
+    if (!safeAt(C.rally.x, C.rally.y, 20, 10)) G.corrCall = null;
+  } else if (G.time - C.goT > 25 && !G.players.some(q => q.state === 'up' && inRoom(e.home, q.x, q.y, 10))) {
+    G.corrCall = null; G.corrNextEval = G.time + 40; // the attack failed: regroup and try again later
+  }
+}
+function corrPlan(p, A, vis) {
+  const C = G.corrCall; if (!C || !corrAlive()) return null;
+  if (vis.length && vis[0].d < 160 && vis[0].e.aggro && !vis[0].e.corruptor) return 'fight'; // finish the current fight first
+  const e = C.e;
+  if (!C.go) {
+    if (d2(p.x, p.y, C.rally.x, C.rally.y) > 60 * 60) { A.goal = { x: C.rally.x + rr(-20, 20), y: C.rally.y + rr(-20, 20), near: 34 }; return 'goto'; }
+    return 'idle';
+  }
+  if (!inRoom(e.home, p.x, p.y, -10)) { A.goal = { x: e.home.px + rr(-30, 30), y: e.home.py + rr(-20, 20), near: 36 }; return 'goto'; }
+  A.target = e; return 'fight';
+}
+// bots also drink from a purple Font nobody has used
+function cfontPlan(p, A, vis) {
+  if (vis.length && vis[0].d < 150) return null;
+  const it = G.inter.find(i => i.kind === 'cfont' && !i.used && safeAt(i.x, i.y, 20, 8) && d2(i.x, i.y, p.x, p.y) < 1200 * 1200);
+  if (!it) return null;
+  A.goal = { x: it.x, y: it.y + 6, near: 12, use: true, it }; return 'goto';
+}
 // ===== Rendering =====
 const cv = document.getElementById('game'), ctx = cv.getContext('2d');
 let W = 0, H = 0, ZOOM = 3, U = 1, DPR = 1, VIGNETTE = null;
@@ -8302,6 +8946,7 @@ function drawTiles() {
     else if (t === T_WALL) {
       const below = tget(tx, ty + 1); const face = below === T_FLOOR || below === T_CRATE || below === T_DOOR || below === T_PROP;
       if (G.wstyle && G.wstyle[i] === 2) { ctx.fillStyle = '#0c0618'; ctx.fillRect(px, py, T, T); ctx.fillStyle = `rgba(200,110,255,${0.35 + 0.2 * Math.sin(G.time * 3 + tx * 0.7 + ty)})`; ctx.fillRect(px + 6, py + 6, 4, 4); }
+      else if (G.wstyle && G.wstyle[i] === 3) { ctx.drawImage(face ? TEX.dreamFace[h % 3] : TEX.dreamTop[h % 3], px, py, T, T); }
       else if (G.wstyle && G.wstyle[i]) { ctx.drawImage(face ? TEX.castleFace[h % 3] : TEX.castleTop[h % 3], px, py, T, T); }
       else if (face) { ctx.drawImage(TEX.floor[G.theme[(ty + 1) * MW + tx]][0], px, py, T, T); ctx.drawImage(TEX.hedge[h % 3], px, py, T, T); }
       else ctx.drawImage(TEX.canopy[h % 3], px, py, T, T);
@@ -8464,7 +9109,9 @@ function drawWolfReload(p) {
 function drawEnemy(e) {
   if (!G.hub && !enemySeen(e)) return;
   if (e.hidden) { ctx.fillStyle = 'rgba(40,20,10,0.25)'; ctx.beginPath(); ctx.ellipse(e.x, e.y, 14 + Math.sin(G.time * 6) * 2, 5, 0, 0, Math.PI * 2); ctx.fill(); return; }
-  const S = SPR[e.sprite + (e.tint ? '_d2' : '')] || SPR[e.sprite] || SPR[e.type], sc = e.scale || 1;
+  const S = sprOf(e), sc = e.scale || 1;
+  if (e.variant === 'dream') { ctx.save(); ctx.globalCompositeOperation = 'lighter'; const gr = ctx.createRadialGradient(e.x, e.y - 14 * sc, 2, e.x, e.y - 14 * sc, 30 * sc); gr.addColorStop(0, 'rgba(200,160,255,0.22)'); gr.addColorStop(1, 'rgba(200,160,255,0)'); ctx.fillStyle = gr; ctx.beginPath(); ctx.arc(e.x, e.y - 14 * sc, 30 * sc, 0, Math.PI * 2); ctx.fill(); ctx.restore(); }
+  if (e.variant === 'corrupt') { ctx.save(); const gr = ctx.createRadialGradient(e.x, e.y - 12 * sc, 2, e.x, e.y - 12 * sc, 34 * sc); gr.addColorStop(0, 'rgba(120,20,160,0.35)'); gr.addColorStop(1, 'rgba(40,0,60,0)'); ctx.fillStyle = gr; ctx.beginPath(); ctx.arc(e.x, e.y - 12 * sc, 34 * sc, 0, Math.PI * 2); ctx.fill(); ctx.restore(); if (R() < 0.3) burst(e.x + rr(-12, 12) * sc, e.y - rr(4, 30) * sc, pick(['#8a2ad0', '#2a0638', '#c060ff']), 1, 20, 0.6, { g: -40 }); }
   const jp = e.jumpT > 0 ? 1 - e.jumpT / e.jumpDur : 0; if (e.jumpT > 0) e.jumpT -= 1 / 60;
   const lift = jp ? Math.sin(jp * Math.PI) * 34 : 0;
   if (!e.decoy) shadow(e.x, e.y, (e.r + 2) - lift * 0.15);
@@ -8473,6 +9120,7 @@ function drawEnemy(e) {
   const f = frameOf(S, (e.moving || e.boss || e.def.fly) && !frozen && e.stunT <= 0, (e.t + e.walkT) * (e.boss ? 0.6 : 0.9), e.hitT > 0.05);
   if (e.invT > 0 && !e.shielded) ctx.globalAlpha = 0.6 + 0.3 * Math.sin(G.time * 30);
   if (e.sprite === 'shade') ctx.globalAlpha = 0.85;
+  if (e.variant === 'corrupt' && !(e.invT > 0)) ctx.globalAlpha = 0.82 + 0.08 * Math.sin(G.time * 4 + e.nid);
   if (sc !== 1) { ctx.save(); ctx.translate(e.x + ox, e.y - lift); ctx.scale(sc * (e.face < 0 ? -1 : 1), sc); ctx.drawImage(f.c, -f.ox, -f.oy, f.w, f.h); ctx.restore(); }
   else drawFrame(f, e.x + ox, e.y - lift, e.face < 0);
   ctx.globalAlpha = 1;
@@ -8527,6 +9175,7 @@ function drawInter(it) {
   }
   if (it.kind === 'altar') { drawAltar(it); return; }
   if (it.kind === 'font') { drawFont(it); return; }
+  if (it.kind === 'cfont') { drawCFont(it); return; }
 
   if (it.kind === 'bosschest') { drawBossChest(it); return; }
   if (it.kind === 'chest') { shadow(x, y, 8); drawFrame(it.used ? SPR.chestOpen : SPR.chest, x, y); if (!it.used) { ctx.fillStyle = it.free ? `rgba(255,220,120,${0.35 + 0.2 * Math.sin(G.time * 5)})` : `rgba(255,220,120,${0.25 + 0.15 * Math.sin(G.time * 4)})`; ctx.beginPath(); ctx.arc(x, y - 6, it.free ? 16 : 12, 0, Math.PI * 2); ctx.fill(); if (it.rare) { ctx.strokeStyle = 'rgba(192,112,255,0.8)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(x, y - 6, 10, 0, Math.PI * 2); ctx.stroke(); }
@@ -8625,7 +9274,7 @@ function drawZones() {
     else if (z.kind === 'smoke') { ctx.fillStyle = `rgba(150,150,170,${0.25 * a})`; ctx.beginPath(); ctx.arc(z.x, z.y, z.r, 0, Math.PI * 2); ctx.fill(); }
   }
   for (const z of G.ezones) {
-    if (z.t < (z.delay || 0) || z.kind === 'tentacle') continue;
+    if (z.t < (z.delay || 0) || z.kind === 'tentacle' || z.kind === 'storm') continue;
     const a = Math.min(1, (z.t - (z.delay || 0)) * 3) * Math.min(1, (z.life - z.t) * 2);
     const zc = { fire: [255, 120, 40], slime: [140, 160, 60], root: [110, 160, 60], frost: [150, 220, 255], shadow: [80, 50, 130] }[z.kind] || [200, 70, 160];
     ctx.fillStyle = `rgba(${zc[0]},${zc[1]},${zc[2]},${0.32 * a})`; ctx.beginPath(); ctx.arc(z.x, z.y, z.r, 0, Math.PI * 2); ctx.fill();
@@ -8858,7 +9507,7 @@ function render(dt) {
   drawTiles(); drawDecals();
   if (G.decor) for (const d of G.decor) if (d.flat) drawDecor(d);
   drawLighting();
-  drawZones(); drawTele(); for (const g of G.glaciers || []) drawGlacierAura(g);
+  drawZones(); if (typeof drawBiomeHz === 'function') drawBiomeHz(); drawTele(); for (const g of G.glaciers || []) drawGlacierAura(g);
   for (const t of G.traps) { ctx.fillStyle = '#7a8090'; ctx.strokeStyle = OUTL; ctx.lineWidth = 0.7; ctx.beginPath(); ctx.ellipse(t.x, t.y, 5, 2.2, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); ctx.fillStyle = '#e8eaf0'; for (let i = 0; i < 5; i++) { ctx.beginPath(); ctx.moveTo(t.x - 4 + i * 2, t.y - 1); ctx.lineTo(t.x - 3 + i * 2, t.y - 3.5); ctx.lineTo(t.x - 2 + i * 2, t.y - 1); ctx.fill(); } }
   for (const s of G.spawns) { const k = 1 - s.t / s.life; ctx.strokeStyle = `rgba(200,106,255,${0.4 + 0.5 * k})`; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.arc(s.x, s.y, 10 * (1 - k) + 2, 0, Math.PI * 2); ctx.stroke(); }
   for (const c of G.coins) { const f = SPR.coin; ctx.drawImage(f.c, c.x - 2.5, c.y - 4 - Math.abs(Math.sin(c.t * 6)) * 1.5, 5, 5); }
@@ -8893,7 +9542,7 @@ function render(dt) {
   drawHazards();
   drawFx();
   drawPings();
-  if (!G.hub) drawChalVeils();
+  if (!G.hub) { drawCorrTint(); drawChalVeils(); }
   if (!G.hub && !(G.watch && G.noFog)) { const x0 = Math.max(0, Math.floor((G.cam.x - W / 2 / ZOOM) / TILE) - 2), y0 = Math.max(0, Math.floor((G.cam.y - H / 2 / ZOOM) / TILE) - 2); const w = Math.min(MW - x0, Math.ceil(W / ZOOM / TILE) + 5), h = Math.min(MH - y0, Math.ceil(H / ZOOM / TILE) + 5); if (w > 0 && h > 0) ctx.drawImage(G.fogC, x0, y0, w, h, x0 * TILE, y0 * TILE, w * TILE, h * TILE); }
   drawCircle();
   drawAimHelpers(human());
@@ -8981,6 +9630,7 @@ function enemySeen(e) {
   if (chalHidden(e.x, e.y)) return false;
   if (!isSeen(e.x, e.y)) return false;
   if (lairOf(e)) return true;
+  { const v = viewer(), B = v && biomeAt(e.x, e.y); if (B && B.chal && bmAt(v.x, v.y) === B.id) return true; }
   return e.boss || G.players.some(p => p.state !== 'dead' && d2(p.x, p.y, e.x, e.y) < 220 * 220);
 }
 function drawRoomVeils() {
@@ -9130,7 +9780,7 @@ function timelineText() {
     return [G.hazard && G.hazard !== 'fire' ? hz().name.toUpperCase() : 'WILDFIRE', G.hazard && G.hazard !== 'fire' ? 'It closes in' : 'The flames spread'];
   }
   if (G.phase === 'night') return [`GATEKEEPER ${ROMAN[G.day]}`, ''];
-  if (G.phase === 'embers') { const it = G.inter.find(i => i.kind === 'portal'); const left = it ? Math.max(0, EMBERS_MAX - (G.time - it.t0)) : 0; return ['EMBERS', labCleared() ? `Labyrinth conquered · portal closes in ${fmtTime(left)}` : `Raid the Labyrinth · portal closes in ${fmtTime(left)}`]; }
+  if (G.phase === 'embers') { const it = G.inter.find(i => i.kind === 'portal'); const left = it ? Math.max(0, EMBERS_MAX - (G.time - it.t0)) : 0; return ['EMBERS', labCleared() ? `Dream Palace conquered · portal closes in ${fmtTime(left)}` : `Raid the Dream Palace · portal closes in ${fmtTime(left)}`]; }
   if (G.phase === 'prep') return ['THE BAZAAR', 'Shop, level up, then take the portal north'];
   if (G.phase === 'final') return [G.everWait ? ((ARENA_STYLE[G.lord] || {}).name || 'The Everfield').toUpperCase() : 'DUNGEON MASTER', G.everWait ? 'Advance to face the Dungeon Master' : ''];
   if (G.phase === 'dawn' || G.phase === 'relic') return ['VICTORY', 'Gatekeeper defeated'];
@@ -9188,7 +9838,7 @@ function drawHUD() {
   if (tl2) txt(tl2, cx, pad + 44 * s, 11, '#dfeaf6', 'center', FONT2);
   if (G.boss && !G.boss.dead && G.bossFight) {
     const bw = Math.min(W * 0.5, 520 * s), bx2 = cx - bw / 2, by2 = pad + (tl2 ? 74 : 58) * s;
-    txt(G.boss.def.name.toUpperCase(), cx, by2 - 6 * s, 15, G.boss.lord ? UI.cyan : '#ff9ad8', 'center');
+    txt((G.boss.dispName || G.boss.def.name).toUpperCase(), cx, by2 - 6 * s, 15, G.boss.lord ? UI.cyan : '#ff9ad8', 'center');
     if (G.boss.def.weak) { const el = ELEM[G.boss.def.weak]; ctx.drawImage(itemIcon({ id: 'el_' + G.boss.def.weak, icon: el.icon, color: el.color }, 40), cx + bw / 2 + 8 * s, by2 - 6 * s, 20 * s, 20 * s); txt('Weak: ' + el.name, cx + bw / 2 + 32 * s, by2 + 9 * s, 10, el.color, 'left'); }
     bar(bx2, by2, bw, 12 * s, G.boss.hp / G.boss.maxHp, G.boss.raged ? '#ff4a8a' : '#c45ad8');
     drawStatusRowAt(G.boss, cx, by2 + 18 * s);
@@ -9197,9 +9847,9 @@ function drawHUD() {
     const ch = G.enemies.find(e => (e.champ || e.castle) && e.aggro && !e.dead && d2(e.x, e.y, focus.x, focus.y) < 300 * 300);
     if (ch) {
       const bw = Math.min(W * 0.36, 360 * s), by2 = pad + (tl2 ? 74 : 58) * s, room = ch.room || ch.home;
-      txt(ch.def.name.toUpperCase(), cx, by2 - 6 * s, 13, ch.castle ? '#c8c8ff' : '#ffd44a', 'center'); bar(cx - bw / 2, by2, bw, 9 * s, ch.hp / ch.maxHp, ch.castle ? '#9a8ae0' : '#e8a83a'); drawStatusRowAt(ch, cx, by2 + 14 * s);
+      txt((ch.dispName || ch.def.name).toUpperCase(), cx, by2 - 6 * s, 13, ch.castle ? '#c8c8ff' : '#ffd44a', 'center'); bar(cx - bw / 2, by2, bw, 9 * s, ch.hp / ch.maxHp, ch.castle ? '#9a8ae0' : '#e8a83a'); drawStatusRowAt(ch, cx, by2 + 14 * s);
       const el = ch.castle ? (ch.def.weak ? 'weak to ' + ELEM[ch.def.weak].name : '') : room && room.tpl && room.tpl.elem ? 'drops ' + ELEM[room.tpl.elem].name + ' relics' : '';
-      txt(`${ch.castle ? 'Labyrinth boss' : 'Room boss'} · Rec. Lv ${roomRec(room)}${el ? ' · ' + el : ''} · leaving its ${ch.castle ? 'chamber' : 'lair'} resets it`, cx, by2 + 34 * s, 9, '#fff3e0', 'center', FONT2);
+      txt(`${ch.corruptor ? 'Corruptor' : ch.castle ? 'Dream Palace boss' : 'Room boss'} · Rec. Lv ${ch.corruptor ? ch.rec : roomRec(room)}${el ? ' · ' + el : ''} · leaving its ${ch.castle ? 'chamber' : 'lair'} resets it`, cx, by2 + 34 * s, 9, '#fff3e0', 'center', FONT2);
     }
     else { const lr = G.rooms.find(r => r.locked && inRoom(r, focus.x, focus.y, 4)); if (lr) txt(`AMBUSH · ${Math.max(0, lr.alive)} monsters left`, cx, pad + (tl2 ? 76 : 60) * s, 14, '#ff9a6a', 'center'); }
   }
@@ -9211,6 +9861,7 @@ function drawHUD() {
     txt(f.text, pad, fy, 11, f.color, 'left', FONT2); fy -= 17 * s; ctx.globalAlpha = 1;
   }
   if (!G.watch && H0) { drawSkillBar(H0); drawKitHud(H0); }
+  drawItemToasts(G.watch || !H0 ? H - 46 * s : H - 92 * s, s);
   // outside-the-circle warning
   if (H0 && H0.outside && H0.state === 'up' && !(G.circle && G.circle.calm)) txt(hz().you, cx, H * 0.24, 15, hz().col, 'center');
   // ---- banner ----
@@ -9389,6 +10040,7 @@ function drawMinimap(big) {
   for (const it of G.inter) { if (it.kind !== 'font') continue; const px = X(it.x / TILE), py = Y(it.y / TILE); ctx.save(); const tk = human() ? fontTaken(it, human()) : it.used; ctx.globalAlpha = tk ? 0.45 : 1; drawFlaskIcon(px, py, (big ? 1.5 : 1.1) * s, !tk); ctx.restore(); }
   // boss chests the viewer has not opened yet are always marked
   { const H1 = human(); for (const it of G.inter) { if (it.kind !== 'bosschest' || it.used || (H1 && it.taken.has(H1))) continue; const px = X(it.x / TILE), py = Y(it.y / TILE), k = big ? 1.5 : 1.1; ctx.fillStyle = '#ffd44a'; ctx.strokeStyle = UI.edge; ctx.lineWidth = 1.4 * s; ctx.fillRect(px - 4 * s * k, py - 3 * s * k, 8 * s * k, 6 * s * k); ctx.strokeRect(px - 4 * s * k, py - 3 * s * k, 8 * s * k, 6 * s * k); const pr = (5 + 2 * Math.sin(G.time * 5)) * s * k; ctx.strokeStyle = 'rgba(255,212,74,0.7)'; ctx.beginPath(); ctx.arc(px, py, pr + 3 * s, 0, Math.PI * 2); ctx.stroke(); } }
+  if (typeof drawCorrMini === 'function') drawCorrMini(X, Y, s, big, x0, y0, bw, bh, ox, oy, mw, mh);
   for (const B of G.biomes || []) { if (!B.chal) continue; const bs = B.lab ? G.castle.rooms.filter(r => r.boss && !r.boss.dead).map(r => r.boss) : [B.chal.boss].filter(e => e && !e.dead); for (const e of bs) txt('☠', X(e.x / TILE), Y(e.y / TILE) + 5 * s, big ? 16 : 12, '#ff5a6a', 'center'); }
   const c = G.circle;
   if (c && !inArena && c.spread) drawSpreadMini(X, Y, sc, s, big);
@@ -9399,7 +10051,7 @@ function drawMinimap(big) {
     else for (const r of G.nightRooms || []) txt('?', X(r.cx), Y(r.cy) + 5 * s, big ? 18 : 13, '#ff9ad8', 'center'); // two possible lairs
   }
   if (G.pings) for (const P0 of G.pings) { const k = (G.time * 3) % 1, px = X(P0.x / TILE), py = Y(P0.y / TILE), col = P0.enemy ? '#ff5a5a' : '#ffd44a', kk = big ? 1.4 : 1; ctx.strokeStyle = col; ctx.lineWidth = 2 * s; ctx.beginPath(); ctx.arc(px, py, (4 + k * 8) * s * kk, 0, Math.PI * 2); ctx.stroke(); ctx.fillStyle = col; ctx.strokeStyle = UI.edge; ctx.lineWidth = s; ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(px - 3.5 * s * kk, py - 7 * s * kk); ctx.arc(px, py - 8 * s * kk, 3.6 * s * kk, Math.PI * 0.85, Math.PI * 0.15); ctx.closePath(); ctx.fill(); ctx.stroke(); }
-  if (G.castle && (big || true) && isSeen((G.castle.x0 + 45) * TILE, (G.castle.y0 + 41) * TILE)) txt('LABYRINTH', X(G.castle.x0 + 45), Y(G.castle.y0 + 47) + 12 * s, big ? 12 : 9, '#c8c8ff', 'center');
+  if (G.castle && (big || true) && isSeen((G.castle.x0 + 45) * TILE, (G.castle.y0 + 41) * TILE)) txt('DREAM PALACE', X(G.castle.x0 + 45), Y(G.castle.y0 + 47) + 12 * s, big ? 12 : 9, '#c8c8ff', 'center');
   for (const P of G.piles) { // lost gold is always marked, even through the fog
     const px = X(P.x / TILE), py = Y(P.y / TILE), kk = big ? 1.4 : 1, pr = (6 + 3 * Math.sin(G.time * 5)) * s * kk, mine = P.owner === human();
     ctx.strokeStyle = mine ? 'rgba(255,212,74,0.85)' : 'rgba(255,212,74,0.45)'; ctx.lineWidth = 2 * s; ctx.beginPath(); ctx.arc(px, py, pr, 0, Math.PI * 2); ctx.stroke();
@@ -9686,7 +10338,7 @@ function buildLoadout() {
   box.appendChild(col);
 }
 // ---------- Archive (glossary) ----------
-const ARCH_TABS = ['World', 'Krystalkers', 'Gems', 'Relics', 'Active items', 'Status & elements', 'Biomes', 'Monsters', 'Room bosses', 'Gatekeepers', 'Dungeon Masters'];
+const ARCH_TABS = ['World', 'Krystalkers', 'Gems', 'Relics', 'Active items', 'Status & elements', 'Biomes', 'Monsters', 'Room bosses', 'Gatekeepers', 'Corruptors', 'Dungeon Masters'];
 let archTab = 'World';
 let archFromTitle = false;
 function openArchive() { archFromTitle = false;  paused = true; buildArchive(); showScreen('archive'); }
@@ -9708,17 +10360,18 @@ function buildArchive() {
   if (archTab === 'World') {
     L.appendChild(entry(spriteCanvas('sovereign', 128), 'The Krystal Hunt', 'World lore', WORLD_LORE, '#7ff0ff'));
     L.appendChild(entry(spriteCanvas('warden', 128), 'Acts, Gatekeepers and Dungeon Masters', 'How a run works', 'Each run has two Acts on the same map. The Wildfire spreads twice per Act and finally closes on a Gatekeeper\'s lair. After Gatekeeper II a portal opens to The Bazaar, the last market before the Everfield, where the Dungeon Master you chose at the Gate awaits.', '#ffe6a0'));
-    L.appendChild(entry(spriteCanvas('bonecolossus', 128), 'The Labyrinth', 'Optional fortress', 'Every map hides a triangular labyrinth whose monsters are the strongest in the realm (and pay the best). Restore its altar in the Gate Hall to wake three tower guardians (Lv 10); when all three fall, the master of the Keep rises (Lv 13). Clearing it is the surest way to max level (15) before the Dungeon Master. Plan it for Act II with the whole team.', '#c8c8ff'));
+    L.appendChild(entry(spriteCanvas('bonecolossus', 128), 'The Dream Palace', 'Optional fortress', 'Every map hides a triangular labyrinth whose monsters are the strongest in the realm (and pay the best). Restore its altar in the Gate Hall to wake three tower guardians (Lv 10); when all three fall, the master of the Keep rises (Lv 13). Clearing it is the surest way to max level (15) before the Dungeon Master. Plan it for Act II with the whole team.', '#c8c8ff'));
   }
   if (archTab === 'Krystalkers') for (const k of CHAR_KEYS) { const d = CHARS[k]; const c = mkCanvas(128, 128); drawHeroPortrait(c, k, 3.2); L.appendChild(entry(c, d.name, `${d.role} · ${CHAR_LORE[k].motive}`, `${CHAR_LORE[k].lore}${d.passive ? `<br><b>Passive · ${d.passive.name}:</b> ${d.passive.desc}` : ''}<br><b>Attack:</b> ${d.lmb}${d.alt ? `<br><b>Secondary (RMB) · ${d.alt.name}:</b> ${d.alt.desc}` : ''}<br><b>Movement:</b> ${d.sp}<br><b>Skill:</b> ${d.q}${d.super ? `<br><b>Ultimate (Lv ${ULT_LEVEL}) · ${d.super.name}:</b> ${d.super.desc}` : ''}`, d.color)); }
   if (archTab === 'Gems') { for (const r of ['common', 'rare', 'epic']) { group(L, GEM_RAR[r].name + ' gems'); for (const g of GEM_LIST.filter(x => x.rarity === r)) L.appendChild(entry(iconImg(g), g.name, `${GEM_RAR[r].name} · owned ${PROFILE.gems[g.id] || 0}`, g.desc, GEM_RAR[r].color)); } group(L, 'Legendary gems (quests)'); for (const g of LEGEND_GEMS) L.appendChild(entry(iconImg(g), g.name, `${CHARS[g.char].name} · ${PROFILE.unlocked.includes(g.id) ? 'unlocked' : `${questProgress(g)}/${g.quest.n}`}`, `${g.desc}<br><i>${g.quest.text}</i>`, '#ffb52e')); }
   if (archTab === 'Relics') { group(L, 'General relics'); for (const it of RELICS.filter(x => !x.elem)) L.appendChild(entry(iconImg(it), it.name, RARITY[it.rarity].name + (it.unique ? ' · unique' : ''), it.desc, RARITY[it.rarity].color)); for (const el in ELEM) { group(L, ELEM[el].name + ' relics'); for (const it of RELICS.filter(x => x.elem === el)) L.appendChild(entry(iconImg(it), it.name, RARITY[it.rarity].name + (it.unique ? ' · unique' : ''), it.desc, RARITY[it.rarity].color)); } }
   if (archTab === 'Active items') for (const it of ACTIVES) L.appendChild(entry(iconImg(it), it.name, `Active · ${it.cd}s cooldown`, it.desc, '#5ad07a'));
   if (archTab === 'Status & elements') { for (const k of ST_KEYS) { const c = mkCanvas(64, 64); c.getContext('2d').drawImage(statusIcon(k, 64), 0, 0); L.appendChild(entry(c, STATUS[k].name, 'Status effect', STATUS[k].desc, STATUS[k].color)); } group(L, 'Elements and weaknesses'); for (const el in ELEM) L.appendChild(entry(iconImg({ id: 'el_' + el, icon: ELEM[el].icon, color: ELEM[el].color }), ELEM[el].name, 'Element', `Bosses weak to ${ELEM[el].name} take +50% damage from ${ELEM[el].name} hits and double damage from its damage over time; its status effects last 50% longer on them. Frozen bosses stay freeze-immune for 12s afterwards.`, ELEM[el].color)); }
-  if (archTab === 'Biomes') for (const t of ROOM_POOL) { const top = Object.keys(t.mobs)[0]; const mobs = Object.keys(t.mobs).map(m => ENEMY[m].name).join(', '); const boss = t.boss ? `Room boss: ${CHAMPS[t.boss[0]].name} (Act II: ${CHAMPS[t.boss[1]].name}).${t.elem ? ` Drops ${ELEM[t.elem].name} relics more often.` : ''}` : 'No room boss. Often an ambush room.'; L.appendChild(entry(spriteCanvas(top, 128), t.name, mobs, boss, '#ffe6a0')); }
-  if (archTab === 'Monsters') for (const k of ['grub', 'caster', 'boar', 'brute', 'shardling', 'bonewalker', 'wasp', 'slime', 'frostling', 'icebeetle', 'emberling', 'flamespitter', 'shade', 'hushling']) L.appendChild(entry(spriteCanvas(k, 128), ENEMY[k].name, `HP ${ENEMY[k].hp}`, ENEMY_INFO[k] || '', '#ff9a8a'));
+  if (archTab === 'Biomes') for (const t of ROOM_POOL) { const top = Object.keys(t.mobs)[0]; const mobs = Object.keys(t.mobs).map(m => ENEMY[m].name).join(', '); const tiers = ['', 'Easy', 'Normal', 'Hard', 'Deadly'], pool = t.pool ? ` Appears as: ${t.pool.map(k => tiers[k]).join(' / ')}.` : ''; const boss = t.boss ? `Room boss: ${CHAMPS[t.boss[0]].name} (Act II: ${CHAMPS[t.boss[1]].name}).${t.elem ? ` Drops ${ELEM[t.elem].name} relics more often.` : ''}${pool}${t.hazard ? ' ' + HZ_INFO[t.hazard] : ''}${t.swarm ? ' Swarms: more monsters per room.' : ''}` : 'No room boss. Often an ambush room.'; L.appendChild(entry(spriteCanvas(top, 128), t.name, mobs, boss, '#ffe6a0')); }
+  if (archTab === 'Monsters') for (const k of ['grub', 'caster', 'boar', 'brute', 'shardling', 'bonewalker', 'wasp', 'slime', 'frostling', 'icebeetle', 'emberling', 'flamespitter', 'shade', 'hushling', 'rat', 'ratshaman', 'thornling', 'scarab', 'mummy', 'sparkwisp', 'golem', 'voidspawn', 'eyestalk']) L.appendChild(entry(spriteCanvas(k, 128), ENEMY[k].name, `HP ${ENEMY[k].hp}`, ENEMY_INFO[k] || '', '#ff9a8a'));
   if (archTab === 'Room bosses') for (const t of ROOM_POOL) { if (!t.boss) continue; t.boss.forEach((id, i) => { const c = CHAMPS[id], base = ENEMY[c.base]; const st = base.hitSt || base.shotSt; L.appendChild(entry(spriteCanvas(c.base, 128, c.d2), c.name, `${t.name} · Act ${i ? 'II' : 'I'}${t.elem ? ' · drops ' + ELEM[t.elem].name + ' relics' : ''}`, `Attacks: ${c.kit.filter((v, j, a) => a.indexOf(v) === j).join(', ')}. Summons ${ENEMY[c.minion].name}s.${st ? ` Inflicts ${STATUS[st.k === 'chill' ? 'frozen' : st.k].name}.` : ''} Beat it to raise a Krystal Shrine.`, '#ffd44a')); }); }
   if (archTab === 'Gatekeepers') { group(L, 'Act I'); for (const k of NIGHT1_POOL) L.appendChild(entry(spriteCanvas(ENEMY[k].sprite || k, 128, ENEMY[k].tint), ENEMY[k].name, 'Gatekeeper · Act I · 2 phases', weakTxt(k) + (BOSS_LORE[k] ? BOSS_LORE[k] + ' ' : '') + ENEMY_INFO[k] + '<br>' + resText(k), '#ff9ad8')); group(L, 'Act II'); for (const k of NIGHT2_POOL) L.appendChild(entry(spriteCanvas(k, 128), ENEMY[k].name, 'Gatekeeper · Act II · 2 phases', weakTxt(k) + (BOSS_LORE[k] ? BOSS_LORE[k] + ' ' : '') + ENEMY_INFO[k] + '<br>' + resText(k), '#ff9ad8')); }
+  if (archTab === 'Corruptors') corrArchive(L);
   if (archTab === 'Dungeon Masters') for (const D of NIGHTLORDS) L.appendChild(entry(spriteCanvas(D.id, 128), D.name, D.epithet, weakTxt(D.id) + (D.final ? '<b>No weakness.</b> ' : '') + BOSS_LORE[D.id] + '<br>' + ENEMY_INFO[D.id] + '<br>' + resText(D.id), '#7ff0ff'));
 }
 // ---------- rewards & results ----------
@@ -9749,7 +10402,7 @@ function showResults() {
   $('r-title').className = 'result-title ' + (r.won ? 'won' : 'lost');
   $('r-sub').textContent = r.won ? `The ${ENEMY[G.lord].name} is no more. The Krystal is yours.` : `Fell during: ${r.reached}.`;
   if (NET.role === 'client') $('r-sub').textContent += ' The host will bring everyone back to the Hub.';
-  $('r-facts').innerHTML = `<span><b>${fmtTime(r.time)}</b>Time</span><span><b>${G.castleKills || 0}/4</b>Labyrinth bosses</span><span><b>Act ${ROMAN[r.day]}</b>Reached</span><span><b>${Math.max(...G.players.map(p => p.level))}</b>Best level</span>`;
+  $('r-facts').innerHTML = `<span><b>${fmtTime(r.time)}</b>Time</span><span><b>${G.castleKills || 0}/4</b>Dream Palace bosses</span><span><b>Act ${ROMAN[r.day]}</b>Reached</span><span><b>${Math.max(...G.players.map(p => p.level))}</b>Best level</span>`;
   const rows = G.players.map(p => `<tr><td style="color:${CHARS[p.char].color}">${p.isBot ? (p.ai && p.ai.pers !== 'Friend' && !p.remote ? p.name + ' (' + p.ai.pers + ')' : p.name + ' · ' + CHARS[p.char].name) : 'You · ' + CHARS[p.char].name}</td><td>${p.level}</td><td>${Math.round(p.stats.dmg).toLocaleString('en-US')}</td><td>${p.stats.kills}</td><td>${Math.round(p.stats.healed || 0).toLocaleString('en-US')}</td><td>${p.stats.revives}</td><td>${p.stats.downs}</td><td>${itemCount(p)}</td><td>${Math.round(p.stats.picked || 0).toLocaleString('en-US')}</td><td>${p.stats.deaths}</td></tr>`).join('');
   $('r-table').innerHTML = `<thead><tr><th>Player</th><th>Level</th><th>Damage</th><th>Kills</th><th>Ally healing</th><th>Revives</th><th>Downs</th><th>Items</th><th>Gold found</th><th>Deaths</th></tr></thead><tbody>${rows}</tbody>`;
   $('b-again').hidden = !!G.watch || !!NET.role; $('b-change').hidden = NET.role === 'client'; $('b-change').textContent = NET.role === 'host' ? 'Return to the hub (everyone)' : 'Return to the hub'; $('b-title').textContent = NET.role ? 'Leave the party' : 'Title';
@@ -10143,7 +10796,7 @@ function netWrapCosmetics() {
   if (NET_ORIG.fx) return;
   const rec = (name, f, xy) => { NET_ORIG[name] = f; return function (...a) { if (NET.rec) NET.ev.push([name, a, xy(a)]); return f.apply(this, a); }; };
   fx = rec('fx', fx, a => a[0]); burst = rec('burst', burst, a => ({ x: a[0], y: a[1] })); floatText = rec('floatText', floatText, a => ({ x: a[0], y: a[1] })); decal = rec('decal', decal, a => ({ x: a[0], y: a[1] }));
-  sfx = rec('sfx', sfx, a => a[1] != null ? { x: a[1], y: a[2] } : null); feed = rec('feed', feed, () => null);
+  sfx = rec('sfx', sfx, a => a[1] != null ? { x: a[1], y: a[2] } : null); feed = rec('feed', feed, () => null); itemToast = rec('itemToast', itemToast, () => null);
   const sb = setBanner; NET_ORIG.setBanner = sb; setBanner = function (...a) { if (NET.rec) NET.ev.push(['banner', a, null]); return sb.apply(this, a); };
   const ts = tset; NET_ORIG.tset = ts; tset = function (x, y, t) { ts(x, y, t); if (NET.role === 'host' && G && !G.hub && x >= 0 && y >= 0 && x < MW && y < MH) NET.tiles.add(y * MW + x); };
 }
