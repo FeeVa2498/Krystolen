@@ -2799,6 +2799,43 @@ function drawBossChest(it) {
   ctx.fillStyle = '#c070ff'; ctx.fillRect(x - 8, y - 7, 16, 2);
   if (mine) { ctx.font = `6px ${FONT}`; ctx.textAlign = 'center'; ctx.lineWidth = 2.2; ctx.strokeStyle = OUTL; ctx.strokeText('BOSS CHEST', x, y - 22); ctx.fillStyle = '#ffd44a'; ctx.fillText('BOSS CHEST', x, y - 22); }
 }
+// ===== More ways in and out of the Dream Palace =====
+// Besides the main gate, the two corner towers open down into the rooms below the palace, and the North Tower opens up
+// into the room above it (when the map has one). Each opening is a seal door of the palace challenge, so the Wildfire
+// burns open the ones it reaches and a team caught by the fire has a fair way out.
+function addCastleExits(cg) {
+  const C = G.castle; if (!C) return;
+  const ox = C.x0, oy = C.y0, CHh = typeof CASTLE_H !== 'undefined' ? CASTLE_H : 48;
+  C.exits = [];
+  const mid = r => r.x + (r.w >> 1);
+  const door = (B, dir, pos) => { const k = doorKey(B, dir); B.doorPos[k] = pos; B.doors[k] = 'castle'; B.doorTiles[k] = doorTilesFor(B, k); if (B.biome) (B.extDoors || (B.extDoors = [])).push(k); };
+  // a corner tower down into the room below it
+  const down = (r, B) => {
+    if (!r || !B) return;
+    const x = mid(r), yb = oy + CHh - 1;
+    castleCarve(x, r.y + r.h - 1, x, yb, TH.dreamhall);
+    const bx = clamp(x, B.x + CORR, B.x + B.w - 1 - CORR);
+    if (bx === x) carveV(yb + 1, B.y - 1, x); else { const my = yb + 2; carveV(yb + 1, my, x); carveH(x, bx, my); carveV(my, B.y - 1, bx); }
+    door(B, 'n', bx);
+    C.exits.push({ room: r, key: 'exit-' + r.key, tiles: [[x - 1, yb], [x, yb], [x + 1, yb]] });
+  };
+  // the North Tower up into the room above it
+  const up = (r, N) => {
+    if (!r || !N) return;
+    const x = mid(r), yt = oy;
+    castleCarve(x, yt, x, r.y, TH.dreamhall);
+    const nx = clamp(x, N.x + CORR, N.x + N.w - 1 - CORR);
+    if (nx === x) carveV(N.y + N.h, yt - 1, x); else { const my = yt - 2; carveV(my, yt - 1, x); carveH(x, nx, my); carveV(N.y + N.h, my, nx); }
+    door(N, 's', nx);
+    C.exits.push({ room: r, key: 'exit-' + r.key, tiles: [[x - 1, yt], [x, yt], [x + 1, yt]] });
+  };
+  const cell = (gx, gy) => inGrid(gx, gy) ? G.grid[gx][gy] : null;
+  down(C.sw, cell(cg.gx0, cg.gy0 + 2));
+  down(C.se, cell(cg.gx0 + 2, cg.gy0 + 2));
+  up(C.north, cell(cg.gx0 + 1, cg.gy0 - 1));
+}
+{ const _bc = buildCastle; buildCastle = function (cg) { _bc(cg); addCastleExits(cg); }; }
+{ const _bm = buildBiomeMask; buildBiomeMask = function () { _bm(); const C = G.castle; if (C && G.lab && C.exits) for (const X of C.exits) G.lab.seals.push({ room: X.room, key: X.key, tiles: X.tiles }); }; }
 // ===== Effects =====
 function fx(o) { G.fx.push(Object.assign({ t: 0, life: 0.4 }, o)); }
 function floatText(x, y, text, color = '#fff', life = 0.8, size = 1) { G.fx.push({ k: 'text', x, y, text, color, t: 0, life, size }); }
@@ -3825,8 +3862,8 @@ const CHARS = {
       if (p.bedrockT > 0) { p.bedrockT -= dt; if (p.bedrockT <= 0 && p.st.shield <= 0) p.shieldHp = 0; }
       if (p.ball > 0) {
         p.ball -= dt;
-        const want = moveAng(p, c); p.ballDir += clamp(angDiff(p.ballDir, want), -5 * dt, 5 * dt);
-        const spd = 205 * p.st.spd;
+        const want = moveAng(p, c), turn = p.landslide > 0 ? 9 : 5; p.ballDir += clamp(angDiff(p.ballDir, want), -turn * dt, turn * dt);
+        const spd = 205 * p.st.spd * (p.landslide > 0 ? 1.45 : 1);
         const before = { x: p.x, y: p.y };
         moveEnt(p, Math.cos(p.ballDir) * spd * dt, Math.sin(p.ballDir) * spd * dt);
         if (Math.hypot(p.x - before.x, p.y - before.y) < spd * dt * 0.3) { p.ballDir += Math.PI * 0.7; burst(p.x, p.y - 4, '#a89c88', 5, 60, 0.4, { g: 120 }); }
@@ -4288,42 +4325,42 @@ const SPRINT = { hedgehog: 'run', crow: 'hover', pangolin: 'lean', reindeer: 'ga
 function meleeFx(p, col, r = 22) { fx({ k: 'slash', x: p.x, y: p.y - 6, a: p.aimA, r, life: 0.18 }); const m = muzzle(p, 14); burst(m.x, m.y, col, 5, 60, 0.25, { shape: 'spark', ang: p.aimA, spread: 1 }); sfx('swing', p.x, p.y, p.isBot ? 0.4 : 0.9); }
 Object.assign(CHARS.hedgehog, {
   alt: { name: 'Gun Bash', short: 'Bash', cd: 0.75, desc: 'Club enemies with the minigun: knockback, no heat.', use(p) { p.bashT = 0.24; meleeArc(p, 26, 1.2, 14 * p.st.dmg, 220); meleeFx(p, '#ffe8c0'); } },
-  super: { name: 'Quill Tempest', short: 'Tempest', cd: 90, desc: 'Plant the minigun on a tripod for 6s and spray fire quills in every direction. No heat.', cast(p) { p.tempest = 6; p.channel = 6; p.tA = p.aimA; p.over = false; p.heat = 0; shock(p.x, p.y, 40, '#ff8a2a', 0.5); glow(p.x, p.y - 10, 40, '#ffb35a', 0.5); } },
+  super: { name: 'Quill Tempest', short: 'Tempest', cd: 40, desc: 'Plant the minigun on a tripod for 9s and hose four streams of burning quills in every direction. No heat.', cast(p) { p.tempest = 9; p.channel = 9; p.tA = p.aimA; p.over = false; p.heat = 0; shock(p.x, p.y, 40, '#ff8a2a', 0.5); glow(p.x, p.y - 10, 40, '#ffb35a', 0.5); } },
 });
 Object.assign(CHARS.crow, {
   runAtk: true,
   alt: { name: 'Talon Rake', short: 'Rake', cd: 0.8, desc: 'Rake with the staff: shoves enemies away and may Gloom them.', use(p) { meleeArc(p, 22, 1.3, 10 * p.st.dmg, 300, { elem: 'shadow', st: { k: 'gloom', t: 1.5, ch: 0.3 } }); meleeFx(p, '#c79bff'); } },
-  super: { name: 'Black Eclipse', short: 'Eclipse', cd: 100, range: 170, desc: 'A pool of darkness for 8s: enemies inside are Gloomed, take shadow damage, and take double damage from Crow.', cast(p, tx, ty) {
+  super: { name: 'Black Eclipse', short: 'Eclipse', cd: 40, range: 170, desc: 'A huge vortex of darkness for 10s: it drags enemies to its heart, Glooms them, burns them with shadow, and they take double damage from Crow.', cast(p, tx, ty) {
     glow(tx, ty, 80, '#4a2a8a', 0.8); shock(tx, ty, 80, '#b48cff', 0.7);
-    zone({ x: tx, y: ty, r: 72, life: 8, tick: 0.25, kind: 'gloomstorm', owner: p, onTick: z => { for (const e of enemiesIn(z.x, z.y, z.r)) { e.eclipseT = G.time + 0.4; applyStatus(e, 'gloom', 1, { src: p }); damage(e, 5 * p.st.dmg, p, { elem: 'shadow', proc: true, noCrit: true, color: '#b48cff' }); } if (R() < 0.7) burst(z.x + rr(-z.r, z.r) * 0.7, z.y + rr(-z.r, z.r) * 0.5, '#2a1a44', 2, 30, 1, { g: -30, size: 2 }); } });
+    zone({ x: tx, y: ty, r: 110, life: 10, tick: 0.25, kind: 'gloomstorm', owner: p, onTick: z => { for (const e of enemiesIn(z.x, z.y, z.r)) { e.eclipseT = G.time + 0.4; applyStatus(e, 'gloom', 1, { src: p }); damage(e, 14 * p.st.dmg, p, { elem: 'shadow', proc: true, noCrit: true, color: '#b48cff' }); if (!e.boss) { const d = Math.hypot(z.x - e.x, z.y - e.y); if (d > 8) moveEnt(e, (z.x - e.x) / d * 14, (z.y - e.y) / d * 14); } } if (R() < 0.7) burst(z.x + rr(-z.r, z.r) * 0.7, z.y + rr(-z.r, z.r) * 0.5, '#2a1a44', 2, 30, 1, { g: -30, size: 2 }); } });
   } },
 });
 Object.assign(CHARS.pangolin, {
   alt: { name: 'Shell Guard', short: 'Guard', cd: 3.5, desc: 'Brace behind your scales for 0.9s: blocks 85% of damage from the front, then counters with a shockwave if anything hit you.', use(p) { p.guardT = 0.9; p.guardA = p.aimA; p.guardHit = false; burst(p.x, p.y - 8, '#e8d0a0', 8, 40, 0.3); } },
-  super: { name: 'Landslide', short: 'Landslide', cd: 80, desc: 'Become a huge boulder for 3s: crush everything in your path and leave slowing rubble.', cast(p, tx, ty, c) { p.ball = 3; p.landslide = 3; p.ballDir = moveAng(p, c); p.dr = 0.2; p.rammed = new Map(); smoke(p.x, p.y, 12, '#c8b898', 60, 1); shake(5); } },
+  super: { name: 'Landslide', short: 'Landslide', cd: 35, desc: 'Become a giant, unstoppable boulder for 5s: every enemy you crush sets off an earthquake, boulders rain on everything near you, and at the end you leap up and smash down, flattening the whole area.', cast(p, tx, ty, c) { p.ball = 5; p.landslide = 5; p.ballDir = moveAng(p, c); p.dr = 0; p.lsRock = 0; p.rammed = new Map(); smoke(p.x, p.y, 12, '#c8b898', 60, 1); shake(5); } },
 });
 Object.assign(CHARS.reindeer, {
   alt: { name: 'Hoof Kick', short: 'Kick', cd: 0.9, desc: 'A quick kick that knocks back and Charges enemies.', use(p) { for (const e of G.enemies) if (!e.dead && d2(e.x, e.y, p.x, p.y) < (26 + e.r) ** 2 && Math.abs(angDiff(p.aimA, Math.atan2(e.y - p.y, e.x - p.x))) < 1.2) e.charged = 3; meleeArc(p, 24, 1.2, 12 * p.st.dmg, 260, { elem: 'shock' }); meleeFx(p, '#bff4ff'); } },
-  super: { name: 'Aurora Tempest', short: 'Aurora', cd: 100, desc: 'A storm cloud follows you for 8s, striking enemies with lightning every 0.4s. Allies under it move and attack faster.', cast(p) { p.aurora = 8; p.auroraT = 0; fx({ k: 'bolt', pts: [{ x: p.x, y: p.y - 120 }, { x: p.x, y: p.y - 30 }], life: 0.3, color: '#ffffff' }); glow(p.x, p.y - 40, 50, '#bff4ff', 0.5); } },
+  super: { name: 'Aurora Tempest', short: 'Aurora', cd: 40, desc: 'A great storm follows you for 12s, hurling chain lightning at enemies five times a second. Allies under it move and attack faster.', cast(p) { p.aurora = 12; p.auroraT = 0; fx({ k: 'bolt', pts: [{ x: p.x, y: p.y - 120 }, { x: p.x, y: p.y - 30 }], life: 0.3, color: '#ffffff' }); glow(p.x, p.y - 40, 50, '#bff4ff', 0.5); } },
   update(p, c, dt) {
     if (!(p.aurora > 0)) return;
     p.aurora -= dt; p.auroraT -= dt;
     if (R() < 0.6) burst(p.x + rr(-24, 24), p.y - 44 + rr(-6, 6), pick(['#d8e4ff', '#9fb8d8', '#ffffff']), 1, 10, 0.8, { size: 2.4, shape: 'smoke' });
-    for (const q of G.players) if (q.state === 'up' && d2(q.x, q.y, p.x, p.y) < 75 * 75) q.buffT = Math.max(q.buffT, 0.3);
-    if (p.auroraT <= 0) { p.auroraT = 0.4; let best = null, bd = 160 * 160; for (const e of G.enemies) { if (e.dead || e.hidden) continue; const dd = d2(e.x, e.y, p.x, p.y); if (dd < bd) { bd = dd; best = e; } } if (best) { const from = { x: best.x + rr(-6, 6), y: best.y - 110 }; chainLightning(p, from, best, 22 * p.st.dmg, 2); fx({ k: 'bolt', pts: [from, { x: best.x, y: best.y - 4 }], life: 0.2, color: '#ffffff' }); } }
+    for (const q of G.players) if (q.state === 'up' && d2(q.x, q.y, p.x, p.y) < 110 * 110) q.buffT = Math.max(q.buffT, 0.3);
+    if (p.auroraT <= 0) { p.auroraT = 0.2; let best = null, bd = 210 * 210; for (const e of G.enemies) { if (e.dead || e.hidden) continue; const dd = d2(e.x, e.y, p.x, p.y); if (dd < bd) { bd = dd; best = e; } } if (best) { const from = { x: best.x + rr(-6, 6), y: best.y - 110 }; chainLightning(p, from, best, 40 * p.st.dmg, 4); fx({ k: 'bolt', pts: [from, { x: best.x, y: best.y - 4 }], life: 0.2, color: '#ffffff' }); } }
   },
 });
 Object.assign(CHARS.rabbit, {
   runAtk: true,
   alt: { name: 'Thump Kick', short: 'Kick', cd: 1.1, desc: 'Kick enemies away and leave a small poison patch at your feet.', use(p) { meleeArc(p, 22, 1.2, 8 * p.st.dmg, 320, { elem: 'poison' }); meleeFx(p, '#8cff6a'); const zx = p.x, zy = p.y; zone({ x: zx, y: zy, r: 18, life: 2.5, tick: 0.5, kind: 'toxic', owner: p, onTick: z => { for (const e of enemiesIn(z.x, z.y, z.r)) addPoison(e, 1, p); } }); } },
-  super: { name: 'Plague Garden', short: 'Garden', cd: 110, desc: 'A garden spreads around you for 10s: enemies inside are poisoned and slowed, allies inside heal.', cast(p) {
+  super: { name: 'Plague Garden', short: 'Garden', cd: 45, desc: 'A vast garden spreads around you for 14s: enemies inside are drowned in poison and slowed to a crawl, allies inside heal fast.', cast(p) {
     const born = G.time; glow(p.x, p.y, 60, '#8cff6a', 0.6);
-    zone({ x: p.x, y: p.y, r: 40, life: 10, tick: 0.5, kind: 'toxic', owner: p, onTick: z => { z.r = 40 + 70 * Math.min(1, (G.time - born) / 3); for (const e of enemiesIn(z.x, z.y, z.r)) { addPoison(e, 2, p); slowE(e, 0.45, 0.7); } for (const q of G.players) if (q.state === 'up' && d2(q.x, q.y, z.x, z.y) < z.r * z.r) { healAlly(p, q, q.maxHp * 0.015); if (R() < 0.3) burst(q.x, q.y - 10, '#7ae07a', 2, 20, 0.6, { glow: true, g: -30 }); } for (let i = 0; i < 3; i++) burst(z.x + rr(-z.r, z.r) * 0.8, z.y + rr(-z.r, z.r) * 0.6, pick(['#ff8ab0', '#8cff6a', '#ffe06a']), 1, 10, 1.2, { shape: 'feather', g: -10 }); } });
+    zone({ x: p.x, y: p.y, r: 50, life: 14, tick: 0.5, kind: 'toxic', owner: p, onTick: z => { z.r = 50 + 100 * Math.min(1, (G.time - born) / 2); for (const e of enemiesIn(z.x, z.y, z.r)) { addPoison(e, 4, p); slowE(e, 0.35, 0.7); } for (const q of G.players) if (q.state === 'up' && d2(q.x, q.y, z.x, z.y) < z.r * z.r) { healAlly(p, q, q.maxHp * 0.035); if (R() < 0.3) burst(q.x, q.y - 10, '#7ae07a', 2, 20, 0.6, { glow: true, g: -30 }); } for (let i = 0; i < 3; i++) burst(z.x + rr(-z.r, z.r) * 0.8, z.y + rr(-z.r, z.r) * 0.6, pick(['#ff8ab0', '#8cff6a', '#ffe06a']), 1, 10, 1.2, { shape: 'feather', g: -10 }); } });
   } },
 });
 Object.assign(CHARS.wolf, {
   alt: { name: 'Hunting Knife', short: 'Knife', cd: 0.55, desc: 'A quick knife slash that Bleeds. Works while reloading.', use(p) { meleeArc(p, 24, 1.1, 18 * p.st.dmg, 120, { elem: 'bleed', st: { k: 'bleed', t: 3, dmg: 3 * p.st.dmg } }); meleeFx(p, '#ff8aa0'); } },
-  super: { name: 'Apex Hunt', short: 'Apex', cd: 90, desc: 'For 8s every reload is instant and empowered, and each shot also ricochets into the two nearest enemies.', cast(p) { p.apex = 8; p.loaded = true; p.reload = null; p.empower = true; glow(p.x, p.y - 10, 30, '#ffd36a', 0.5); floatText(p.x, p.y - 30, 'APEX HUNT', '#ffd36a', 1); } },
+  super: { name: 'Apex Hunt', short: 'Apex', cd: 35, desc: 'For 12s every reload is instant and empowered, you fire faster, and each shot also ricochets into the four nearest enemies.', cast(p) { p.apex = 12; p.loaded = true; p.reload = null; p.empower = true; glow(p.x, p.y - 10, 30, '#ffd36a', 0.5); floatText(p.x, p.y - 30, 'APEX HUNT', '#ffd36a', 1); } },
 });
 // ---- hooks into the existing kits ----
 (function patchKits() {
@@ -4332,7 +4369,7 @@ Object.assign(CHARS.wolf, {
   CHARS.hedgehog.update = function (p, c, dt) {
     if (p.tempest > 0) {
       p.tempest -= dt; p.tTick = (p.tTick || 0) - dt; p.heat = 0; p.over = false;
-      while (p.tTick <= 0) { p.tTick += 0.03; p.tA += 0.33; for (const k of [0, Math.PI]) this.quill(p, p.tA + k, 330, 7 * p.st.dmg, { color: '#ff9a3c', st: { k: 'scorch', t: 2.5, dps: 4 * p.st.dmg, ch: 0.3 }, elem: 'fire' }); }
+      while (p.tTick <= 0) { p.tTick += 0.03; p.tA += 0.33; for (const k of [0, Math.PI / 2, Math.PI, Math.PI * 1.5]) this.quill(p, p.tA + k, 380, 12 * p.st.dmg, { color: '#ff9a3c', st: { k: 'scorch', t: 3, dps: 7 * p.st.dmg, ch: 0.4 }, elem: 'fire' }); }
       if (!p.isBot) shake(1);
       if (p.tempest <= 0) p.channel = 0;
       return;
@@ -4347,9 +4384,15 @@ Object.assign(CHARS.wolf, {
   CHARS.pangolin.update = function (p, c, dt) {
     if (p.guardT > 0) { p.guardT -= dt; if (p.guardT <= 0 && p.guardHit) { for (const e of enemiesIn(p.x, p.y, 44)) damage(e, 30 * p.st.dmg, p, { kb: 240, stun: 0.5 }); shock(p.x, p.y, 44, '#e8d0a0', 0.4); burst(p.x, p.y, '#ffe8c0', 16, 100, 0.4, { shape: 'spark' }); } }
     if (p.landslide > 0) {
-      p.landslide -= dt; if (p.landslide <= 0) { p.ball = 0; p.dr = 1; }
+      p.landslide -= dt;
+      if (p.landslide <= 0) { // the finale: leap and smash down
+        p.ball = 0; p.dr = 1; p.invulnT = Math.max(p.invulnT, 0.8);
+        for (const e of enemiesIn(p.x, p.y, 115)) { damage(e, 300 * p.st.dmg, p, { kb: 320, stun: 2, color: '#ffe8c0' }); applyStatus(e, 'sunder', 5, { src: p }); }
+        shock(p.x, p.y, 115, '#e8d0a0', 0.8); smoke(p.x, p.y, 20, '#c8b898', 90, 1.4); decal(p.x, p.y, 'crack', 70, 8); burst(p.x, p.y, '#ffe8c0', 40, 200, 0.7, { g: 240, vy: -120 }); if (!p.isBot) shake(12); sfx('boom', p.x, p.y);
+      }
+      if ((p.lsRock = (p.lsRock || 0) - dt) <= 0) { p.lsRock = 0.3; const near = G.enemies.filter(e => !e.dead && !e.hidden && d2(e.x, e.y, p.x, p.y) < 170 * 170); const T = pick(near); if (T) { const x = T.x + rr(-8, 8), y = T.y + rr(-8, 8); tele({ x, y, r: 30, life: 0.45, color: 'red' }); (G.fallers || (G.fallers = [])).push({ x, y, t: 0, dur: 0.45, col: '#c8b898' }); schedule(0.45, () => { explode(x, y, 30, 90 * p.st.dmg, p, { kb: 160, boomColor: '#c8b898' }); for (const e of enemiesIn(x, y, 30)) e.stunT = Math.max(e.stunT, 0.6); }); } }
       if ((p.rubT = (p.rubT || 0) - dt) <= 0) { p.rubT = 0.15; const zx = p.x, zy = p.y; zone({ x: zx, y: zy, r: 14, life: 3, tick: 0.4, kind: 'caltrop', owner: p, onTick: z => { for (const e of enemiesIn(z.x, z.y, z.r)) applyStatus(e, 'mire', 1, { src: p }); } }); }
-      for (const e of G.enemies) { if (e.dead || d2(e.x, e.y, p.x, p.y) > (e.r + p.r + 16) ** 2) continue; const last = p.rammed.get(e) || -9; if (G.time - last < 0.4) continue; p.rammed.set(e, G.time); damage(e, 70 * p.st.dmg, p, { kb: 300, stun: 1 }); burst(e.x, e.y - 4, '#ffe8c0', 10, 100, 0.3, { shape: 'spark' }); if (!p.isBot) shake(3); }
+      for (const e of G.enemies) { if (e.dead || d2(e.x, e.y, p.x, p.y) > (e.r + p.r + 30) ** 2) continue; const last = p.rammed.get(e) || -9; if (G.time - last < 0.4) continue; p.rammed.set(e, G.time); damage(e, 150 * p.st.dmg, p, { kb: 300, stun: 1.2 }); for (const o of enemiesIn(e.x, e.y, 55)) if (o !== e) damage(o, 60 * p.st.dmg, p, { stun: 0.8, kb: 160 }); shock(e.x, e.y, 55, '#e8d0a0', 0.35); burst(e.x, e.y - 4, '#ffe8c0', 10, 100, 0.3, { shape: 'spark' }); if (!p.isBot) shake(3); }
     }
     return pUp.call(this, p, c, dt);
   };
@@ -4363,9 +4406,9 @@ Object.assign(CHARS.wolf, {
     if (emp && wasLoaded) p.empBleed = true;
     wAtk.call(this, p, c, dt);
     if (wasLoaded && p.apex > 0) {
-      const near = G.enemies.filter(e => !e.dead && !e.hidden && d2(e.x, e.y, p.x, p.y) < 260 * 260).sort((a, b) => d2(a.x, a.y, p.x, p.y) - d2(b.x, b.y, p.x, p.y)).slice(0, 2);
-      for (const e of near) fireSniper(p, 40 * p.st.dmg, 2, false, Math.atan2(e.y - 4 - (p.y - HAND_Y), e.x - p.x), {});
-      p.loaded = true; p.reload = null; p.empower = true; p.atkCd = 0.5;
+      const near = G.enemies.filter(e => !e.dead && !e.hidden && d2(e.x, e.y, p.x, p.y) < 320 * 320).sort((a, b) => d2(a.x, a.y, p.x, p.y) - d2(b.x, b.y, p.x, p.y)).slice(0, 4);
+      for (const e of near) fireSniper(p, 70 * p.st.dmg, 2, false, Math.atan2(e.y - 4 - (p.y - HAND_Y), e.x - p.x), {});
+      p.loaded = true; p.reload = null; p.empower = true; p.atkCd = 0.35;
     }
   };
   const wUp = CHARS.wolf.update;
@@ -4519,7 +4562,7 @@ Object.assign(CHARS, {
       p.songRep = p.lastSong === S.id ? Math.min(3, p.songRep + 1) : 1; p.lastSong = S.id;
       playSong(p, S.id, SONG_DECAY[p.songRep - 1], 8); p.notes = '';
     } },
-    super: { name: 'Grand Finale', short: 'Finale', cd: 110, desc: 'Play all five songs at full strength for 6s and forget the repeats.', cast(p) { for (const S of SONGS) playSong(p, S.id, 1, 6); p.songRep = 0; p.lastSong = null; pillar(p.x, p.y, '#ffd27a', 120, 24, 1); } },
+    super: { name: 'Grand Finale', short: 'Finale', cd: 45, desc: 'Play all five songs at 160% strength for 12s and forget the repeats.', cast(p) { for (const S of SONGS) playSong(p, S.id, 1.6, 12); p.songRep = 0; p.lastSong = null; pillar(p.x, p.y, '#ffd27a', 120, 24, 1); } },
   },
   lizard: {
     name: 'Red Lizard', role: 'Living sun', color: '#e05a46', hp: 128, spd: 86, range: 34, weapon: 'w_lizard', wx: 1, handColor: '#d8483a', runAtk: true,
@@ -4537,7 +4580,7 @@ Object.assign(CHARS, {
     alt: { name: 'Draw In', short: 'Draw in', cd: 0, desc: 'Hold to pull the ring of fireballs in toward you.', use(p) { p.ringR = Math.max(LZ_MIN, p.ringR - 110 / 60); } },
     skill: { cd: 4, cast(p, tx, ty, c) { let t = 0; dashTo(p, moveAng(p, c), 330, 0.26, 0.25, { onStep(q, dt) { if ((t -= dt) <= 0) { t = 0.05; const zx = q.x, zy = q.y; zone({ x: zx, y: zy, r: 12, life: hasGem(q, 'lz_ash') ? 6 : 2, tick: 0.4, kind: 'lava', owner: q, onTick: z => { for (const e of enemiesIn(z.x, z.y, z.r)) applyStatus(e, 'scorch', 2, { dps: 4 * q.st.dmg, src: q }); } }); } } }); } },
     ult: { cd: 12, cast(p) { p.flareT = 5; glow(p.x, p.y - 8, 40, '#ffb030', 0.5); shock(p.x, p.y, p.ringR, '#ff8a2a', 0.4); sfx('fire', p.x, p.y); } },
-    super: { name: 'Molten Shed', short: 'Molten', cd: 95, desc: 'Turn molten for 8s: a second ring of five fireballs spins the other way inside the first, every fireball hits harder, and you leave lava behind you.', cast(p) { p.molten = 8; if (hasGem(p, 'lz_heart')) p.hp = Math.min(p.maxHp, p.hp + p.maxHp * 0.25); burst(p.x, p.y - 8, '#ff8a2a', 40, 160, 0.7, { glow: true }); shock(p.x, p.y, 60, '#ff5a2a', 0.6); } },
+    super: { name: 'Molten Shed', short: 'Molten', cd: 40, desc: 'Erupt (heavy fire damage around you) and turn molten for 12s: a second ring of five fireballs spins inside the first, every fireball hits harder, and you leave lava behind you.', cast(p) { p.molten = 12; for (const e of enemiesIn(p.x, p.y, 95)) { damage(e, 160 * p.st.dmg, p, { elem: 'fire', kb: 220, color: '#ff8a2a' }); applyStatus(e, 'scorch', 4, { dps: 10 * p.st.dmg, src: p }); } if (!p.isBot) shake(6); if (hasGem(p, 'lz_heart')) p.hp = Math.min(p.maxHp, p.hp + p.maxHp * 0.25); burst(p.x, p.y - 8, '#ff8a2a', 40, 160, 0.7, { glow: true }); shock(p.x, p.y, 60, '#ff5a2a', 0.6); } },
   },
   serpent: {
     name: 'Serpent', role: 'Radiant healer', color: '#5ab88a', hp: 92, spd: 74, range: 130, weapon: 'w_serpent', wx: 1, handColor: '#5ab88a', runAtk: true,
@@ -4564,9 +4607,9 @@ Object.assign(CHARS, {
         } });
       }, 4);
     } },
-    super: { name: 'Coda of Life', short: 'Coda', cd: 120, desc: 'Heal every ally on the map by 50%. For 6s no one can fall below 1 health, and downed allies stand up at once.', cast(p) {
-      G.codaT = G.time + (hasGem(p, 's_refrain') ? 9 : 6); let rev = 0;
-      for (const q of G.players) { if (q.state === 'downed') { q.state = 'up'; q.hp = q.maxHp * 0.5; q.invulnT = 1.5; q.revive = 0; rev++; } else if (q.state === 'up') healAlly(p, q, q.maxHp * 0.5); if (q.state === 'up') { pillar(q.x, q.y, '#fff1a8', 90, 16, 0.9); burst(q.x, q.y - 10, '#fff6c8', 20, 80, 0.7, { glow: true, g: -40 }); } }
+    super: { name: 'Coda of Life', short: 'Coda', cd: 60, desc: 'Heal every ally on the map to full. For 10s no one can fall below 1 health, everyone deals 40% more damage, and downed allies stand up at once.', cast(p) {
+      G.codaT = G.time + (hasGem(p, 's_refrain') ? 14 : 10); let rev = 0;
+      for (const q of G.players) { if (q.state === 'downed') { q.state = 'up'; q.hp = q.maxHp; q.invulnT = 1.5; q.revive = 0; rev++; } else if (q.state === 'up') healAlly(p, q, q.maxHp); if (q.state === 'up') { q.buffT = Math.max(q.buffT, 10); q.hornT = Math.max(q.hornT || 0, 10); } if (q.state === 'up') { pillar(q.x, q.y, '#fff1a8', 90, 16, 0.9); burst(q.x, q.y - 10, '#fff6c8', 20, 80, 0.7, { glow: true, g: -40 }); } }
       if (rev && !p.isBot) questEvent('coda', rev);
       setBanner('Coda of Life', 'No one falls while the song plays.', 2.2, '#fff1a8');
     } },
@@ -4605,7 +4648,7 @@ Object.assign(CHARS, {
       addMinion({ kind: 'turret', owner: p, x: tx, y: ty, hp, maxHp: hp, cd: 0.4, r: 7, aim: p.aimA });
       burst(tx, ty - 6, '#c8a070', 14, 70, 0.5, { g: 200 }); smoke(tx, ty, 6, '#c8b898', 30, 0.6); sfx('buy', tx, ty, 0.7);
     } },
-    super: { name: 'Beaver Dam', short: 'Dam', cd: 100, desc: 'Raise a ring of palisades for 10s that stops enemy bullets, and make every ballista fire three times as fast.', cast(p) { G.dam = { x: p.x, y: p.y, r: 70, t: 10, owner: p }; p.damT = G.time + 10; for (const m of minionsOf(p, 'turret')) m.oc = G.time + 10; burst(p.x, p.y, '#a87a4a', 30, 120, 0.6, { g: 200 }); shake(4); } },
+    super: { name: 'Beaver Dam', short: 'Dam', cd: 45, desc: 'Raise a wide ring of palisades for 15s that stops enemy bullets; allies inside attack faster and deal more damage, and every ballista fires three times as fast.', cast(p) { G.dam = { x: p.x, y: p.y, r: 105, t: 15, owner: p }; p.damT = G.time + 15; for (const m of minionsOf(p, 'turret')) m.oc = G.time + 15; burst(p.x, p.y, '#a87a4a', 30, 120, 0.6, { g: 200 }); shake(4); } },
   },
   owl: {
     name: 'Owl', role: 'Pirate gunner', color: '#8a5a34', hp: 104, spd: 80, range: 150, weapon: 'w_owl', wx: 1, handColor: '#6a5a8c',
@@ -4645,9 +4688,9 @@ Object.assign(CHARS, {
         for (const e of enemiesIn(l.tx, l.ty, r)) { damage(e, 22 * p.st.dmg, p, { elem: 'radiant', color: '#fff1a8' }); e.flareT = G.time + (hasGem(p, 'o_guild') ? 10 : 6); }
       }, 4);
     } },
-    super: { name: 'Bombardment', short: 'Barrage', cd: 90, desc: 'Call down twelve shells around your aim over 2.5s; each one explodes and Marks what it hits.', cast(p) {
-      const cx = p.aimX ?? p.x, cy = p.aimY ?? p.y;
-      for (let i = 0; i < 12; i++) schedule(0.2 * i, () => { const a = R() * 6.28, d = R() * 70, x = cx + Math.cos(a) * d, y = cy + Math.sin(a) * d; tele({ x, y, r: 24, life: 0.35, color: 'spore' }); schedule(0.35, () => { explode(x, y, 26, 26 * p.st.dmg, p, { boomColor: '#c8b0ff', elem: 'shadow' }); for (const e of enemiesIn(x, y, 26)) e.flareT = G.time + 6; shake(p.isBot ? 0 : 2); }); });
+    super: { name: 'Bombardment', short: 'Barrage', cd: 35, desc: 'Rain thirty heavy shells around your aim for 3s (steer it with the mouse); each one stuns and Marks what it hits. Then a final broadside of six huge shells.', cast(p) {
+      for (let i = 0; i < 30; i++) schedule(0.1 * i, () => { if (p.state !== 'up') return; const cx = p.aimX ?? p.x, cy = p.aimY ?? p.y, a = R() * 6.28, d = R() * 100, x = cx + Math.cos(a) * d, y = cy + Math.sin(a) * d; tele({ x, y, r: 34, life: 0.35, color: 'spore' }); schedule(0.35, () => { explode(x, y, 34, 70 * p.st.dmg, p, { boomColor: '#c8b0ff', elem: 'shadow', kb: 120 }); for (const e of enemiesIn(x, y, 34)) { e.flareT = G.time + 6; e.stunT = Math.max(e.stunT, 0.4); } shake(p.isBot ? 0 : 2); }); });
+      schedule(3.2, () => { if (p.state !== 'up') return; const cx = p.aimX ?? p.x, cy = p.aimY ?? p.y; for (let k = 0; k < 6; k++) { const a = k * Math.PI / 3, x = cx + Math.cos(a) * 46, y = cy + Math.sin(a) * 36; tele({ x, y, r: 52, life: 0.5, color: 'spore' }); schedule(0.5, () => { explode(x, y, 52, 160 * p.st.dmg, p, { boomColor: '#ffe06a', elem: 'shadow', kb: 220 }); for (const e of enemiesIn(x, y, 52)) e.stunT = Math.max(e.stunT, 1); }); } schedule(0.5, () => { if (!p.isBot) shake(8); }); });
       sfx('rumble', p.x, p.y);
     } },
   },
@@ -4671,7 +4714,7 @@ Object.assign(CHARS, {
       const extra = p.souls - n; p.souls = 0; for (let i = 0; i < n; i++) raiseGhost(p, false, 20, 1 + 0.15 * extra);
       glow(p.x, p.y - 10, 30, '#8affc8', 0.4); sfx('whisper', p.x, p.y, 0.6);
     } },
-    super: { name: 'Night of the Ancestors', short: 'Ancestors', cd: 110, desc: 'Spend every soul: each becomes a giant ancestor spirit for 12s that Glooms what it strikes (at least three answer).', cast(p) { const n = Math.min(6, Math.max(3, p.souls)); p.souls = 0; for (let i = 0; i < n; i++) raiseGhost(p, true, 12); pillar(p.x, p.y, '#b48cff', 120, 24, 1); shock(p.x, p.y, 70, '#8affc8', 0.6); } },
+    super: { name: 'Night of the Ancestors', short: 'Ancestors', cd: 45, desc: 'Spend every soul: each becomes a giant ancestor spirit for 20s that Glooms what it strikes (at least five answer, up to eight).', cast(p) { const n = Math.min(8, Math.max(5, p.souls)); p.souls = 0; for (let i = 0; i < n; i++) raiseGhost(p, true, 20, 1.3); pillar(p.x, p.y, '#b48cff', 120, 24, 1); shock(p.x, p.y, 70, '#8affc8', 0.6); } },
   },
 });
 // Monkey's hex ray: a straight beam that hits the first enemy in line and marks it for the spirits
@@ -4731,6 +4774,7 @@ function updateHunt(p, dt) {
 function updateDam(dt) {
   const D = G.dam; if (!D) return;
   D.t -= dt; if (D.t <= 0) { G.dam = null; return; }
+  for (const q of G.players) if (q.state === 'up' && d2(q.x, q.y, D.x, D.y) < D.r * D.r) q.buffT = Math.max(q.buffT, 0.3);
   for (let i = G.bullets.length - 1; i >= 0; i--) { const b = G.bullets[i]; if (b.team !== 'enemy') continue; const d0 = Math.hypot(b.px - D.x, b.py - D.y), d1 = Math.hypot(b.x - D.x, b.y - D.y); if ((d0 - D.r) * (d1 - D.r) <= 0) { burst(b.x, b.y, '#c8a070', 4, 40, 0.3); G.bullets.splice(i, 1); } }
 }
 // ---------- registration ----------
@@ -4964,7 +5008,7 @@ function bearShieldBullet(b) {
   return false;
 }
 // ---------- the Glacier (ultimate): a huge block of ice, solid terrain for 12s ----------
-const GLACIER_LIFE = 12, GLACIER_AURA = 82;
+const GLACIER_LIFE = 18, GLACIER_AURA = 82;
 function placeGlacier(p, tx, ty) {
   const cx = Math.floor(tx / TILE), cy = Math.floor(ty / TILE), tiles = [];
   for (let y = cy - 1; y <= cy; y++) for (let x = cx - 2; x <= cx + 1; x++) if (tget(x, y) === T_FLOOR) tiles.push([x, y]);
@@ -4974,7 +5018,7 @@ function placeGlacier(p, tx, ty) {
   const g = { x: gx, y: gy, tiles, t: 0, life: GLACIER_LIFE, owner: p, tick: 0 };
   (G.glaciers || (G.glaciers = [])).push(g);
   // the summoning crash
-  for (const e of enemiesIn(gx, gy - 12, 46)) { damage(e, 45 * p.st.dmg, p, { elem: 'frost', kb: 280, kbAng: Math.atan2(e.y - gy + 12, e.x - gx), color: '#bff4ff' }); applyStatus(e, 'chill', 0, { src: p, n: 2 }); }
+  for (const e of enemiesIn(gx, gy - 12, 75)) { damage(e, 180 * p.st.dmg, p, { elem: 'frost', kb: 280, kbAng: Math.atan2(e.y - gy + 12, e.x - gx), color: '#bff4ff' }); applyStatus(e, 'frozen', 2.5, { src: p }); }
   // nothing may be left stuck inside the ice
   const unstick = o => { if (!hitsWall(o.x, o.y, o.r || 5)) return; for (let r = 8; r < 90; r += 6) for (let k = 0; k < 12; k++) { const a = k / 12 * Math.PI * 2, nx = o.x + Math.cos(a) * r, ny = o.y + Math.sin(a) * r; if (!hitsWall(nx, ny, o.r || 5)) { o.x = nx; o.y = ny; return; } } };
   for (const q of G.players) unstick(q); for (const e of G.enemies) if (!e.dead) unstick(e); for (const m of G.minions || []) unstick(m);
@@ -5090,7 +5134,7 @@ CHARS.bear = {
     if (hasGem(p, 'pb_den')) for (const q of G.players) if (q.state === 'up' && d2(q.x, q.y, p.x, p.y) < 110 * 110) healAlly(p, q, q.maxHp * 0.15);
     shock(p.x, p.y, 110, '#bfe6fa', 0.6); fx({ k: 'ring', x: p.x, y: p.y, r: 70, life: 0.4, color: '#e8faff' }); sfx('roar', p.x, p.y, 0.8); floatText(p.x, p.y - 34, 'ROAR!', '#bfe6fa', 1, 1.2); if (!p.isBot) shake(4);
   } },
-  super: { name: 'Glacier', short: 'Glacier', cd: 95, range: 110, desc: 'Call down a giant block of ice for 12s. It crashes down for heavy frost damage and becomes solid ground nothing can pass or break: bullets stop against it, so allies can take cover behind it. Allies inside its aura take 25% less damage.', cast(p, tx, ty) { return placeGlacier(p, tx, ty); } },
+  super: { name: 'Glacier', short: 'Glacier', cd: 40, range: 110, desc: 'Call down a giant block of ice for 18s. It crashes down for massive frost damage, freezing everything near it, and becomes solid ground nothing can pass or break: bullets stop against it, so allies can take cover behind it. Allies inside its aura take 25% less damage.', cast(p, tx, ty) { return placeGlacier(p, tx, ty); } },
 };
 CHAR_KEYS.push('bear');
 Object.assign(SPRINT, { bear: 'lean' });
@@ -7369,6 +7413,10 @@ function startGame(charKey, watch, lord = 'warden', team = null, mp = null) {
 const GK_REC = [0, 5, 10], FINAL_REC = 15;
 // the later bosses are tuned for the recommended level: Gatekeeper II for Lv 10 with ultimates, the Dungeon Master for Lv 15
 const GK_HP = [0, 1, 1.7], GK_DMG = [0, 1, 1.2], FINAL_HP = 4.5, FINAL_DMG = 1.5;
+// Dungeon Masters are tiered: the first is a tutorial (fair at Lv 9), then Lv 11, Lv 13, and the Sovereign at Lv 15
+const DM_LV = { warden: 9, shellback: 11, moth: 11, phoenix: 11, rimehorn: 13, stormcoil: 13, vesper: 13, sovereign: 15 };
+function dmRec(id) { return DM_LV[id] || FINAL_REC; }
+function dmTune(id) { const lv = dmRec(id), k = (1 + 0.07 * (lv - 1)) / (1 + 0.07 * (FINAL_REC - 1)), t = lv <= 9 ? 0 : lv <= 11 ? 1 : lv <= 13 ? 2 : 3; return { hp: FINAL_HP * k * [0.8, 0.92, 0.97, 1][t], dmg: FINAL_DMG * [0.7, 0.85, 0.93, 1][t] }; }
 const BOSS_HP_NERF = 0.75; // every Gatekeeper, Dream Palace guardian and Dungeon Master
 function tuneBoss(e, hp, dmg) { e.hp *= hp; e.maxHp *= hp; e.dmgM *= dmg; return e; }
 function setBanner(title, sub, life = 4.5, color) { G.banner = { title, sub, t: 0, life, color }; if (!G.hub) sfx('bell'); }
@@ -7700,7 +7748,7 @@ function updateIntro(dt) {
   }
   if (t >= I.dur) {
     G.intro = null;
-    G.boss = spawnEnemy(G.lord, x, y); G.boss.rec = FINAL_REC; G.finalT = G.time; tuneBoss(G.boss, FINAL_HP * (G.lord === 'sovereign' ? 0.45 : 1), FINAL_DMG); sfx('roar');
+    G.boss = spawnEnemy(G.lord, x, y); G.boss.rec = dmRec(G.lord); G.finalT = G.time; { const T = dmTune(G.lord); tuneBoss(G.boss, T.hp * (G.lord === 'sovereign' ? 0.45 : 1), T.dmg); } sfx('roar');
     const L = NIGHTLORDS.find(n => n.id === G.lord);
     setBanner(ENEMY[G.lord].name, `Dungeon Master · ${L.epithet}`, 3.5, '#7ff0ff');
     const b = G.players.find(q => q.isBot); if (b) botSay(b, 'boss');
@@ -9121,7 +9169,7 @@ function drawPlayer(p) {
     ctx.restore(); drawStatusFx(p, 16); return;
   }
   if (p.ball > 0) {
-    ctx.save(); ctx.translate(p.x, p.y - 7 - (p.landslide > 0 ? 8 : 0)); if (p.landslide > 0) ctx.scale(2.2, 2.2); ctx.rotate(G.time * 16 * (Math.cos(p.ballDir) >= 0 ? 1 : -1));
+    ctx.save(); ctx.translate(p.x, p.y - 7 - (p.landslide > 0 ? 16 : 0)); if (p.landslide > 0) ctx.scale(3.2, 3.2); ctx.rotate(G.time * 16 * (Math.cos(p.ballDir) >= 0 ? 1 : -1));
     ctx.fillStyle = '#b07a4c'; ctx.strokeStyle = OUTL; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(0, 0, 8, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
     ctx.strokeStyle = '#6a4224'; ctx.lineWidth = 1; for (let i = -1; i <= 1; i++) { ctx.beginPath(); ctx.arc(0, i * 4, 7, Math.PI * 0.15, Math.PI * 0.85); ctx.stroke(); }
     ctx.restore(); drawStatusFx(p, 16); return;
@@ -10355,7 +10403,7 @@ function buildLords() {
     b.appendChild(c);
     const t = document.createElement('div'); t.style.display = 'grid'; t.style.gap = '4px';
     const wk = ENEMY[L.id].weak ? ELEM[ENEMY[L.id].weak] : null;
-    t.innerHTML = `<div class="nm">${L.name}</div><div class="ep">${L.epithet}</div><div class="wk" style="color:${wk ? wk.color : '#ff9ad8'}">${wk ? 'Weak to ' + wk.name : 'No weakness'}</div><div class="rz">${resText(L.id)}</div><div class="ds">${L.desc}</div><div class="ep">${L.unique || ''}${L.final ? ' · temporarily unlocked' : ''}</div>`;
+    t.innerHTML = `<div class="nm">${L.name}</div><div class="ep">${L.epithet}</div><div class="wk" style="color:${wk ? wk.color : '#ff9ad8'}">${wk ? 'Weak to ' + wk.name : 'No weakness'}</div><div class="wk" style="color:#ffe6a0">Fair at Lv ${dmRec(L.id)}${dmRec(L.id) <= 9 ? ' · the gentlest' : dmRec(L.id) >= 15 ? ' · the final trial' : ''}</div><div class="rz">${resText(L.id)}</div><div class="ds">${L.desc}</div><div class="ep">${L.unique || ''}${L.final ? ' · temporarily unlocked' : ''}</div>`;
     b.appendChild(t);
     b.onclick = () => { chosenLord = L.id; refreshLords(); };
     wrap.appendChild(b);
@@ -10466,7 +10514,7 @@ function buildArchive() {
   if (archTab === 'Room bosses') for (const t of ROOM_POOL) { if (!t.boss) continue; t.boss.forEach((id, i) => { const c = CHAMPS[id], base = ENEMY[c.base]; const st = base.hitSt || base.shotSt; L.appendChild(entry(spriteCanvas(c.base, 128, c.d2), c.name, `${t.name} · Act ${i ? 'II' : 'I'}${t.elem ? ' · drops ' + ELEM[t.elem].name + ' relics' : ''}`, `Attacks: ${c.kit.filter((v, j, a) => a.indexOf(v) === j).join(', ')}. Summons ${ENEMY[c.minion].name}s.${st ? ` Inflicts ${STATUS[st.k === 'chill' ? 'frozen' : st.k].name}.` : ''} Beat it to raise a Krystal Shrine.`, '#ffd44a')); }); }
   if (archTab === 'Gatekeepers') { group(L, 'Act I'); for (const k of NIGHT1_POOL) L.appendChild(entry(spriteCanvas(ENEMY[k].sprite || k, 128, ENEMY[k].tint), ENEMY[k].name, 'Gatekeeper · Act I · 2 phases', weakTxt(k) + (BOSS_LORE[k] ? BOSS_LORE[k] + ' ' : '') + ENEMY_INFO[k] + '<br>' + resText(k), '#ff9ad8')); group(L, 'Act II'); for (const k of NIGHT2_POOL) L.appendChild(entry(spriteCanvas(k, 128), ENEMY[k].name, 'Gatekeeper · Act II · 2 phases', weakTxt(k) + (BOSS_LORE[k] ? BOSS_LORE[k] + ' ' : '') + ENEMY_INFO[k] + '<br>' + resText(k), '#ff9ad8')); }
   if (archTab === 'Corruptors') corrArchive(L);
-  if (archTab === 'Dungeon Masters') for (const D of NIGHTLORDS) L.appendChild(entry(spriteCanvas(D.id, 128), D.name, D.epithet, weakTxt(D.id) + (D.final ? '<b>No weakness.</b> ' : '') + BOSS_LORE[D.id] + '<br>' + ENEMY_INFO[D.id] + '<br>' + resText(D.id), '#7ff0ff'));
+  if (archTab === 'Dungeon Masters') for (const D of NIGHTLORDS) L.appendChild(entry(spriteCanvas(D.id, 128), D.name, `${D.epithet} · fair at Lv ${dmRec(D.id)}`, weakTxt(D.id) + (D.final ? '<b>No weakness.</b> ' : '') + BOSS_LORE[D.id] + '<br>' + ENEMY_INFO[D.id] + '<br>' + resText(D.id), '#7ff0ff'));
 }
 // ---------- rewards & results ----------
 function showChoice(ch) {
