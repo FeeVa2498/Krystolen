@@ -2926,13 +2926,13 @@ function varSprite(key, v) {
 }
 function sprOf(e) { if (e.variant) { const T = varSprite(e.sprite || e.type, e.variant); if (T) return T; } return SPR[e.sprite + (e.tint ? '_d2' : '')] || SPR[e.sprite] || SPR[e.type]; }
 function hurtBox(e) {
-  if (e.hbTop != null) return;
+  if (e.hbTop0 != null) { e.hbTop = tiltOn() ? e.hbTop0 / TILT_K : e.hbTop0; return; } /* tilted camera: bodies stand taller on the squashed ground */
   const S = sprOf(e), f = S && S.idle, sc = e.scale || 1;
-  if (!f) { e.hbTop = e.r * 2; e.hbR = e.r; return; }
+  if (!f) { e.hbTop = e.r * 2; e.hbR = e.r; e.hbTop0 = e.hbTop; return; }
   const fw = f.w - 2 * (f.pad || 0), foy = f.oy - (f.pad || 0); /* the paper rim does not count */
   e.hbR = Math.max(e.r, Math.min(fw * sc * 0.34, foy * sc * 0.42));
   e.hbTop = Math.max(e.hbR * 1.6, foy * sc * 0.88);
-  e.hbX = clamp(fw * sc * 0.4 / e.hbR, 1, 2.2); // wide beasts get a wider (elliptical) box
+  e.hbX = clamp(fw * sc * 0.4 / e.hbR, 1, 2.2); e.hbTop0 = e.hbTop; if (tiltOn()) e.hbTop = e.hbTop0 / TILT_K; // wide beasts get a wider (elliptical) box
 }
 // squared distance from a point to the capsule's spine (compare against (e.hbR + r)^2)
 function hurtD2(e, x, y) {
@@ -7737,7 +7737,7 @@ function endMatch(won) {
 }
 const NO_CTL = { mx: 0, my: 0, ax: 0, ay: 0, atk: false, skP: false, skD: false, skR: false, ultP: false, ultD: false, ultR: false, supP: false, supD: false, supR: false, altD: false, altP: false, itemP: false, intD: false, intP: false, relP: false };
 function humanControl(p) {
-  const w = screenToWorld(Input.mx, Input.my);
+  const w = aimPoint();
   const block = G.stickerOpen || G.talkBlock || G.bigMap;
   return {
     mx: (bindDown('right') ? 1 : 0) - (bindDown('left') ? 1 : 0), my: (bindDown('down') ? 1 : 0) - (bindDown('up') ? 1 : 0),
@@ -9019,9 +9019,9 @@ let ZY = 3, SW = 0, WW = 0, HC = 0, VW2 = 100, VH2 = 100, TILTED = false, WORLDC
 function tiltOn() { return settings.tilt !== false; }
 const TILT_UC = (-(1 - TILT_P) + Math.sqrt((1 - TILT_P) ** 2 + 2 * TILT_P)) / (2 * TILT_P); // source row that lands mid-screen
 const tiltG = u => u * (1 - TILT_P) + TILT_P * u * u, tiltS = u => 1 - TILT_P + 2 * TILT_P * u;
-function up(y, fn, ent) {
+function up(y, fn, ent, still) {
   if (!TILTED) return fn();
-  let k = ZOOM / ZY; if (paperOn()) k *= foldK(y) * popK(ent);
+  let k = ZOOM / ZY; if (paperOn()) k *= (still || (ent && ent.team) ? 1 : foldK(y)) * popK(ent); /* units and text never fold: only scenery does */
   if (k <= 0.01) return;
   ctx.save(); ctx.translate(0, y); ctx.scale(1, k); ctx.translate(0, -y); try { fn(); } finally { ctx.restore(); }
 }
@@ -9064,6 +9064,21 @@ function worldToScreen(x, y) {
   if (!tiltOn()) return { x: (x - G.cam.x) * ZOOM + SW / 2, y: (y - G.cam.y) * ZOOM + H / 2 };
   const u = (TILT_UC * H + (y - G.cam.y) * ZOOM * TILT_K) / H, s = tiltS(u);
   return { x: SW / 2 + (x - G.cam.x) * ZOOM * s, y: tiltG(u) * H };
+}
+// tilted camera aim assist: with the cursor on an enemy's drawn body, aim at where it stands (frontmost wins)
+function aimPoint() {
+  const w = screenToWorld(Input.mx, Input.my); G.aimLock = null;
+  if (!tiltOn()) return w;
+  const X = Input.mx * DPR, Y = Input.my * DPR; let best = null, by = -1e9;
+  for (const e of G.enemies) {
+    if (e.dead || e.hidden || e.type === 'dummy' && false || !enemySeen(e)) continue;
+    const S = sprOf(e), f = S && S.idle; if (!f) continue;
+    const sc = e.scale || 1, sp = worldToScreen(e.x, e.y), s = tiltS((TILT_UC * H + (e.y - G.cam.y) * ZOOM * TILT_K) / H), pad = f.pad || 0;
+    const hw = Math.max(8, (f.w - 2 * pad) * sc * 0.4 * ZOOM * s), top = (f.oy - pad) * sc * ZOOM * s;
+    if (X > sp.x - hw && X < sp.x + hw && Y < sp.y + 5 * ZOOM * s && Y > sp.y - top && e.y > by) { by = e.y; best = e; }
+  }
+  if (!best) return w;
+  hurtBox(best); G.aimLock = best; return { x: best.x, y: best.y - best.hbR * 0.6 };
 }
 // warp the flat world image onto the screen in perspective
 function warpWorld() {
@@ -9599,7 +9614,7 @@ function drawFxText() {
     up(f.y, () => {
     ctx.font = `${Math.round(7.5 * (f.size || 1))}px ${FONT}`; ctx.textAlign = 'center';
     ctx.lineWidth = 2.2; ctx.strokeStyle = OUTL; ctx.strokeText(f.text, f.x, f.y);
-    ctx.fillStyle = f.color; ctx.fillText(f.text, f.x, f.y); });
+    ctx.fillStyle = f.color; ctx.fillText(f.text, f.x, f.y); }, null, true);
   }
   ctx.globalAlpha = 1;
 }
@@ -9734,6 +9749,7 @@ function renderWorld(dt, sx, sy) {
   for (const t of G.traps) { ctx.fillStyle = '#7a8090'; ctx.strokeStyle = OUTL; ctx.lineWidth = 0.7; ctx.beginPath(); ctx.ellipse(t.x, t.y, 5, 2.2, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); ctx.fillStyle = '#e8eaf0'; for (let i = 0; i < 5; i++) { ctx.beginPath(); ctx.moveTo(t.x - 4 + i * 2, t.y - 1); ctx.lineTo(t.x - 3 + i * 2, t.y - 3.5); ctx.lineTo(t.x - 2 + i * 2, t.y - 1); ctx.fill(); } }
   for (const s of G.spawns) { const k = 1 - s.t / s.life; ctx.strokeStyle = `rgba(200,106,255,${0.4 + 0.5 * k})`; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.arc(s.x, s.y, 10 * (1 - k) + 2, 0, Math.PI * 2); ctx.stroke(); }
   for (const c of G.coins) { const f = SPR.coin; ctx.drawImage(f.c, c.x - 2.5, c.y - 4 - Math.abs(Math.sin(c.t * 6)) * 1.5, 5, 5); }
+  if (TILTED && G.aimLock && !G.aimLock.dead) { const e = G.aimLock, r = (e.hbR || e.r || 6) + 4; ctx.strokeStyle = `rgba(255,120,90,${0.6 + 0.3 * Math.sin(G.time * 10)})`; ctx.lineWidth = 1.4; ctx.setLineDash([3, 2]); ctx.beginPath(); ctx.ellipse(e.x, e.y, r, r * 0.8, 0, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]); }
   const objs = [];
   for (const it of G.inter) if (it.kind !== 'npc' && it.kind !== 'table' && it.kind !== 'archive' && it.kind !== 'gate' && it.kind !== 'board' && it.kind !== 'nocd') objs.push({ y: it.y, d: () => drawInter(it), e: it });
   if (G.decor) for (const d of G.decor) if (!d.flat) objs.push({ y: d.y, d: () => drawDecor(d), e: d });
@@ -9761,7 +9777,8 @@ function renderWorld(dt, sx, sy) {
     ctx.fillStyle = 'rgba(255,255,255,0.7)'; ctx.beginPath(); ctx.arc(x - 0.6, y - 0.6, l.size * 0.3, 0, Math.PI * 2); ctx.fill();
   }
   if (G.vbul) for (const b of G.vbul) { ctx.save(); ctx.translate(b.x, b.y); ctx.rotate(Math.atan2(b.vy, b.vx)); ctx.drawImage(SPR.quill.c, -4, -2, 8, 4); ctx.restore(); }
-  for (const b of G.bullets) if (b.team === 'player' || spotSeen(b.x, b.y)) drawBullet(b);
+  if (TILTED) { const lift = 7 * ZOOM / ZY; for (const b of G.bullets) if (b.team === 'player' || spotSeen(b.x, b.y)) { if (b.kind !== 'wave') { ctx.fillStyle = 'rgba(30,18,10,0.28)'; ctx.beginPath(); ctx.ellipse(b.x, b.y, Math.max(1.4, b.r * 0.9), Math.max(0.9, b.r * 0.5), 0, 0, Math.PI * 2); ctx.fill(); } ctx.save(); ctx.translate(0, b.kind === 'wave' ? 0 : -lift); drawBullet(b); ctx.restore(); } } /* shots fly at chest height, their shadow marks the real spot */
+  else for (const b of G.bullets) if (b.team === 'player' || spotSeen(b.x, b.y)) drawBullet(b);
   drawKitFx();
   drawHazards();
   drawFx();
@@ -9782,7 +9799,7 @@ function renderWorld(dt, sx, sy) {
       ctx.beginPath(); ctx.moveTo(p.x - 2, by + 12); ctx.lineTo(p.x, by + 15); ctx.lineTo(p.x + 2, by + 12); ctx.fill();
       ctx.fillStyle = '#2a1b2e'; ctx.fillText(p.sticker.text, p.x, by + 9);
     }
-  }, p);
+  }, p, true);
   drawFxText();
 }
 function renderScreen(dt) {
