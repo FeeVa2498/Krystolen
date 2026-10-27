@@ -340,6 +340,7 @@ th { font-family: var(--display); letter-spacing: 0.08em; }
       <button class="toggle" id="t-quick" aria-pressed="false"><span class="sw"></span><span><b>Quick cast.</b> Targeted skills (Crow teleport and storm, Rabbit flask, Reindeer tablet) fire instantly at the cursor, clamped to their range. Off: hold the key to see the range, release to cast.</span></button>
       <button class="toggle" id="t-shake" aria-pressed="true"><span class="sw"></span><span>Screen shake</span></button>
       <button class="toggle" id="t-tilt" aria-pressed="true"><span class="sw"></span><span>Tilted camera (test)</span></button>
+      <button class="toggle" id="t-paper" aria-pressed="true"><span class="sw"></span><span>Pop-up book style (test, reloads)</span></button>
       <button class="toggle" id="t-dmg" aria-pressed="true"><span class="sw"></span><span>Damage numbers</span></button>
       <label class="slider"><span>Sound effects</span><input type="range" id="v-sfx" min="0" max="100" step="5"><b id="v-sfx-n"></b></label>
       <label class="slider"><span>Music</span><input type="range" id="v-mus" min="0" max="100" step="5"><b id="v-mus-n"></b></label>
@@ -840,9 +841,28 @@ function cacheDraw(w, h, ox, oy, fn, scale = RS) {
   const c = mkCanvas(w * scale, h * scale), x = c.getContext('2d');
   x.scale(scale, scale); x.translate(ox, oy); x.lineJoin = 'round'; x.lineCap = 'round';
   fn(x);
-  return { c, ox, oy, w, h };
+  const f = { c, ox, oy, w, h };
+  return paperOn() ? paperize(f, scale) : f;
 }
-function tintFrame(f, col, a) { const c = mkCanvas(f.c.width, f.c.height), x = c.getContext('2d'); x.drawImage(f.c, 0, 0); x.globalCompositeOperation = 'source-atop'; x.globalAlpha = a; x.fillStyle = col; x.fillRect(0, 0, c.width, c.height); return { c, ox: f.ox, oy: f.oy, w: f.w, h: f.h }; }
+// ---- pop-up book style (test branch): every sprite becomes a die-cut paper piece with a cream border and a thin dark cut line ----
+function paperOn() { return typeof settings !== 'undefined' && settings.paper !== false; }
+const PAPER_COL = '#f3e7cc', PAPER_CUT = 'rgba(70,46,30,0.55)';
+function dilate(src, r, color, n = 10) {
+  const c = mkCanvas(src.width, src.height), x = c.getContext('2d');
+  for (let i = 0; i < n; i++) { const a = i / n * Math.PI * 2; x.drawImage(src, Math.cos(a) * r, Math.sin(a) * r); }
+  x.drawImage(src, 0, 0);
+  x.globalCompositeOperation = 'source-in'; x.fillStyle = color; x.fillRect(0, 0, c.width, c.height);
+  return c;
+}
+function paperize(f, scale) {
+  const pad = 1.7, pp = Math.ceil(pad * scale), c = mkCanvas(f.c.width + pp * 2, f.c.height + pp * 2), x = c.getContext('2d');
+  const base = mkCanvas(c.width, c.height); base.getContext('2d').drawImage(f.c, pp, pp);
+  x.drawImage(dilate(base, pp + Math.max(1, scale * 0.45), PAPER_CUT), 0, 0);
+  x.drawImage(dilate(base, pp, PAPER_COL), 0, 0);
+  x.drawImage(base, 0, 0);
+  return { c, ox: f.ox + pad, oy: f.oy + pad, w: f.w + pad * 2, h: f.h + pad * 2, pad };
+}
+function tintFrame(f, col, a) { const c = mkCanvas(f.c.width, f.c.height), x = c.getContext('2d'); x.drawImage(f.c, 0, 0); x.globalCompositeOperation = 'source-atop'; x.globalAlpha = a; x.fillStyle = col; x.fillRect(0, 0, c.width, c.height); return { c, ox: f.ox, oy: f.oy, w: f.w, h: f.h, pad: f.pad }; }
 function buildSet(drawFn, w, h, ox, oy, scale) {
   const S = { walk: [], flash: [] };
   S.idle = cacheDraw(w, h, ox, oy, x => drawFn(x, null), scale);
@@ -2909,9 +2929,10 @@ function hurtBox(e) {
   if (e.hbTop != null) return;
   const S = sprOf(e), f = S && S.idle, sc = e.scale || 1;
   if (!f) { e.hbTop = e.r * 2; e.hbR = e.r; return; }
-  e.hbR = Math.max(e.r, Math.min(f.w * sc * 0.34, f.oy * sc * 0.42));
-  e.hbTop = Math.max(e.hbR * 1.6, f.oy * sc * 0.88);
-  e.hbX = clamp(f.w * sc * 0.4 / e.hbR, 1, 2.2); // wide beasts get a wider (elliptical) box
+  const fw = f.w - 2 * (f.pad || 0), foy = f.oy - (f.pad || 0); /* the paper rim does not count */
+  e.hbR = Math.max(e.r, Math.min(fw * sc * 0.34, foy * sc * 0.42));
+  e.hbTop = Math.max(e.hbR * 1.6, foy * sc * 0.88);
+  e.hbX = clamp(fw * sc * 0.4 / e.hbR, 1, 2.2); // wide beasts get a wider (elliptical) box
 }
 // squared distance from a point to the capsule's spine (compare against (e.hbR + r)^2)
 function hurtD2(e, x, y) {
@@ -8998,7 +9019,28 @@ let ZY = 3, SW = 0, WW = 0, HC = 0, VW2 = 100, VH2 = 100, TILTED = false, WORLDC
 function tiltOn() { return settings.tilt !== false; }
 const TILT_UC = (-(1 - TILT_P) + Math.sqrt((1 - TILT_P) ** 2 + 2 * TILT_P)) / (2 * TILT_P); // source row that lands mid-screen
 const tiltG = u => u * (1 - TILT_P) + TILT_P * u * u, tiltS = u => 1 - TILT_P + 2 * TILT_P * u;
-function up(y, fn) { if (!TILTED) return fn(); ctx.save(); ctx.translate(0, y); ctx.scale(1, ZOOM / ZY); ctx.translate(0, -y); try { fn(); } finally { ctx.restore(); } }
+function up(y, fn, ent) {
+  if (!TILTED) return fn();
+  let k = ZOOM / ZY; if (paperOn()) k *= foldK(y) * popK(ent);
+  if (k <= 0.01) return;
+  ctx.save(); ctx.translate(0, y); ctx.scale(1, k); ctx.translate(0, -y); try { fn(); } finally { ctx.restore(); }
+}
+// pop-up book: near the far edge of the page things fold down flat; anything that appears pops up out of the page
+function foldK(y) { if (!paperOn()) return 1; const u = (HC + (y - G.cam.y) * ZY) / H, t = clamp((u - 0.0) / 0.22, 0, 1); return 0.06 + 0.94 * t * t * (3 - 2 * t); }
+function popK(ent) {
+  if (!ent || typeof ent !== 'object') return 1;
+  if (ent._pop == null) ent._pop = G.time;
+  const t = (G.time - ent._pop) / 0.42; if (t >= 1) return 1; if (t <= 0) return 0.02;
+  const c = 1.9, q = t - 1; return Math.max(0.02, 1 + (c + 1) * q * q * q + c * q * q); // ease-out-back: overshoots a little, like a flap springing up
+}
+let PAPER_GRAIN = null;
+function paperGrain() {
+  if (PAPER_GRAIN) return PAPER_GRAIN;
+  const c = mkCanvas(256, 256), x = c.getContext('2d'); x.fillStyle = '#ffffff'; x.fillRect(0, 0, 256, 256);
+  for (let i = 0; i < 9000; i++) { const v = 200 + Math.random() * 55 | 0; x.fillStyle = `rgb(${v},${v - 6},${v - 16})`; x.fillRect(Math.random() * 256, Math.random() * 256, 1 + Math.random() * 1.5, 1); }
+  x.strokeStyle = 'rgba(150,120,90,0.18)'; x.lineWidth = 0.6; for (let i = 0; i < 140; i++) { const sx = Math.random() * 256, sy = Math.random() * 256, a = Math.random() * 6.28, l = 4 + Math.random() * 10; x.beginPath(); x.moveTo(sx, sy); x.quadraticCurveTo(sx + Math.cos(a + 0.6) * l * 0.5, sy + Math.sin(a + 0.6) * l * 0.5, sx + Math.cos(a) * l, sy + Math.sin(a) * l); x.stroke(); }
+  PAPER_GRAIN = ctx.createPattern(c, 'repeat'); return PAPER_GRAIN;
+}
 const FONT = '"Cinzel", Georgia, serif';
 const FONT2 = '"Alegreya Sans", "Trebuchet MS", sans-serif';
 function resize() {
@@ -9032,6 +9074,7 @@ function warpWorld() {
     const yd0 = tiltG(u0) * H, yd1 = tiltG(u1) * H;
     ctx.drawImage(WORLDC, WW / 2 - sw / 2, ys, sw, u1 * H - ys, 0, yd0, SW, yd1 - yd0 + 0.6);
   }
+  if (paperOn()) { ctx.save(); ctx.globalCompositeOperation = 'multiply'; ctx.globalAlpha = 0.55; ctx.fillStyle = paperGrain(); ctx.fillRect(0, 0, SW, H); ctx.globalCompositeOperation = 'soft-light'; ctx.globalAlpha = 0.35; ctx.fillStyle = '#ffd9a0'; ctx.fillRect(0, 0, SW, H); ctx.restore(); }
   // a soft haze toward the horizon sells the depth
   const g = ctx.createLinearGradient(0, 0, 0, H * 0.35); g.addColorStop(0, 'rgba(10,9,13,0.55)'); g.addColorStop(1, 'rgba(10,9,13,0)'); ctx.fillStyle = g; ctx.fillRect(0, 0, SW, H * 0.35);
 }
@@ -9109,6 +9152,7 @@ function tiltObjs(objs) {
   }
 }
 function drawWallT(tx, ty, i, face, WHw, hide) {
+  if (paperOn()) WHw *= foldK((ty + 1) * TILE);
   const px = tx * TILE, py = ty * TILE, T = TILE + 0.35, h = ((tx * 73856093) ^ (ty * 19349663)) >>> 0, st = G.wstyle ? G.wstyle[i] : 0;
   if (hide) ctx.globalAlpha = 0.42;
   if (face) {
@@ -9121,6 +9165,16 @@ function drawWallT(tx, ty, i, face, WHw, hide) {
   if (st === 2) { ctx.fillStyle = '#0c0618'; ctx.fillRect(px, ty0, T, T); ctx.fillStyle = `rgba(200,110,255,${0.35 + 0.2 * Math.sin(G.time * 3 + tx * 0.7 + ty)})`; ctx.fillRect(px + 6, ty0 + 6, 4, 4); }
   else ctx.drawImage(st === 3 ? TEX.dreamTop[h % 3] : st ? TEX.castleTop[h % 3] : TEX.canopy[h % 3], px, ty0, T, T);
   if (face) { ctx.fillStyle = 'rgba(255,240,210,0.10)'; ctx.fillRect(px, ty0 + TILE - 1.2, T, 1.2); }
+  if (paperOn()) { // cardboard: a cream die-cut rim wherever the wall mass ends
+    const n = tget(tx, ty - 1) !== T_WALL, w = tget(tx - 1, ty) !== T_WALL, e = tget(tx + 1, ty) !== T_WALL, bot = face ? py + TILE : ty0 + TILE;
+    ctx.strokeStyle = PAPER_COL; ctx.lineWidth = 1.3; ctx.beginPath();
+    if (n) { ctx.moveTo(px, ty0 + 0.6); ctx.lineTo(px + TILE, ty0 + 0.6); }
+    if (face) { ctx.moveTo(px, ty0 + TILE); ctx.lineTo(px + TILE, ty0 + TILE); }
+    if (w) { ctx.moveTo(px + 0.6, ty0); ctx.lineTo(px + 0.6, bot); }
+    if (e) { ctx.moveTo(px + TILE - 0.6, ty0); ctx.lineTo(px + TILE - 0.6, bot); }
+    ctx.stroke();
+    if (face) { ctx.fillStyle = 'rgba(40,24,14,0.35)'; ctx.fillRect(px, py + TILE - 1.4, T, 1.4); }
+  }
   ctx.globalAlpha = 1;
 }
 function drawDecals() {
@@ -9664,7 +9718,7 @@ function render(dt) {
   const sx = G.shake ? rr(-G.shake, G.shake) : 0, sy = G.shake ? rr(-G.shake, G.shake) : 0;
   TILTED = tiltOn();
   const mainCtx = ctx;
-  if (TILTED) { ctx = WCTX; W = WW; ZY = ZOOM * TILT_K; HC = TILT_UC * H; ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.fillStyle = '#0a090d'; ctx.fillRect(0, 0, W, H); VW2 = W / 2 / ZOOM; VH2 = Math.max(HC, H - HC) / ZY + 2 * TILE; }
+  if (TILTED) { ctx = WCTX; W = WW; ZY = ZOOM * TILT_K; HC = TILT_UC * H; ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.fillStyle = paperOn() ? '#17110d' : '#0a090d'; ctx.fillRect(0, 0, W, H); VW2 = W / 2 / ZOOM; VH2 = Math.max(HC, H - HC) / ZY + 2 * TILE; }
   else { ZY = ZOOM; HC = H / 2; VW2 = W / 2 / ZOOM; VH2 = H / 2 / ZOOM; }
   try { renderWorld(dt, sx, sy); } finally { if (TILTED) { ctx = mainCtx; W = SW; ctx.setTransform(1, 0, 0, 1, 0, 0); warpWorld(); } TILTED = false; }
   renderScreen(dt);
@@ -9681,25 +9735,25 @@ function renderWorld(dt, sx, sy) {
   for (const s of G.spawns) { const k = 1 - s.t / s.life; ctx.strokeStyle = `rgba(200,106,255,${0.4 + 0.5 * k})`; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.arc(s.x, s.y, 10 * (1 - k) + 2, 0, Math.PI * 2); ctx.stroke(); }
   for (const c of G.coins) { const f = SPR.coin; ctx.drawImage(f.c, c.x - 2.5, c.y - 4 - Math.abs(Math.sin(c.t * 6)) * 1.5, 5, 5); }
   const objs = [];
-  for (const it of G.inter) if (it.kind !== 'npc' && it.kind !== 'table' && it.kind !== 'archive' && it.kind !== 'gate' && it.kind !== 'board' && it.kind !== 'nocd') objs.push({ y: it.y, d: () => drawInter(it) });
-  if (G.decor) for (const d of G.decor) if (!d.flat) objs.push({ y: d.y, d: () => drawDecor(d) });
-  if (G.npcs) for (const n of G.npcs) objs.push({ y: n.y, d: () => drawNPC(n) });
+  for (const it of G.inter) if (it.kind !== 'npc' && it.kind !== 'table' && it.kind !== 'archive' && it.kind !== 'gate' && it.kind !== 'board' && it.kind !== 'nocd') objs.push({ y: it.y, d: () => drawInter(it), e: it });
+  if (G.decor) for (const d of G.decor) if (!d.flat) objs.push({ y: d.y, d: () => drawDecor(d), e: d });
+  if (G.npcs) for (const n of G.npcs) objs.push({ y: n.y, d: () => drawNPC(n), e: n });
   for (const P of G.piles) objs.push({ y: P.y, d: () => drawPile(P) });
   for (const t of G.taunts || []) objs.push({ y: t.y, d: () => drawTaunt(t) });
   for (const t of G.totems) objs.push({ y: t.y, d: () => { ctx.fillStyle = `rgba(160,230,255,${0.07 + 0.05 * Math.sin(G.time * 6)})`; ctx.beginPath(); ctx.arc(t.x, t.y, 85, 0, Math.PI * 2); ctx.fill(); shadow(t.x, t.y, 6); const w = SPR.w_reindeer; ctx.drawImage(w.c, t.x - 8, t.y - 22, w.w * 0.9, w.h * 0.9); if (R() < 0.2) burst(t.x + rr(-4, 4), t.y - 16, '#bff4ff', 1, 20, 0.2, { shape: 'spark', glow: true }); } });
-  for (const e of G.enemies) objs.push({ y: e.y, d: () => drawEnemy(e) });
+  for (const e of G.enemies) objs.push({ y: e.y, d: () => drawEnemy(e), e });
   for (const g of G.glaciers || []) objs.push({ y: g.y - 2, d: () => drawGlacier(g) });
   for (const z of G.ezones) if (z.kind === 'tentacle') objs.push({ y: z.y, d: () => drawTentacle(z) });
   for (const f of G.fallers || []) objs.push({ y: f.y + 999, d: () => drawFaller(f) });
   for (const d of G.drops) objs.push({ y: d.y, d: () => { shadow(d.x, d.y, 5); ctx.fillStyle = 'rgba(90,208,122,0.3)'; ctx.beginPath(); ctx.arc(d.x, d.y - 9, 9, 0, Math.PI * 2); ctx.fill(); ctx.drawImage(itemIcon(d.item, 40), d.x - 6, d.y - 15 + Math.sin(G.time * 3) * 1.2, 12, 12); } });
   for (const o of G.orbs) objs.push({ y: o.y, d: () => { const col = CHARS[o.owner.char].color; const g = ctx.createRadialGradient(o.x, o.y - 10, 1, o.x, o.y - 10, 14); g.addColorStop(0, '#ffffff'); g.addColorStop(0.4, col); g.addColorStop(1, 'rgba(255,255,255,0)'); ctx.fillStyle = g; ctx.beginPath(); ctx.arc(o.x, o.y - 10 + Math.sin(G.time * 4 + o.x) * 1.5, 14, 0, Math.PI * 2); ctx.fill(); ctx.font = `6px ${FONT}`; ctx.textAlign = 'center'; ctx.lineWidth = 2; ctx.strokeStyle = OUTL; ctx.strokeText(o.owner.name, o.x, o.y - 26); ctx.fillStyle = col; ctx.fillText(o.owner.name, o.x, o.y - 26); } });
   for (const t of G.healTotems) objs.push({ y: t.y, d: () => { ctx.fillStyle = `rgba(122,224,122,${0.1 + 0.05 * Math.sin(G.time * 5)})`; ctx.beginPath(); ctx.arc(t.x, t.y, 70, 0, Math.PI * 2); ctx.fill(); ctx.drawImage(itemIcon(ALL_ITEMS.totem, 40), t.x - 7, t.y - 18, 14, 14); } });
-  for (const p of G.players) if (p.state !== 'dead' && p.spawnIn == null) objs.push({ y: p.y, d: () => { shadow(p.x, p.y, 6.5); drawPlayer(p); } });
-  if (G.minions) for (const m of G.minions) objs.push({ y: m.y, d: () => drawMinion(m) });
+  for (const p of G.players) if (p.state !== 'dead' && p.spawnIn == null) objs.push({ y: p.y, d: () => { shadow(p.x, p.y, 6.5); drawPlayer(p); }, e: p });
+  if (G.minions) for (const m of G.minions) objs.push({ y: m.y, d: () => drawMinion(m), e: m });
   if (G.intro) objs.push({ y: G.intro.y, d: () => drawIntro() });
   if (G.deathFx && G.deathFx.t < G.deathFx.dur * 0.62) { const D = G.deathFx; objs.push({ y: D.y, d: () => { const S = SPR[D.spr] || SPR[D.spr.replace('_d2', '')]; if (!S) return; if (Math.floor(G.time * 18) % 2) return; ctx.save(); ctx.translate(D.x + rr(-1.5, 1.5), D.y); ctx.scale(D.sc, D.sc); drawFrame(D.t % 0.2 < 0.1 ? (D.tint || (D.tint = tintFrame(S.idle, '#ffffff', 0.8))) : S.idle, 0, 0); ctx.restore(); } }); }
   if (TILTED) tiltObjs(objs);
-  objs.sort((a, b) => a.y - b.y); for (const o of objs) { if (o.flat) o.d(); else up(o.y, o.d); }
+  objs.sort((a, b) => a.y - b.y); for (const o of objs) { if (o.flat) o.d(); else up(o.y, o.d, o.e); }
   for (const l of G.lobs) {
     if (l.t < 0) continue; const k = l.t / l.dur, x = lerp(l.sx, l.tx, k), y = lerp(l.sy, l.ty, k) - Math.sin(k * Math.PI) * 24;
     shadow(lerp(l.sx, l.tx, k), lerp(l.sy + 8, l.ty, k), 2.5);
@@ -9728,7 +9782,7 @@ function renderWorld(dt, sx, sy) {
       ctx.beginPath(); ctx.moveTo(p.x - 2, by + 12); ctx.lineTo(p.x, by + 15); ctx.lineTo(p.x + 2, by + 12); ctx.fill();
       ctx.fillStyle = '#2a1b2e'; ctx.fillText(p.sticker.text, p.x, by + 9);
     }
-  });
+  }, p);
   drawFxText();
 }
 function renderScreen(dt) {
@@ -10600,6 +10654,7 @@ function wireMenus() {
   $('t-quick').onclick = () => { settings.quickCast = !settings.quickCast; saveSettings(); buildSettings(); };
   $('t-shake').onclick = () => { settings.shake = !settings.shake; saveSettings(); buildSettings(); };
   $('t-tilt').onclick = () => { settings.tilt = !tiltOn(); saveSettings(); buildSettings(); };
+  $('t-paper').onclick = () => { settings.paper = !paperOn(); saveSettings(); location.reload(); };
   $('t-dmg').onclick = () => { settings.dmgNumbers = !settings.dmgNumbers; saveSettings(); buildSettings(); };
   $('v-sfx').oninput = e => { settings.sfxVol = e.target.value / 100; $('v-sfx-n').textContent = e.target.value; audioVolumes(); saveSettings(); sfx('click'); };
   $('v-mus').oninput = e => { settings.musicVol = e.target.value / 100; $('v-mus-n').textContent = e.target.value; audioVolumes(); saveSettings(); };
@@ -10634,7 +10689,7 @@ function buildSettings() {
     };
     row.appendChild(b); wrap.appendChild(row);
   }
-  setToggle('t-quick', settings.quickCast); setToggle('t-shake', settings.shake); setToggle('t-tilt', tiltOn()); setToggle('t-dmg', settings.dmgNumbers);
+  setToggle('t-quick', settings.quickCast); setToggle('t-shake', settings.shake); setToggle('t-tilt', tiltOn()); setToggle('t-paper', paperOn()); setToggle('t-dmg', settings.dmgNumbers);
   const sv = Math.round((settings.sfxVol ?? 0.7) * 100), mv = Math.round((settings.musicVol ?? 0.45) * 100); $('v-sfx').value = sv; $('v-sfx-n').textContent = sv; $('v-mus').value = mv; $('v-mus-n').textContent = mv;
 }
 function setToggle(id, v) { $(id).setAttribute('aria-pressed', v ? 'true' : 'false'); }
