@@ -3098,7 +3098,7 @@ function useInter(it, p) {
   const pr = interPrompt(it, p); if (!pr || pr.locked) return false;
   if (pr.cost && p.gold < pr.cost) { if (!p.isBot) floatText(p.x, p.y - 30, 'Not enough gold', '#ff8a8a'); return false; }
   switch (it.kind) {
-    case 'chest': if (!p.isBot) sfx('chest'); p.gold -= pr.cost; it.used = true; if (!it.free) p.chests = (p.chests || 0) + 1; if (!p.isBot) questEvent('chest'); burst(it.x, it.y - 6, it.rare ? '#c070ff' : '#ffd44a', 22, 90, 0.6, { glow: true }); glow(it.x, it.y - 8, 30, it.rare ? '#c070ff' : '#ffd44a', 0.4); if (R() < (it.rare ? 0.18 : 0.1)) { giveItem(p, pick(ACTIVES.filter(a => !p.active || a.id !== p.active.id))); } else giveItem(p, rollRelic(p, it.rare ? ODDS.rareChest : it.free ? ODDS.room1 : ODDS.chest)); /* chests sometimes hold an active item */ break;
+    case 'chest': if (!p.isBot) sfx('chest'); p.gold -= pr.cost; it.used = true; if (!it.free) p.chests = (p.chests || 0) + 1; if (!p.isBot) questEvent('chest'); burst(it.x, it.y - 6, it.rare ? '#c070ff' : '#ffd44a', 22, 90, 0.6, { glow: true }); glow(it.x, it.y - 8, 30, it.rare ? '#c070ff' : '#ffd44a', 0.4); giveItem(p, rollRelic(p, it.rare ? ODDS.rareChest : it.free ? ODDS.room1 : ODDS.chest)); /* active items only come from Corruptors */ break;
     case 'stand': if (!p.isBot) sfx('buy'); p.gold -= pr.cost; it.used = true; burst(it.x, it.y, '#ffd44a', 12, 60); if (it.item.id === 'stew') { p.hp = p.maxHp; clearStatus(p); floatText(p.x, p.y - 30, 'Full health', '#7ae07a'); } else giveItem(p, it.item); break;
     case 'altar': startChallenge(it.B, p); break;
     case 'font': startFont(it, p); break;
@@ -3245,19 +3245,19 @@ const RELICS = [
   R_('dawnbringer', 'Dawnbringer', 'legendary', 'sun', '#ffd36a', 'Every 8s your next hit erupts in a Radiant sunburst and cleanses nearby allies', s => { s.dawn = true; }, { elem: 'radiant', unique: true }),
 ];
 const A_ = (id, name, icon, color, cd, desc) => ({ id, name, icon, color, cd, desc, active: true });
-const ACTIVES = [
-  A_('brew', 'Healing Brew', 'potion', '#ff6a7a', 40, 'Heal 50% of your health and cleanse every status effect'),
-  A_('bomb', 'Bomb Bag', 'bomb', '#ff9a3c', 14, 'Throw a bomb that explodes for heavy damage'),
-  A_('bubble', 'Bubble Shield', 'bubble', '#7fe0ff', 40, 'Become invulnerable for 3 seconds'),
-  A_('jar', 'Thunder Jar', 'jar', '#9fe8ff', 25, 'Lightning strikes up to 6 enemies near the cursor'),
-  A_('horn', 'War Horn', 'horn', '#e8b070', 45, 'You and nearby allies gain +30% damage and speed for 6s'),
-  A_('smoke', 'Smoke Bomb', 'smoke', '#9aa0b0', 30, 'Vanish for 4s (+30% speed) and Gloom nearby enemies'),
-  A_('traps', 'Trap Kit', 'trap', '#c9ccd4', 20, 'Scatter 3 snares around you that root enemies'),
-  A_('totem', 'Spirit Totem', 'totem', '#7ae07a', 45, 'Plant a totem that heals allies nearby for 8s'),
-  A_('nova', 'Frost Nova', 'snow', '#a8e8ff', 25, 'Freeze nearby enemies solid for 2s and damage them'),
-  A_('pulse', 'Shock Pulse', 'bolt', '#ffe24a', 18, 'Release a shockwave that stuns and shocks enemies around you'),
-  A_('meteor', 'Meteor Seed', 'meteor', '#ff5a2a', 35, 'Call a meteor on the cursor after 1.2s (huge damage)'),
-  A_('blink', 'Blink Boots', 'wing', '#c8a8ff', 10, 'Dash a long way and become invulnerable for a moment'),
+const ACTIVES = [ // only Corruptors drop these, so every one of them is a game-changer
+  A_('brew', 'Healing Brew', 'potion', '#ff6a7a', 30, 'Heal to full, cleanse every status effect and gain a shield worth 40% of your health'),
+  A_('bomb', 'Bomb Bag', 'bomb', '#ff9a3c', 12, 'Throw a huge bomb: massive damage in a wide blast and stuns everything it hits'),
+  A_('bubble', 'Bubble Shield', 'bubble', '#7fe0ff', 35, 'Become invulnerable for 4 seconds; nearby allies are shielded for 2 seconds too'),
+  A_('jar', 'Thunder Jar', 'jar', '#9fe8ff', 20, 'Lightning strikes up to 12 enemies near the cursor for heavy damage, stunning and Hushing them'),
+  A_('horn', 'War Horn', 'horn', '#e8b070', 40, 'You and allies nearby gain +60% damage and +30% speed for 10s'),
+  A_('smoke', 'Smoke Bomb', 'smoke', '#9aa0b0', 25, 'Vanish for 5s (+30% speed), heal 25% and Gloom every enemy around you'),
+  A_('traps', 'Trap Kit', 'trap', '#c9ccd4', 18, 'Scatter 6 snares around you: each roots an enemy and deals heavy damage'),
+  A_('totem', 'Spirit Totem', 'totem', '#7ae07a', 40, 'Plant a totem that heals allies nearby (9% health per second) for 12s'),
+  A_('nova', 'Frost Nova', 'snow', '#a8e8ff', 22, 'Freeze every enemy around you solid for 3s and deal heavy frost damage'),
+  A_('pulse', 'Shock Pulse', 'bolt', '#ffe24a', 15, 'A wide shockwave: heavy damage, stuns for 2s and Hushes enemies around you'),
+  A_('meteor', 'Meteor Seed', 'meteor', '#ff5a2a', 30, 'Call a meteor on the cursor after 1.2s: enormous damage and a sea of fire'),
+  A_('blink', 'Blink Boots', 'wing', '#c8a8ff', 8, 'Dash a long way, become invulnerable for a moment and shock enemies where you land'),
 ];
 const SHOP_STEW = { id: 'stew', name: 'Hearty Stew', icon: 'potion', color: '#ff9a7a', desc: 'Restore all health' };
 const ALL_ITEMS = Object.fromEntries([...RELICS, ...ACTIVES, SHOP_STEW].map(i => [i.id, i]));
@@ -3350,8 +3350,8 @@ function rollRelic(p, odds, exclude, elem) { return pickRelic(p, rollRarity(odds
 function rollRewardCards(p, odds, elem) {
   const cards = [], used = [];
   for (let i = 0; i < 3; i++) {
-    if (R() < 0.3) { let a; do { a = pick(ACTIVES); } while (used.includes(a.id) || (p.active && p.active.id === a.id)); used.push(a.id); cards.push(a); }
-    else { const r = rollRelic(p, odds, used, elem && R() < 0.7 ? elem : null); used.push(r.id); cards.push(r); }
+    /* active items only come from Corruptors */
+    { const r = rollRelic(p, odds, used, elem && R() < 0.7 ? elem : null); used.push(r.id); cards.push(r); }
   }
   return cards;
 }
@@ -3381,7 +3381,7 @@ function levelUp(p) {
 // ---- relic procs ----
 function allyDmgMult(p) {
   let m = 1;
-  if (p.buffT > 0) m *= 1.3;
+  if (p.buffT > 0) m *= p.hornT > 0 ? 1.6 : 1.3;
   if (p.skillBuffT > 0) m *= 1 + p.st.skillBuff;
   if (p.eclipseT > 0) m *= 1.25;
   return m;
@@ -3483,31 +3483,31 @@ function useActive(p, c) {
   const it = p.active; if (!it || p.activeCd > 0 || p.state !== 'up') return;
   const T = clampTarget(p, c.ax, c.ay, 160);
   switch (it.id) {
-    case 'brew': if (p.hp >= p.maxHp && !(p.sts && ST_KEYS.some(k => hasSt(p, k)))) return; p.hp = Math.min(p.maxHp, p.hp + p.maxHp * 0.5); clearStatus(p); burst(p.x, p.y - 8, '#ff6a7a', 16, 50, 0.7, { g: -40, glow: true }); break;
-    case 'bomb': lob(p, T.x, T.y, 0.45, '#ff9a3c', l => { explode(l.tx, l.ty, 44, 90 * p.st.dmg, p, { kb: 160 }); if (!p.isBot) shake(4); }, 4); break;
-    case 'bubble': p.invulnT = 3; p.bubble = 3; break;
+    case 'brew': p.hp = p.maxHp; clearStatus(p); p.shieldHp = Math.max(p.shieldHp || 0, p.maxHp * 0.4); pillar(p.x, p.y, '#ff6a7a', 50, 12, 0.6); burst(p.x, p.y - 8, '#ff6a7a', 16, 50, 0.7, { g: -40, glow: true }); break;
+    case 'bomb': lob(p, T.x, T.y, 0.45, '#ff9a3c', l => { explode(l.tx, l.ty, 62, 260 * p.st.dmg, p, { kb: 200 }); for (const e of enemiesIn(l.tx, l.ty, 62)) e.stunT = Math.max(e.stunT, e.boss ? 0.4 : 1.2); if (!p.isBot) shake(6); }, 4); break;
+    case 'bubble': p.invulnT = 4; p.bubble = 4; for (const q of G.players) if (q !== p && q.state === 'up' && d2(q.x, q.y, p.x, p.y) < 120 * 120) { q.invulnT = Math.max(q.invulnT, 2); q.bubble = Math.max(q.bubble || 0, 2); } break;
     case 'jar': {
-      const cand = G.enemies.filter(e => !e.dead && d2(e.x, e.y, c.ax, c.ay) < 140 * 140).slice(0, 6);
+      const cand = G.enemies.filter(e => !e.dead && d2(e.x, e.y, c.ax, c.ay) < 170 * 170).slice(0, 12);
       if (!cand.length) return;
-      for (const e of cand) { fx({ k: 'bolt', pts: [{ x: e.x + rr(-8, 8), y: e.y - 110 }, { x: e.x, y: e.y - 4 }], life: 0.25, color: '#ffffff' }); damage(e, 60 * p.st.dmg, p, { elec: true, stun: 0.4 }); applyStatus(e, 'hush', 1.5, { src: p }); }
+      for (const e of cand) { fx({ k: 'bolt', pts: [{ x: e.x + rr(-8, 8), y: e.y - 110 }, { x: e.x, y: e.y - 4 }], life: 0.25, color: '#ffffff' }); damage(e, 180 * p.st.dmg, p, { elec: true, stun: 0.8 }); applyStatus(e, 'hush', 2.5, { src: p }); }
       shake(3); break;
     }
-    case 'horn': for (const q of G.players) if (q.state === 'up' && d2(q.x, q.y, p.x, p.y) < 160 * 160) { q.buffT = 6; floatText(q.x, q.y - 30, 'War Horn!', '#ffd06a', 0.8); } fx({ k: 'ring', x: p.x, y: p.y, r: 160, life: 0.5, color: '#ffd06a' }); break;
-    case 'smoke': p.stealthT = 4; for (const e of G.enemies) { if (e.tgt === p) { e.tgt = null; e.tgtT = 4; } if (d2(e.x, e.y, p.x, p.y) < 90 * 90) applyStatus(e, 'gloom', 4, { src: p }); } smoke(p.x, p.y - 4, 22, '#c8ccd8', 60, 1.4); break;
-    case 'traps': for (let i = 0; i < 3; i++) { const a = i * Math.PI * 2 / 3; G.traps.push({ x: p.x + Math.cos(a) * 24, y: p.y + Math.sin(a) * 24, life: 20, owner: p }); } break;
-    case 'totem': G.healTotems.push({ x: p.x, y: p.y + 6, t: 0, life: 8, owner: p }); break;
-    case 'nova': for (const e of enemiesIn(p.x, p.y, 80)) { damage(e, 40 * p.st.dmg, p, { color: '#bff4ff', elem: 'frost' }); applyStatus(e, 'frozen', 2, { src: p }); } shock(p.x, p.y, 80, '#bff4ff'); glow(p.x, p.y, 90, '#bff4ff', 0.4); burst(p.x, p.y, '#e8f8ff', 30, 140, 0.6, { shape: 'spark', glow: true }); decal(p.x, p.y, 'frost', 60, 4); break;
-    case 'pulse': for (const e of enemiesIn(p.x, p.y, 70)) { damage(e, 30 * p.st.dmg, p, { stun: 1.2, elec: true, color: '#ffe24a' }); applyStatus(e, 'hush', 1.5, { src: p }); } shock(p.x, p.y, 70, '#ffe24a'); burst(p.x, p.y, '#fff4a0', 24, 120, 0.5, { shape: 'spark', glow: true }); break;
-    case 'meteor': G.tele.push({ x: T.x, y: T.y, r: 52, t: 0, life: 1.2, color: 'meteor', friendly: true }); G.meteors.push({ x: T.x, y: T.y, t: 1.2, owner: p, life: 1.2 }); break;
-    case 'blink': { const a = (c.mx || c.my) ? Math.atan2(c.my, c.mx) : p.aimA; let L = 120; while (L > 0 && hitsWall(p.x + Math.cos(a) * L, p.y + Math.sin(a) * L, p.r)) L -= 6; burst(p.x, p.y - 8, '#c8a8ff', 14, 70); p.x += Math.cos(a) * L; p.y += Math.sin(a) * L; p.invulnT = Math.max(p.invulnT, 0.6); burst(p.x, p.y - 8, '#c8a8ff', 14, 70); break; }
+    case 'horn': for (const q of G.players) if (q.state === 'up' && d2(q.x, q.y, p.x, p.y) < 200 * 200) { q.buffT = 10; q.hornT = 10; floatText(q.x, q.y - 30, 'War Horn!', '#ffd06a', 0.8); } fx({ k: 'ring', x: p.x, y: p.y, r: 200, life: 0.5, color: '#ffd06a' }); break;
+    case 'smoke': p.stealthT = 5; p.hp = Math.min(p.maxHp, p.hp + p.maxHp * 0.25); for (const e of G.enemies) { if (e.tgt === p) { e.tgt = null; e.tgtT = 5; } if (d2(e.x, e.y, p.x, p.y) < 130 * 130) applyStatus(e, 'gloom', 5, { src: p }); } smoke(p.x, p.y - 4, 22, '#c8ccd8', 60, 1.4); break;
+    case 'traps': for (let i = 0; i < 6; i++) { const a = i * Math.PI * 2 / 6; G.traps.push({ x: p.x + Math.cos(a) * 34, y: p.y + Math.sin(a) * 34, life: 25, owner: p, dmg: 110 }); } break;
+    case 'totem': G.healTotems.push({ x: p.x, y: p.y + 6, t: 0, life: 12, owner: p, r: 90, rate: 0.09 }); break;
+    case 'nova': for (const e of enemiesIn(p.x, p.y, 120)) { damage(e, 150 * p.st.dmg, p, { color: '#bff4ff', elem: 'frost' }); applyStatus(e, 'frozen', 3, { src: p }); } shock(p.x, p.y, 120, '#bff4ff'); glow(p.x, p.y, 90, '#bff4ff', 0.4); burst(p.x, p.y, '#e8f8ff', 30, 140, 0.6, { shape: 'spark', glow: true }); decal(p.x, p.y, 'frost', 60, 4); break;
+    case 'pulse': for (const e of enemiesIn(p.x, p.y, 100)) { damage(e, 120 * p.st.dmg, p, { stun: 2, elec: true, color: '#ffe24a' }); applyStatus(e, 'hush', 2.5, { src: p }); } shock(p.x, p.y, 100, '#ffe24a'); burst(p.x, p.y, '#fff4a0', 24, 120, 0.5, { shape: 'spark', glow: true }); break;
+    case 'meteor': G.tele.push({ x: T.x, y: T.y, r: 70, t: 0, life: 1.2, color: 'meteor', friendly: true }); G.meteors.push({ x: T.x, y: T.y, t: 1.2, owner: p, life: 1.2 }); break;
+    case 'blink': { const a = (c.mx || c.my) ? Math.atan2(c.my, c.mx) : p.aimA; let L = 170; while (L > 0 && hitsWall(p.x + Math.cos(a) * L, p.y + Math.sin(a) * L, p.r)) L -= 6; burst(p.x, p.y - 8, '#c8a8ff', 14, 70); p.x += Math.cos(a) * L; p.y += Math.sin(a) * L; p.invulnT = Math.max(p.invulnT, 1.2); burst(p.x, p.y - 8, '#c8a8ff', 14, 70); for (const e of enemiesIn(p.x, p.y, 45)) damage(e, 90 * p.st.dmg, p, { stun: 0.6, elec: true, color: '#c8a8ff' }); shock(p.x, p.y, 45, '#c8a8ff'); break; }
   }
   p.activeCd = it.cd * (1 - p.st.itemCdr);
 }
 function updateMeteorsTotems(dt) {
-  for (let i = G.meteors.length - 1; i >= 0; i--) { const m = G.meteors[i]; m.t -= dt; if (m.t <= 0) { G.meteors.splice(i, 1); explode(m.x, m.y, 52, 220 * m.owner.st.dmg, m.owner, { kb: 200, boomColor: '#ff7a2a', elem: 'fire', st: { k: 'scorch', t: 3, dps: 12 * m.owner.st.dmg } }); shock(m.x, m.y, 70, '#ffb030'); smoke(m.x, m.y, 14, '#8a7a6a', 50, 1.4); shake(6); } }
+  for (let i = G.meteors.length - 1; i >= 0; i--) { const m = G.meteors[i]; m.t -= dt; if (m.t <= 0) { G.meteors.splice(i, 1); explode(m.x, m.y, 70, 600 * m.owner.st.dmg, m.owner, { kb: 240, boomColor: '#ff7a2a', elem: 'fire', st: { k: 'scorch', t: 4, dps: 25 * m.owner.st.dmg } }); shock(m.x, m.y, 70, '#ffb030'); smoke(m.x, m.y, 14, '#8a7a6a', 50, 1.4); shake(6); } }
   for (let i = G.healTotems.length - 1; i >= 0; i--) {
     const t = G.healTotems[i]; t.t += dt;
-    for (const q of G.players) if (q.state === 'up' && d2(q.x, q.y, t.x, t.y) < 70 * 70) healAlly(t.owner, q, q.maxHp * 0.05 * dt);
+    for (const q of G.players) if (q.state === 'up' && d2(q.x, q.y, t.x, t.y) < (t.r || 70) ** 2) healAlly(t.owner, q, q.maxHp * (t.rate || 0.05) * dt);
     if (t.t >= t.life) G.healTotems.splice(i, 1);
   }
 }
@@ -4073,7 +4073,7 @@ function updatePlayer(p, c, dt) {
   p.cd.skill = Math.max(0, p.cd.skill - dt); p.cd.ult = Math.max(0, p.cd.ult - dt); p.cd.super = Math.max(0, p.cd.super - dt); p.altCd -= dt;
   if (p.sticker) { p.sticker.t -= dt; if (p.sticker.t <= 0) p.sticker = null; }
   if (p.escaped) return;
-  p.buffT -= dt; p.adrenT -= dt; p.eclipseT = (p.eclipseT || 0) - dt; p.stealthT -= dt; p.skillBuffT -= dt; p.fireBuffT -= dt;
+  p.buffT -= dt; p.hornT = (p.hornT || 0) - dt; p.adrenT -= dt; p.eclipseT = (p.eclipseT || 0) - dt; p.stealthT -= dt; p.skillBuffT -= dt; p.fireBuffT -= dt;
   { const S = p.st; if (S.rateBase == null) S.rateBase = S.rate; if (S.spdBase == null) S.spdBase = S.spd;
     const reel = p.auraSpdT > G.time ? 1 + p.auraSpd : 1;
     S.rate = S.rateBase * (p.adrenT > 0 ? 1 + S.adren : 1) * (p.buffT > 0 ? 1.3 : 1) * (p.fireBuffT > 0 ? 1.3 : 1) * reel;
@@ -5374,7 +5374,7 @@ function updateEnemy(e, dt) {
   }
   updateStatus(e, dt); if (e.dead) return;
   if (Math.abs(e.kvx) + Math.abs(e.kvy) > 1) { moveEnt(e, e.kvx * dt, e.kvy * dt); const f = Math.pow(0.0005, dt); e.kvx *= f; e.kvy *= f; } else { e.kvx = e.kvy = 0; }
-  if (!e.boss) for (let i = G.traps.length - 1; i >= 0; i--) { const t = G.traps[i]; if (d2(t.x, t.y, e.x, e.y) < (e.r + 9) ** 2) { G.traps.splice(i, 1); e.stunT = Math.max(e.stunT, e.champ ? 0.8 : 2.2); damage(e, 25 * t.owner.st.dmg, t.owner); burst(t.x, t.y, '#c9ccd4', 10, 50, 0.4, { shape: 'spark' }); } }
+  if (!e.boss) for (let i = G.traps.length - 1; i >= 0; i--) { const t = G.traps[i]; if (d2(t.x, t.y, e.x, e.y) < (e.r + 9) ** 2) { G.traps.splice(i, 1); e.stunT = Math.max(e.stunT, e.champ ? 0.8 : 2.2); damage(e, (t.dmg || 25) * t.owner.st.dmg, t.owner); burst(t.x, t.y, '#c9ccd4', 10, 50, 0.4, { shape: 'spark' }); } }
   if (e.dead) return;
   if (e.mover) { e.mover(e, dt); }
   if (e.labMob && !labActive()) { if (e.aggro) mobReset(e, false); return; } // dormant until the Dream Palace challenge starts
@@ -7425,7 +7425,7 @@ function populateRooms() {
     }
     if (room.type === 'shop') {
       addInter({ kind: 'keeper', used: true, x: room.px, y: room.py - 44 });
-      const stock = room.shopKind === 'relic' ? [rollRelic(null, ODDS.shop), rollRelic(null, ODDS.shop), rollRelic(null, ODDS.shop), SHOP_STEW] : [...shuffle(ACTIVES.slice()).slice(0, 3), SHOP_STEW];
+      const stock = [rollRelic(null, ODDS.shop), rollRelic(null, ODDS.shop), rollRelic(null, ODDS.shop), SHOP_STEW]; /* no active items in shops: only Corruptors drop them */
       stock.forEach((item, i) => addInter({ kind: 'stand', item, x: room.px + (i - 1.5) * 48, y: room.py + 14 }));
     }
   }
@@ -7657,7 +7657,7 @@ function goBazaar() {
   addInter({ kind: 'shrine', x: A.px, y: A.py + 4, room: A, r: 16 });
   const relics = [rollRelic(null, ODDS.shop), rollRelic(null, ODDS.shop), rollRelic(null, ODDS.shop), rollRelic(null, ODDS.rareChest), rollRelic(null, ODDS.rareChest), rollRelic(null, ODDS.shop)];
   relics.forEach((item, i) => addInter({ kind: 'stand', item, x: A.px - 230 + (i % 3) * 34 + (i >= 3 ? 0 : 0), y: A.py - 40 + (i >= 3 ? 50 : 0) }));
-  [...shuffle(ACTIVES.slice()).slice(0, 3), SHOP_STEW].forEach((item, i) => addInter({ kind: 'stand', item, x: A.px + 162 + (i % 2) * 34, y: A.py - 40 + (i >= 2 ? 50 : 0) }));
+  [rollRelic(null, ODDS.shop), rollRelic(null, ODDS.shop), rollRelic(null, ODDS.shop), SHOP_STEW].forEach((item, i) => addInter({ kind: 'stand', item, x: A.px + 162 + (i % 2) * 34, y: A.py - 40 + (i >= 2 ? 50 : 0) }));
   addInter({ kind: 'stand', item: SHOP_STEW, x: A.px + 230, y: A.py + 10 });
   openPortal(A.px, (A.y + 2.5) * TILE, 'ever');
   setBanner('The Bazaar', `Last chance to shop and level up. The portal to the north leads to the Everfield and ${ENEMY[G.lord].name}.`, 5, '#ffd27a');
@@ -9763,7 +9763,7 @@ function renderWorld(dt, sx, sy) {
   for (const f of G.fallers || []) objs.push({ y: f.y + 999, d: () => drawFaller(f) });
   for (const d of G.drops) objs.push({ y: d.y, d: () => { shadow(d.x, d.y, 5); ctx.fillStyle = 'rgba(90,208,122,0.3)'; ctx.beginPath(); ctx.arc(d.x, d.y - 9, 9, 0, Math.PI * 2); ctx.fill(); ctx.drawImage(itemIcon(d.item, 40), d.x - 6, d.y - 15 + Math.sin(G.time * 3) * 1.2, 12, 12); } });
   for (const o of G.orbs) objs.push({ y: o.y, d: () => { const col = CHARS[o.owner.char].color; const g = ctx.createRadialGradient(o.x, o.y - 10, 1, o.x, o.y - 10, 14); g.addColorStop(0, '#ffffff'); g.addColorStop(0.4, col); g.addColorStop(1, 'rgba(255,255,255,0)'); ctx.fillStyle = g; ctx.beginPath(); ctx.arc(o.x, o.y - 10 + Math.sin(G.time * 4 + o.x) * 1.5, 14, 0, Math.PI * 2); ctx.fill(); ctx.font = `6px ${FONT}`; ctx.textAlign = 'center'; ctx.lineWidth = 2; ctx.strokeStyle = OUTL; ctx.strokeText(o.owner.name, o.x, o.y - 26); ctx.fillStyle = col; ctx.fillText(o.owner.name, o.x, o.y - 26); } });
-  for (const t of G.healTotems) objs.push({ y: t.y, d: () => { ctx.fillStyle = `rgba(122,224,122,${0.1 + 0.05 * Math.sin(G.time * 5)})`; ctx.beginPath(); ctx.arc(t.x, t.y, 70, 0, Math.PI * 2); ctx.fill(); ctx.drawImage(itemIcon(ALL_ITEMS.totem, 40), t.x - 7, t.y - 18, 14, 14); } });
+  for (const t of G.healTotems) objs.push({ y: t.y, d: () => { ctx.fillStyle = `rgba(122,224,122,${0.1 + 0.05 * Math.sin(G.time * 5)})`; ctx.beginPath(); ctx.arc(t.x, t.y, t.r || 70, 0, Math.PI * 2); ctx.fill(); ctx.drawImage(itemIcon(ALL_ITEMS.totem, 40), t.x - 7, t.y - 18, 14, 14); } });
   for (const p of G.players) if (p.state !== 'dead' && p.spawnIn == null) objs.push({ y: p.y, d: () => { shadow(p.x, p.y, 6.5); drawPlayer(p); }, e: p });
   if (G.minions) for (const m of G.minions) objs.push({ y: m.y, d: () => drawMinion(m), e: m });
   if (G.intro) objs.push({ y: G.intro.y, d: () => drawIntro() });
@@ -10609,7 +10609,7 @@ function buildArchive() {
   if (archTab === 'Krystalkers') for (const k of CHAR_KEYS) { const d = CHARS[k]; const c = mkCanvas(128, 128); drawHeroPortrait(c, k, 3.2); L.appendChild(entry(c, d.name, `${d.role} · ${CHAR_LORE[k].motive}`, `${CHAR_LORE[k].lore}${d.passive ? `<br><b>Passive · ${d.passive.name}:</b> ${d.passive.desc}` : ''}<br><b>Attack:</b> ${d.lmb}${d.alt ? `<br><b>Secondary (RMB) · ${d.alt.name}:</b> ${d.alt.desc}` : ''}<br><b>Movement:</b> ${d.sp}<br><b>Skill:</b> ${d.q}${d.super ? `<br><b>Ultimate (Lv ${ULT_LEVEL}) · ${d.super.name}:</b> ${d.super.desc}` : ''}`, d.color)); }
   if (archTab === 'Gems') { for (const r of ['common', 'rare', 'epic']) { group(L, GEM_RAR[r].name + ' gems'); for (const g of GEM_LIST.filter(x => x.rarity === r)) L.appendChild(entry(iconImg(g), g.name, `${GEM_RAR[r].name} · owned ${PROFILE.gems[g.id] || 0}`, g.desc, GEM_RAR[r].color)); } group(L, 'Legendary gems (quests)'); for (const g of LEGEND_GEMS) L.appendChild(entry(iconImg(g), g.name, `${CHARS[g.char].name} · ${PROFILE.unlocked.includes(g.id) ? 'unlocked' : `${questProgress(g)}/${g.quest.n}`}`, `${g.desc}<br><i>${g.quest.text}</i>`, '#ffb52e')); }
   if (archTab === 'Relics') { group(L, 'General relics'); for (const it of RELICS.filter(x => !x.elem)) L.appendChild(entry(iconImg(it), it.name, RARITY[it.rarity].name + (it.unique ? ' · unique' : ''), it.desc, RARITY[it.rarity].color)); for (const el in ELEM) { group(L, ELEM[el].name + ' relics'); for (const it of RELICS.filter(x => x.elem === el)) L.appendChild(entry(iconImg(it), it.name, RARITY[it.rarity].name + (it.unique ? ' · unique' : ''), it.desc, RARITY[it.rarity].color)); } }
-  if (archTab === 'Active items') for (const it of ACTIVES) L.appendChild(entry(iconImg(it), it.name, `Active · ${it.cd}s cooldown`, it.desc, '#5ad07a'));
+  if (archTab === 'Active items') for (const it of ACTIVES) L.appendChild(entry(iconImg(it), it.name, `Active · ${it.cd}s cooldown · only from Corruptor chests`, it.desc, '#5ad07a'));
   if (archTab === 'Status & elements') { for (const k of ST_KEYS) { const c = mkCanvas(64, 64); c.getContext('2d').drawImage(statusIcon(k, 64), 0, 0); L.appendChild(entry(c, STATUS[k].name, 'Status effect', STATUS[k].desc, STATUS[k].color)); } group(L, 'Elements and weaknesses'); for (const el in ELEM) L.appendChild(entry(iconImg({ id: 'el_' + el, icon: ELEM[el].icon, color: ELEM[el].color }), ELEM[el].name, 'Element', `Bosses weak to ${ELEM[el].name} take +50% damage from ${ELEM[el].name} hits and double damage from its damage over time; its status effects last 50% longer on them. Frozen bosses stay freeze-immune for 12s afterwards.`, ELEM[el].color)); }
   if (archTab === 'Biomes') for (const t of ROOM_POOL) { const top = Object.keys(t.mobs)[0]; const mobs = Object.keys(t.mobs).map(m => ENEMY[m].name).join(', '); const tiers = ['', 'Easy', 'Normal', 'Hard', 'Deadly'], pool = t.pool ? ` Appears as: ${t.pool.map(k => tiers[k]).join(' / ')}.` : ''; const boss = t.boss ? `Room boss: ${CHAMPS[t.boss[0]].name} (Act II: ${CHAMPS[t.boss[1]].name}).${t.elem ? ` Drops ${ELEM[t.elem].name} relics more often.` : ''}${pool}${t.hazard ? ' ' + HZ_INFO[t.hazard] : ''}${t.swarm ? ' Swarms: more monsters per room.' : ''}` : 'No room boss. Often an ambush room.'; L.appendChild(entry(spriteCanvas(top, 128), t.name, mobs, boss, '#ffe6a0')); }
   if (archTab === 'Monsters') for (const k of ['grub', 'caster', 'boar', 'brute', 'shardling', 'bonewalker', 'wasp', 'slime', 'frostling', 'icebeetle', 'emberling', 'flamespitter', 'shade', 'hushling', 'rat', 'ratshaman', 'thornling', 'scarab', 'mummy', 'sparkwisp', 'golem', 'voidspawn', 'eyestalk']) L.appendChild(entry(spriteCanvas(k, 128), ENEMY[k].name, `HP ${ENEMY[k].hp}`, ENEMY_INFO[k] || '', '#ff9a8a'));
