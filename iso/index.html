@@ -376,7 +376,8 @@ th { font-family: var(--display); letter-spacing: 0.08em; }
 <script>
 'use strict';
 // ===== Core constants & helpers =====
-const TILE = 16, GW = 6, GH = 6, CW = 30, CH = 24, ARENA_W = 46, MW = GW * CW + ARENA_W, MH = GH * CH;
+const TILE = 16, GW = 6, GH = 6, CW = 40, CH = 32, ARENA_W = 60, MW = GW * CW + ARENA_W, MH = GH * CH; // bigger world for the tilted camera (was 30×24 cells)
+const CASTLE_K = 4 / 3, CASTLE_W = 3 * CW, CASTLE_H = 2 * CH, CASTLE_GX = (CASTLE_W - 2) / 2; // the Dream Palace layout is drawn at 90×48 and scaled up
 const T_VOID = 0, T_FLOOR = 1, T_WALL = 2, T_DOOR = 3, T_CRATE = 4, T_FOG = 5, T_PROP = 6;
 // the random source can be seeded so a party's host and guests generate the very same map
 let RNG = Math.random;
@@ -2120,12 +2121,12 @@ function generateDungeon() {
       const B = cellBiome[k], tier = B.tier, tpl = B.tpl;
       if (merged[k]) {
         const o = merged[k].split(',').map(Number), a = [Math.min(c[0], o[0]), Math.min(c[1], o[1])], horiz = c[1] === o[1];
-        const w = horiz ? ri(40, 54) : ri(17, 24), h = horiz ? ri(13, 19) : ri(32, 42);
+        const w = horiz ? ri(54, 72) : ri(23, 32), h = horiz ? ri(17, 25) : ri(43, 56);
         const x = a[0] * CW + Math.floor(((horiz ? 2 : 1) * CW - w) / 2) + ri(-1, 1), y = a[1] * CH + Math.floor(((horiz ? 1 : 2) * CH - h) / 2) + ri(-1, 1);
         r = makeRoom(a[0], a[1], 'themed', { w, h, x, y, th: TH[tpl.floor], tpl });
         G.grid[o[0]][o[1]] = r; G.grid[c[0]][c[1]] = r; done.add(merged[k]); r.hall = true;
       } else {
-        const w = clamp(ri(14, 21) + tier * 1 + (R() < 0.3 ? 4 : 0), 13, CW - 4), h = clamp(ri(10, 15) + tier + (R() < 0.3 ? 3 : 0), 10, CH - 4);
+        const w = clamp(ri(19, 28) + tier * 1 + (R() < 0.3 ? 5 : 0), 17, CW - 4), h = clamp(ri(13, 20) + tier + (R() < 0.3 ? 4 : 0), 13, CH - 4);
         r = makeRoom(c[0], c[1], 'themed', { w, h, th: TH[tpl.floor], tpl });
       }
       r.danger = tier; r.rec = TIER_REC[tier]; r.biome = B; B.rooms.push(r);
@@ -2170,14 +2171,14 @@ const ARENA_STYLE = {
 // The Bazaar (last shopping stop) and the Everfield (the Dungeon Master's battlefield), in the strip east of the map
 function buildEndgame() {
   const bx = GW * CW + 7;
-  G.bazaar = makeRoom(null, null, 'bazaar', { w: 33, h: 19, x: bx, y: 6, th: TH.shop });
+  G.bazaar = makeRoom(null, null, 'bazaar', { w: 38, h: 24, x: bx, y: 8, th: TH.shop });
   const B = G.bazaar;
   for (let y = B.y; y < B.y + B.h; y++) for (let x = B.x; x < B.x + B.w; x++) { const dx = Math.abs(x - B.cx), dy = Math.abs(y - B.cy); G.theme[y * MW + x] = dx <= 3 && dy <= 2 ? TH.shrine : (x + y) % 2 && dy <= 1 ? TH.start : TH.shop; }
   for (const [a, b] of [[-15, -8], [14, -8], [-15, 8], [14, 8]]) placeProp(B.cx + a, B.cy + b, 'barrel');
   for (const a of [-11, -5, 5, 11]) placeProp(B.cx + a, B.y + 1, 'tent');
   // each Dungeon Master fights on its own ground
   const ST = ARENA_STYLE[G.lord] || ARENA_STYLE.warden, T = k => TH[k] ?? TH.field;
-  G.ever = makeRoom(null, null, 'ever', { w: 42, h: 62, x: GW * CW + 2, y: 40, th: T(ST.base) });
+  G.ever = makeRoom(null, null, 'ever', { w: 56, h: 70, x: GW * CW + 2, y: 44, th: T(ST.base) });
   const E = G.ever;
   for (let y = E.y; y < E.y + E.h; y++) for (let x = E.x; x < E.x + E.w; x++) {
     const dx = x - E.cx, dy = y - (E.y + 18), d = Math.hypot(dx, dy * 1.2);
@@ -2197,7 +2198,7 @@ function buildEndgame() {
   E.bossX = E.px; E.bossY = (E.y + 18.5) * TILE; E.trigY = (E.y + 40) * TILE;
   G.arena = E;
   // the Sovereign's dimension, reached only after its first "death"
-  G.voidRoom = makeRoom(null, null, 'void', { w: 40, h: 34, x: GW * CW + 3, y: 107, th: TH.void });
+  G.voidRoom = makeRoom(null, null, 'void', { w: 52, h: 42, x: GW * CW + 3, y: 120, th: TH.void });
   const V = G.voidRoom; V.bossX = V.px; V.bossY = V.py - 40;
   for (let y = V.y - 1; y <= V.y + V.h; y++) for (let x = V.x - 1; x <= V.x + V.w; x++) if (tget(x, y) === T_WALL) G.wstyle[y * MW + x] = 2;
 }
@@ -2227,7 +2228,7 @@ function decorateRoom(room) {
 function roomAt(px, py) {
   const tx = Math.floor(px / TILE), ty = Math.floor(py / TILE);
   if (G.hub) return G.rooms.find(r => tx >= r.x && tx < r.x + r.w && ty >= r.y && ty < r.y + r.h) || null;
-  if (G.castle && tx >= G.castle.x0 && tx < G.castle.x0 + 90 && ty >= G.castle.y0 && ty < G.castle.y0 + 48) return G.castle.rooms.find(r => tx >= r.x && tx < r.x + r.w && ty >= r.y && ty < r.y + r.h) || null;
+  if (G.castle && tx >= G.castle.x0 && tx < G.castle.x0 + CASTLE_W && ty >= G.castle.y0 && ty < G.castle.y0 + CASTLE_H) return G.castle.rooms.find(r => tx >= r.x && tx < r.x + r.w && ty >= r.y && ty < r.y + r.h) || null;
   for (const A of [G.bazaar, G.ever, G.voidRoom]) if (A && tx >= A.x && tx < A.x + A.w && ty >= A.y && ty < A.y + A.h) return A;
   const gx = Math.floor(tx / CW), gy = Math.floor(ty / CH);
   const r = inGrid(gx, gy) ? G.grid[gx][gy] : null;
@@ -2513,34 +2514,34 @@ function castleCarve(x0, y0, x1, y1, th) {
   for (let y = c - 1; y <= d + 1; y++) for (let x = a - 1; x <= b + 1; x++) if (tget(x, y) !== T_FLOOR) { tset(x, y, T_FLOOR); G.theme[y * MW + x] = th; }
 }
 function buildCastle(cg) {
-  const ox = cg.gx0 * CW, oy = cg.gy0 * CH;
-  // stone mass: a triangle plus the three corner towers
+  const ox = cg.gx0 * CW, oy = cg.gy0 * CH, K = CASTLE_K, S = v => Math.round(v * K);
+  // stone mass: a triangle plus the three corner towers (the layout is authored at 90×48 and scaled by CASTLE_K)
   const inTri = (x, y) => { const t = (y + 4) / 51; const half = t * 50; return y <= 47 && y >= -4 && Math.abs(x - 44.5) <= half; };
-  const towers = [[2, 26, 14, 19], [73, 26, 14, 19], [34, 1, 21, 13]];
-  for (let y = 0; y < 48; y++) for (let x = 0; x < 90; x++) {
+  const towers = [[2, 26, 14, 19], [73, 26, 14, 19], [34, 1, 21, 13]].map(([a, b, w, h]) => [S(a), S(b), S(w), S(h)]);
+  for (let y = 0; y < CASTLE_H; y++) for (let x = 0; x < CASTLE_W; x++) {
     const inT = towers.some(([a, b, w, h]) => x >= a - 2 && x < a + w + 2 && y >= b - 2 && y < b + h + 2);
-    if (inTri(x, y) || inT) { const X = ox + x, Y = oy + y; if (tget(X, Y) === T_VOID) tset(X, Y, T_WALL); }
+    if (inTri(x / K, y / K) || inT) { const X = ox + x, Y = oy + y; if (tget(X, Y) === T_VOID) tset(X, Y, T_WALL); }
   }
   const defs = [];
-  for (const d of CASTLE_ROOMS) { defs.push(d); if (MIRROR[d[0]]) defs.push([MIRROR[d[0]], 89 - d[1] - d[3], d[2], d[3], d[4], d[5], MIRROR_NAME[d[6]] || d[6]]); }
+  for (const d0 of CASTLE_ROOMS) { const d = [d0[0], S(d0[1]), S(d0[2]), S(d0[3]), S(d0[4]), d0[5], d0[6]]; if (d0[0] === 'north' || d0[0] === 'keep' || d0[0] === 'hall') d[1] = Math.round(CASTLE_GX + 0.5 - d[3] / 2); defs.push(d); if (MIRROR[d[0]]) defs.push([MIRROR[d[0]], CASTLE_W - 1 - d[1] - d[3], d[2], d[3], d[4], d[5], MIRROR_NAME[d[6]] || d[6]]); }
   G.castle = { x0: ox, y0: oy, rooms: [] };
   for (const [id, x, y, w, h, sub, name] of defs) {
     const r = makeRoom(null, null, 'castle', { x: ox + x, y: oy + y, w, h, th: sub === 'chamber' || sub === 'hall' ? TH.dreamhall : TH.dream, tpl: CASTLE_TPL });
     Object.assign(r, { castle: true, sub, key: id, cname: name, danger: 4, rec: sub === 'keep' ? 11 : 10, cleared: false, hasBoss: false });
     G.castle.rooms.push(r); G.castle[id] = r;
   }
-  const paths = [];
-  for (const P of CASTLE_PATHS) { paths.push(P); if (P[0][0] !== 44 || P[P.length - 1][0] !== 44) paths.push(P.map(([x, y]) => [88 - x, y])); }
+  const paths = [], SP = P => P.map(([x, y]) => [x === 44 ? CASTLE_GX : S(x), S(y)]);
+  for (const P0 of CASTLE_PATHS) { const P = SP(P0); paths.push(P); if (P0[0][0] !== 44 || P0[P0.length - 1][0] !== 44) paths.push(P.map(([x, y]) => [CASTLE_W - 2 - x, y])); }
   for (const P of paths) for (let i = 0; i < P.length - 1; i++) castleCarve(ox + P[i][0], oy + P[i][1], ox + P[i + 1][0], oy + P[i + 1][1], TH.dreamhall);
   // main gate: straight down out of the Gate Hall to the room below
-  const gx = ox + 44; castleCarve(gx, oy + 44, gx, oy + 47, TH.dreamhall);
+  const gx = ox + CASTLE_GX; castleCarve(gx, oy + S(44), gx, oy + CASTLE_H - 1, TH.dreamhall);
   const B = G.grid[cg.gate[0]][cg.gate[1]];
   if (B) {
     const bx = clamp(gx, B.x + CORR, B.x + B.w - 1 - CORR);
-    if (bx === gx) carveV(oy + 48, B.y - 1, gx); else { const my = oy + 49; carveV(oy + 48, my, gx); carveH(gx, bx, my); carveV(my, B.y - 1, bx); }
+    if (bx === gx) carveV(oy + CASTLE_H, B.y - 1, gx); else { const my = oy + CASTLE_H + 1; carveV(oy + CASTLE_H, my, gx); carveH(gx, bx, my); carveV(my, B.y - 1, bx); }
     const kn = doorKey(B, 'n'); B.doorPos[kn] = bx; B.doors[kn] = 'castle'; B.doorTiles[kn] = doorTilesFor(B, kn);
   }
-  for (let y = -1; y < 50; y++) for (let x = -1; x < 91; x++) { const X = ox + x, Y = oy + y; if (X >= 0 && Y >= 0 && X < MW && Y < MH && tget(X, Y) === T_WALL && (y >= 0 && y < 48 && x >= 0 && x < 90)) G.wstyle[Y * MW + X] = 3; /* pearly dream walls */ }
+  for (let y = -1; y < CASTLE_H + 2; y++) for (let x = -1; x < CASTLE_W + 1; x++) { const X = ox + x, Y = oy + y; if (X >= 0 && Y >= 0 && X < MW && Y < MH && tget(X, Y) === T_WALL && (y >= 0 && y < CASTLE_H && x >= 0 && x < CASTLE_W)) G.wstyle[Y * MW + X] = 3; /* pearly dream walls */ }
   G.castle.towers = [G.castle.north, G.castle.sw, G.castle.se]; G.castle.keepRoom = G.castle.keep;
 }
 function decorateCastle(room) {
@@ -2550,7 +2551,7 @@ function decorateCastle(room) {
   else if (room.sub === 'hall') { P(room.x + 1, room.y + 1, 'brazier'); P(room.x + room.w - 2, room.y + 1, 'brazier'); }
 }
 // the whole Dream Palace is one lair: its monsters wake when the challenge starts, roam every hall, and never come back once slain
-function labArea() { const C = G.castle; if (!C) return null; if (!C.all) C.all = { x: C.x0, y: C.y0, w: 90, h: 48, px: (C.x0 + 45) * TILE, py: (C.y0 + 30) * TILE, type: 'castle', castle: true, all: true, cname: 'The Dream Palace', rec: 10, tpl: CASTLE_TPL }; return C.all; }
+function labArea() { const C = G.castle; if (!C) return null; if (!C.all) C.all = { x: C.x0, y: C.y0, w: CASTLE_W, h: CASTLE_H, px: (C.x0 + CASTLE_W / 2) * TILE, py: (C.y0 + Math.round(30 * CASTLE_K)) * TILE, type: 'castle', castle: true, all: true, cname: 'The Dream Palace', rec: 10, tpl: CASTLE_TPL }; return C.all; }
 function labActive() { return !!(G.lab && G.lab.chal); }
 function spawnLabMobs() {
   if (!G.castle || G.labMobsDone) return; G.labMobsDone = true;
@@ -2609,8 +2610,8 @@ function buildBiomeMask() {
   if (G.castle) {
     const C = G.castle, L = { id: G.biomes.length, lab: true, tpl: CASTLE_TPL, tier: 4, rooms: C.rooms, rec: 10, name: 'The Dream Palace', altarRoom: C.hall, seals: [], bossKilled: false };
     G.biomes.push(L); G.lab = L; C.biome = L;
-    for (let y = 0; y < 48; y++) for (let x = 0; x < 90; x++) { const X = C.x0 + x, Y = C.y0 + y; if (tget(X, Y) !== T_VOID) G.bmask[Y * MW + X] = L.id; }
-    const gx = C.x0 + 44, gy = C.y0 + 47; L.seals.push({ room: C.hall, key: 'gate', tiles: [[gx - 1, gy], [gx, gy], [gx + 1, gy]] });
+    for (let y = 0; y < CASTLE_H; y++) for (let x = 0; x < CASTLE_W; x++) { const X = C.x0 + x, Y = C.y0 + y; if (tget(X, Y) !== T_VOID) G.bmask[Y * MW + X] = L.id; }
+    const gx = C.x0 + CASTLE_GX, gy = C.y0 + CASTLE_H - 1; L.seals.push({ room: C.hall, key: 'gate', tiles: [[gx - 1, gy], [gx, gy], [gx + 1, gy]] });
   }
 }
 function chalRec(B) { return B.lab ? B.rec : (B.rec || 1) + (G.day - 1) * 2; }
@@ -5645,7 +5646,7 @@ function castleLeash(e, dt) {
   const anyIn = G.players.some(p => p.state === 'up' && inRoom(e.home, p.x, p.y, 8));
   if (anyIn) { e.reset = 0; return false; }
   e.reset = (e.reset || 0) + dt;
-  if (e.reset > 4) { e.aggro = false; e.busy = 0; e.mover = null; e.hp = e.maxHp; e.x = e.hx; e.y = e.hy; e.tgt = null; clearStatus(e); e.poison = null; e.shielded = false; e.invT = 0; e.sky = 0; e.burrow = 0; e.hidden = false; e.roar = 0; e.raged = false; e.phase2 = false; e.pyl1 = e.pyl2 = false; e.mirrors = []; e.white = 0; for (const o of G.enemies) if ((o.type === 'pylon' || o.decoy) && inRoom(e.home, o.x, o.y)) o.dead = true; if (G.beams) G.beams = G.beams.filter(b => b.owner !== e); if (G.walls) G.walls = G.walls.filter(w => w.owner !== e); floatText(e.x, e.y - 40, 'Resets', '#ffe6a0', 1); return true; }
+  if (e.reset > 4) { e.aggro = false; e.busy = 0; e.mover = null; e.hp = e.maxHp; e.x = e.hx; e.y = e.hy; e.tgt = null; clearStatus(e); e.poison = null; e.shielded = false; e.invT = 0; e.sky = 0; e.burrow = 0; e.hidden = false; e.dig = null; e.van = null; e.roar = 0; e.raged = false; e.phase2 = false; e.pyl1 = e.pyl2 = false; e.mirrors = []; e.white = 0; for (const o of G.enemies) if ((o.type === 'pylon' || o.decoy) && inRoom(e.home, o.x, o.y)) o.dead = true; if (G.beams) G.beams = G.beams.filter(b => b.owner !== e); if (G.walls) G.walls = G.walls.filter(w => w.owner !== e); floatText(e.x, e.y - 40, 'Resets', '#ffe6a0', 1); return true; }
   return false;
 }
 function castleBossDead(e) {
@@ -6163,9 +6164,105 @@ const BOSS_HAZ = {
   vesper: [e => P.tentacles(e, 2, { kind: 'shadow', st: ST('gloom', 1.5) }), e => P.meteors(e, 2, { r: 24, color: '#b48cff', tele: 'spore', dmg: 20, st: ST('hush', 1.2) })],
   sovereign: [e => P.tentacles(e, 2, { kind: 'crystal', tele: 'crystal' })],
 };
+// ===== close quarters (bigger arenas): every boss now has gap-closers and melee combos of its own =====
+// lunge: one fast, short charge straight at you
+P.lunge = function (e, tg, o = {}) { return P.charge(e, tg, o.n || 1, o.spd || 380, o.dmg || 24, o.wind || 0.42, o.dur || 0.32); };
+// combo: a string of telegraphed swipes, stepping in between each one
+P.combo = function (e, tg, o = {}) {
+  const n = o.n || 3, gap = o.gap || 0.5, len = o.len || e.r + 36, arc = o.arc || 1.4;
+  for (let i = 0; i < n; i++) schedule(i * gap, () => {
+    if (e.dead || e.van || e.dig) return;
+    const T = e.tgt && e.tgt.state === 'up' ? e.tgt : tg, a = Math.atan2(T.y - e.y, T.x - e.x);
+    const step = clamp(Math.hypot(T.x - e.x, T.y - e.y) - len * 0.55, 0, o.step || 26), nx = e.x + Math.cos(a) * step, ny = e.y + Math.sin(a) * step, A = homeRoom(e);
+    if (!hitsWall(nx, ny, e.r * 0.6) && (!A || inRoom(A, nx, ny, -e.r))) { e.x = nx; e.y = ny; }
+    P.cone(e, T, len * (i === n - 1 ? 1.25 : 1), i === n - 1 ? arc * 1.3 : arc, 0.32, (o.dmg || 20) * (i === n - 1 ? 1.4 : 1), { st: o.st });
+  });
+  return n * gap + 0.45;
+};
+// dig: the boss sinks, a mound races after one of you, then it erupts under that spot
+P.dig = function (e, tg, o = {}) {
+  e.dig = { t: o.dur || 1.7, phase: 'go', o, tg, sky: false };
+  burst(e.x, e.y, o.color || '#a08a68', 26, 110, 0.6, { g: 240, vy: -80 }); smoke(e.x, e.y, 10, o.smoke || '#8a7a5a', 50, 0.8); decal(e.x, e.y, 'crack', 26, 5);
+  floatText(e.x, e.y - 50, o.text || 'Burrows!', o.color || '#e8d8c0', 0.9);
+  return 0.1;
+};
+// sky: the boss leaps out of sight, its shadow hunts you, then it crashes down
+P.sky = function (e, tg, o = {}) {
+  e.dig = { t: o.dur || 1.5, phase: 'go', o, tg, sky: true };
+  burst(e.x, e.y - 20, o.color || '#ffffff', 22, 120, 0.6, { glow: !!o.glow, g: -60 }); shock(e.x, e.y, 40, o.color || '#ffffff', 0.4); shake(3);
+  floatText(e.x, e.y - 50, o.text || 'Leaps away!', o.color || '#e8d8c0', 0.9);
+  return 0.1;
+};
+function updateDig(e, dt) {
+  const D = e.dig; if (!D) return false;
+  e.invT = 0.3; e.busy = 0.3; e.mover = null; e.hidden = true; e.moving = true;
+  const o = D.o, r = o.r || 52, A = homeRoom(e);
+  if (D.phase === 'go') {
+    D.t -= dt;
+    let T = D.tg && D.tg.state === 'up' ? D.tg : null; if (!T) T = D.tg = pick(targets(e)) || null;
+    if (T) {
+      const d = Math.hypot(T.x - e.x, T.y - e.y), sp = Math.min(d, (D.sky ? 420 : 250) * dt), a = Math.atan2(T.y - e.y, T.x - e.x);
+      if (D.sky) { const nx = e.x + Math.cos(a) * sp, ny = e.y + Math.sin(a) * sp; if (!A || inRoom(A, nx, ny, -e.r * 0.6)) { e.x = nx; e.y = ny; } }
+      else moveEnt(e, Math.cos(a) * sp, Math.sin(a) * sp);
+      if (!D.sky && R() < 0.7) burst(e.x + rr(-6, 6), e.y, o.color || '#a08a68', 1, 40, 0.5, { g: 200, vy: -50, size: 1.6 });
+      if (!D.sky && R() < 0.08) decal(e.x, e.y, 'crack', 12, 3);
+    }
+    if (D.t <= 0) { D.phase = 'up'; D.t = o.warn || 0.75; tele({ x: e.x, y: e.y, r, life: D.t, color: o.tele || 'red' }); if (D.sky) (G.fallers || (G.fallers = [])).push({ x: e.x, y: e.y, t: -D.t + 0.4, dur: 0.4, col: o.color || '#ffffff' }); }
+  } else {
+    D.t -= dt;
+    if (D.t <= 0) {
+      e.dig = null; e.hidden = false; e.invT = 0; e.moving = false;
+      hitPlayersCircle(e.x, e.y, r, (o.dmg || 30) * e.dmgM, e, 30, { st: o.st });
+      shock(e.x, e.y, r + 10, o.color || '#e8d8c0', 0.6); burst(e.x, e.y, o.color || '#c8b898', 34, 160, 0.7, { g: 240, vy: -100 }); decal(e.x, e.y, 'crack', r * 0.6, 6); shake(7);
+      if (o.ring) for (let i = 0; i < o.ring; i++) eShoot(e, i * Math.PI * 2 / o.ring, 90, 10, { color: o.color || '#ffb35a' });
+      e.busy = 0.7;
+    }
+  }
+  return true;
+}
+// which close-quarters moves each boss uses: near = when you stand in its face, far = to close the gap
+const BOSS_CLOSE = (() => {
+  const L = (o) => (e, t) => P.lunge(e, t, o), C = (o) => (e, t) => P.combo(e, t, o), D = (o) => (e, t) => P.dig(e, t, o), S = (o) => (e, t) => P.sky(e, t, o);
+  const SL = (r, d, col, ring = 12) => (e) => P.slam(e, r, 0.7, d, ring, col), LP = (r, d, col) => (e, t) => P.leap(e, t, r, 0.8, d, 12, col);
+  return {
+    gorehorn: { near: [C({ n: 3, dmg: 20, st: bleedSt }), SL(64, 24, '#c8a070')], far: [L({ n: 2, spd: 400 }), L({ spd: 420, dmg: 28 })] },
+    chieftain: { near: [C({ n: 3, dmg: 22, len: 52, st: sunderSt }), SL(70, 26, '#ff8a3c')], far: [LP(58, 26, '#ff8a3c'), S({ text: 'Jumps!', color: '#ff8a3c', r: 60, dmg: 30, ring: 14 })] },
+    bramble: { near: [C({ n: 2, dmg: 22, arc: 1.8, st: bleedSt }), SL(66, 22, '#9ad86a')], far: [D({ text: 'Roots under the ground!', color: '#7a9a4a', r: 56, ring: 12, st: ST('mire', 1.5) }), L({ spd: 300, dmg: 26 })] },
+    hivequeen: { near: [C({ n: 4, gap: 0.35, dmg: 14, len: 44, st: ST('mire', 1) })], far: [S({ text: 'Takes to the air!', color: '#ffd23a', glow: true, r: 48, dmg: 26, ring: 16 }), L({ n: 2, spd: 460, dmg: 20 })] },
+    mudslug: { near: [SL(70, 24, '#9aaa4a', 14), C({ n: 2, dmg: 22, arc: 1.7, st: ST('mire', 1.5) })], far: [D({ text: 'Sinks into the mud!', color: '#9aaa4a', r: 60, ring: 14, st: ST('mire', 2) })] },
+    sporemother: { near: [SL(76, 24, '#ff8ad8', 16), C({ n: 2, dmg: 22, arc: 2.0, len: 56, st: ST('wither', 2.5) })], far: [D({ text: 'Melts into the soil!', color: '#ff8ad8', r: 62, ring: 16, tele: 'spore', st: ST('gloom', 2) })] },
+    frostfang: { near: [C({ n: 4, gap: 0.38, dmg: 18, st: ST('chill', 0) })], far: [L({ n: 3, spd: 440, dmg: 22, wind: 0.32 }), S({ text: 'Bounds away!', color: '#bff4ff', r: 50, dmg: 28, ring: 12, tele: 'crystal', st: ST('chill', 0, { n: 2 }) })] },
+    emberdrake: { near: [C({ n: 2, dmg: 24, arc: 2.2, len: 58, st: ST('scorch', 2.5, { dps: 4 }) }), SL(70, 24, '#ff8a2a', 16)], far: [S({ text: 'Soars up!', color: '#ff8a2a', glow: true, r: 60, dmg: 32, ring: 18, tele: 'fire' }), L({ spd: 420, dmg: 26 })] },
+    bonecolossus: { near: [C({ n: 3, dmg: 24, len: 56, st: bleedSt }), SL(76, 28, '#e8e0cc', 16)], far: [LP(62, 28, '#e8e0cc'), D({ text: 'Crumbles into the earth!', color: '#e8e0cc', r: 60, ring: 14, st: bleedSt })] },
+    thundertoad: { near: [C({ n: 2, dmg: 22, arc: 1.6, st: ST('mire', 1.2) }), SL(70, 24, '#ffe24a', 16)], far: [S({ text: 'Leaps sky-high!', color: '#ffe24a', r: 62, dmg: 30, ring: 18, tele: 'crystal', st: ST('hush', 1.5) }), (e, t) => P.lines(e, t, 1, 180, 18, 0.5, 24, 0, { st: ST('mire', 1.5), color: '#ff8ab0' })] },
+    warden: { near: [C({ n: 3, dmg: 24, len: 54, st: sunderSt }), SL(74, 26, '#7ff0ff', 14)], far: [L({ n: 2, spd: 380, dmg: 26 }), S({ text: 'Shatters and reforms!', color: '#7ff0ff', glow: true, r: 56, dmg: 30, ring: 14, tele: 'crystal' })] },
+    shellback: { near: [SL(80, 28, '#c8b890', 16), C({ n: 2, dmg: 26, arc: 1.6, len: 60, st: sunderSt })], far: [D({ text: 'Digs under the sand!', color: '#c8b890', r: 66, ring: 16 })] },
+    moth: { near: [C({ n: 3, gap: 0.4, dmg: 18, arc: 1.8, st: ST('gloom', 1.5) })], far: [S({ text: 'Flutters up!', color: '#d8c8f0', glow: true, r: 52, dmg: 26, ring: 14, tele: 'spore', st: ST('gloom', 2) }), L({ n: 2, spd: 440, dmg: 22 })] },
+    phoenix: { near: [C({ n: 3, dmg: 22, arc: 1.8, st: ST('scorch', 2.5, { dps: 5 }) })], far: [S({ text: 'Rises in flame!', color: '#ff8a2a', glow: true, r: 62, dmg: 32, ring: 18, tele: 'fire' }), L({ n: 2, spd: 460, dmg: 24 })] },
+    rimehorn: { near: [C({ n: 3, dmg: 24, len: 54, st: ST('chill', 0) }), SL(74, 26, '#bff4ff', 16)], far: [L({ n: 2, spd: 420, dmg: 26 }), S({ text: 'Bounds over the ice!', color: '#bff4ff', r: 58, dmg: 30, ring: 16, tele: 'crystal', st: ST('chill', 0, { n: 2 }) })] },
+    stormcoil: { near: [C({ n: 3, gap: 0.4, dmg: 20, arc: 1.7, st: ST('hush', 1) })], far: [D({ text: 'Coils under the floor!', color: '#ffe24a', r: 56, ring: 14, tele: 'crystal', st: ST('hush', 1.5) }), L({ n: 2, spd: 460, dmg: 22 })] },
+    vesper: { near: [C({ n: 3, dmg: 22, arc: 1.6, st: ST('gloom', 1.5) })], far: [D({ text: 'Sinks into shadow!', color: '#b48cff', r: 56, ring: 14, tele: 'spore', st: ST('gloom', 2) }), L({ n: 2, spd: 440, dmg: 24 })] },
+    sovereign: { near: [C({ n: 3, dmg: 26, len: 56 })], far: [L({ n: 2, spd: 420, dmg: 28 })] },
+    nullmaw: { near: [C({ n: 3, gap: 0.4, dmg: 22, len: 50, st: ST('gloom', 1.5) })], far: [L({ n: 2, spd: 460, dmg: 24 }), D({ text: 'Swallows the floor!', color: '#c86aff', r: 56, ring: 14, tele: 'spore', st: ST('gloom', 2) })] },
+    blightfather: { near: [SL(74, 24, '#a8e05a', 16), C({ n: 2, dmg: 24, arc: 1.8, len: 56, st: ST('wither', 2.5) })], far: [LP(60, 26, '#a8e05a')] },
+    riftweaver: { near: [C({ n: 4, gap: 0.35, dmg: 16, len: 46, st: ST('mire', 1) })], far: [S({ text: 'Drops on a thread!', color: '#8a6aff', r: 52, dmg: 28, ring: 14, tele: 'spore' }), L({ n: 2, spd: 460, dmg: 22 })] },
+    shardveil: { near: [C({ n: 3, gap: 0.38, dmg: 20, arc: 1.5, st: bleedSt })], far: [L({ n: 3, spd: 480, dmg: 22, wind: 0.32 }), S({ text: 'Shatters into the air!', color: '#e0b0ff', glow: true, r: 50, dmg: 26, ring: 16, tele: 'crystal' })] },
+  };
+})();
+function bossClose(e, tg, dt, rage) {
+  const M = BOSS_CLOSE[e.type]; if (!M || !tg || e.mover || e.jumpT > 0 || e.state === 'wind' || e.busy > 0.2) return false;
+  e.closeT = (e.closeT ?? rr(2.5, 4)) - dt; if (e.closeT > 0) return false;
+  const dd = Math.hypot(tg.x - e.x, tg.y - e.y), near = dd < e.r + 58, list = (near ? M.near : M.far) || M.near || M.far;
+  if (!list || !list.length || (!near && dd < 40)) return false;
+  const k = near ? 'cn' : 'cf', f = list[e[k] = ((e[k] ?? -1) + 1) % list.length];
+  e.busy = f(e, tg, rage) || 0.5; e.closeT = (rage ? rr(2.5, 3.5) : rr(3.5, 5)) * (e.castle ? 1.1 : 1);
+  return true;
+}
 // runs inside bossCycle: hazards on their own clock, a reposition every few seconds, and drifting while it attacks
 function bossTactics(e, tg, spd, dt, rage) {
   if (updateVanish(e, dt)) return true;
+  if (updateDig(e, dt)) return true;
+  if (bossClose(e, tg, dt, rage)) return true;
   const H = BOSS_HAZ[e.type];
   if (H && tg) {
     e.hazT = (e.hazT ?? 5) - dt;
@@ -7254,7 +7351,7 @@ function canReach(p, A, x, y) {
   pathRules(p, x, y); const path = findPath(Math.floor(p.x / TILE), Math.floor(p.y / TILE), Math.floor(x / TILE), Math.floor(y / TILE)); PF.stay = -1; PF.avoid = null;
   A.reachKey = key; A.reachT = G.time + 3; A.reachOk = !!(path && path.length) || d2(p.x, p.y, x, y) < 60 * 60; return A.reachOk;
 }
-function labGate() { const C = G.castle; return C ? clearSpot((C.x0 + 44.5) * TILE, (C.y0 + 50) * TILE, 10) : null; }
+function labGate() { const C = G.castle; return C ? clearSpot((C.x0 + CASTLE_GX + 0.5) * TILE, (C.y0 + CASTLE_H + 2) * TILE, 10) : null; }
 function altarOf(B) { return G.inter.find(i => i.kind === 'altar' && i.B === B); }
 function altarPlan(p, A) {
   updateBotPlan();
@@ -7399,7 +7496,7 @@ function circleFor(room, centre, isLab) {
   const far = Math.max(...[[0, 0], [mapW, 0], [0, mapH], [mapW, mapH]].map(([x, y]) => Math.hypot(x - cx, y - cy)));
   const half = Math.hypot(room.w, room.h) * TILE / 2, r0 = far + 40, rf = Math.max(196, half + 56); // the final ring always holds the whole Gatekeeper arena
   const c = { x: cx, y: cy, r: r0, r0, rf, rmid: Math.max(rf * 3, r0 * 0.45) };
-  if (centre) { c.fx = cx; c.fy = cy; c.tx = room.px; c.ty = room.py; c.rmid = Math.min(r0 - 40, Math.max(c.rmid, Math.hypot(cx - room.px, cy - room.py) + rf + 80, isLab ? Math.hypot(90, 48) * TILE / 2 + 48 : 0)); c.moveIn = isLab ? 'shrink2' : 'shrink1'; } /* the whole Dream Palace stays inside until the last closing */ // the ring drifts onto the Gatekeeper only in the last closing
+  if (centre) { c.fx = cx; c.fy = cy; c.tx = room.px; c.ty = room.py; c.rmid = Math.min(r0 - 40, Math.max(c.rmid, Math.hypot(cx - room.px, cy - room.py) + rf + 80, isLab ? Math.hypot(CASTLE_W, CASTLE_H) * TILE / 2 + 48 : 0)); c.moveIn = isLab ? 'shrink2' : 'shrink1'; } /* the whole Dream Palace stays inside until the last closing */ // the ring drifts onto the Gatekeeper only in the last closing
   return c;
 }
 // Act II: the Wildfire closes around the Dream Palace first, so it is the last place the fire swallows
@@ -8297,7 +8394,7 @@ function planSpread(n) {
   for (let i = 0; i < N; i++) raw[i] = dI[i] >= 0 ? dI[i] : 0;
   const late = Math.max(...raw) + 1;
   // Act II: while its guardian lives, the Dream Palace burns just before the arena
-  if (n === 2 && G.castle && G.lab && !G.lab.bossKilled) for (const i of cellsOverlapping(G.castle.x0, G.castle.y0, 90, 48)) if (dA[i] > 0) raw[i] = Math.max(raw[i], late);
+  if (n === 2 && G.castle && G.lab && !G.lab.bossKilled) for (const i of cellsOverlapping(G.castle.x0, G.castle.y0, CASTLE_W, CASTLE_H)) if (dA[i] > 0) raw[i] = Math.max(raw[i], late);
   // the way to the arena burns after everything beyond it, so the team is never cut off
   const order = reach.slice().sort((a, b) => dA[b] - dA[a]);
   for (const i of order) { let par = -1; for (const j of adj[i]) if (dA[j] === dA[i] - 1 && (par < 0 || raw[j] > raw[par])) par = j; if (par >= 0 && dA[par] > 0) raw[par] = Math.max(raw[par], raw[i] + 1); }
@@ -8633,7 +8730,7 @@ function applyCross() {
     if (altar && G.lab && !G.lab.bossKilled) {
       placeTeam(altar.x, altar.y + 34); startChallenge(G.lab, G.players[0]);
       for (const p of G.players) { p.siegeOn = true; p.siegeIn = true; recalcStats(p); p.hp = p.maxHp; floatText(p.x, p.y - 34, 'Siege fury!', '#ffb070', 1.4, 1.1); glow(p.x, p.y - 8, 40, '#ffb070', 0.6); }
-    } else { const q = clearSpot((G.castle.x0 + 44.5) * TILE, (G.castle.y0 + 50) * TILE, 10); placeTeam(q.x, q.y); }
+    } else { const q = clearSpot((G.castle.x0 + CASTLE_GX + 0.5) * TILE, (G.castle.y0 + CASTLE_H + 2) * TILE, 10); placeTeam(q.x, q.y); }
   }
   setBanner(`Act II · ${X.name}`, X.desc, 4, X.col);
 }
@@ -10295,7 +10392,7 @@ function drawMinimap(big) {
     else for (const r of G.nightRooms || []) txt('?', X(r.cx), Y(r.cy) + 5 * s, big ? 18 : 13, '#ff9ad8', 'center'); // two possible lairs
   }
   if (G.pings) for (const P0 of G.pings) { const k = (G.time * 3) % 1, px = X(P0.x / TILE), py = Y(P0.y / TILE), col = P0.enemy ? '#ff5a5a' : '#ffd44a', kk = big ? 1.4 : 1; ctx.strokeStyle = col; ctx.lineWidth = 2 * s; ctx.beginPath(); ctx.arc(px, py, (4 + k * 8) * s * kk, 0, Math.PI * 2); ctx.stroke(); ctx.fillStyle = col; ctx.strokeStyle = UI.edge; ctx.lineWidth = s; ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(px - 3.5 * s * kk, py - 7 * s * kk); ctx.arc(px, py - 8 * s * kk, 3.6 * s * kk, Math.PI * 0.85, Math.PI * 0.15); ctx.closePath(); ctx.fill(); ctx.stroke(); }
-  if (G.castle && (big || true) && isSeen((G.castle.x0 + 45) * TILE, (G.castle.y0 + 41) * TILE)) txt('DREAM PALACE', X(G.castle.x0 + 45), Y(G.castle.y0 + 47) + 12 * s, big ? 12 : 9, '#c8c8ff', 'center');
+  if (G.castle && (big || true) && isSeen((G.castle.x0 + CASTLE_W / 2) * TILE, (G.castle.y0 + CASTLE_H - 7) * TILE)) txt('DREAM PALACE', X(G.castle.x0 + CASTLE_W / 2), Y(G.castle.y0 + CASTLE_H - 1) + 12 * s, big ? 12 : 9, '#c8c8ff', 'center');
   for (const P of G.piles) { // lost gold is always marked, even through the fog
     const px = X(P.x / TILE), py = Y(P.y / TILE), kk = big ? 1.4 : 1, pr = (6 + 3 * Math.sin(G.time * 5)) * s * kk, mine = P.owner === human();
     ctx.strokeStyle = mine ? 'rgba(255,212,74,0.85)' : 'rgba(255,212,74,0.45)'; ctx.lineWidth = 2 * s; ctx.beginPath(); ctx.arc(px, py, pr, 0, Math.PI * 2); ctx.stroke();
