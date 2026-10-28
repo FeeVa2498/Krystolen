@@ -2313,7 +2313,7 @@ function castRay(ax, ay, ang, maxL) {
 }
 
 // ===== Pathfinding =====
-const PF = { seen: null, prev: null, q: null, stamp: 0, stay: -1, avoid: null };
+const PF = { seen: null, prev: null, q: null, stamp: 0, stay: -1, avoid: null, fire: null };
 function findPath(sx, sy, tx, ty, maxNodes = 26000) {
   if (!PF.seen) { PF.seen = new Uint32Array(MW * MH); PF.prev = new Int32Array(MW * MH); PF.q = new Int32Array(MW * MH); }
   const st = ++PF.stamp; const s = sy * MW + sx, t = ty * MW + tx;
@@ -2327,6 +2327,7 @@ function findPath(sx, sy, tx, ty, maxNodes = 26000) {
       const nx = cx + dx, ny = cy + dy; if (nx < 0 || ny < 0 || nx >= MW || ny >= MH) continue;
       const ni = ny * MW + nx; if (PF.seen[ni] === st) continue;
       if (G.map[ni] !== T_FLOOR && ni !== t) continue;
+      if (PF.fire && ni !== t && PF.fire(nx, ny)) continue;
       if (G.bmask && ni !== t && ((PF.stay >= 0 && G.bmask[ni] !== PF.stay && G.bmask[c] === PF.stay && !(PF.open && PF.open.has(c))) || (PF.avoid && PF.avoid.has(G.bmask[ni])))) continue;
       PF.seen[ni] = st; PF.prev[ni] = c; PF.q[tl++] = ni;
     }
@@ -6710,6 +6711,13 @@ function tpShortcut(p, tx, ty) {
   for (const pad of G.tpads) { if (G.circle && !safeAt(pad.link.x, pad.link.y, 40)) continue; const v = Math.hypot(pad.x - p.x, pad.y - p.y) + Math.hypot(tx - pad.link.x, ty - pad.link.y) + 120; if (v < bv) { bv = v; best = pad; } }
   return best;
 }
+/* path rule: route around the ring / wildfire (when we stand outside it and the goal is outside it too) */
+function fireBlock(p, tx, ty) {
+  const c = G.circle; if (!c || c.calm || G.phase !== 'day' || !safeAt(p.x, p.y, 0, 2) || !safeAt(tx, ty, 0, 2)) return null;
+  if (c.spread) { const t = fireClock(3); return (x, y) => cellBurnT((x + 0.5) * TILE, (y + 0.5) * TILE) <= t; }
+  const R = Math.min(c.r, predictR(3)) - 6, R2 = R * R, cx = c.x, cy = c.y;
+  return (x, y) => { const dx = (x + 0.5) * TILE - cx, dy = (y + 0.5) * TILE - cy; return dx * dx + dy * dy > R2; };
+}
 function goTo(p, A, tx, ty, c, dt) {
   const tp = tpShortcut(p, tx, ty);
   if (tp) { if (d2(p.x, p.y, tp.x, tp.y) < 18 * 18) { teleportVia(tp, p); return true; } tx = tp.x; ty = tp.y + 2; }
@@ -6719,7 +6727,10 @@ function goTo(p, A, tx, ty, c, dt) {
   const gtx = Math.floor(tx / TILE), gty = Math.floor(ty / TILE);
   A.pathT -= dt;
   if (!A.path || A.pathT <= 0 || !A.pathGoal || A.pathGoal[0] !== gtx || A.pathGoal[1] !== gty) {
-    pathRules(p, tx, ty); A.path = findPath(Math.floor(p.x / TILE), Math.floor(p.y / TILE), gtx, gty); PF.stay = -1; PF.avoid = null; A.pathGoal = [gtx, gty]; A.pathT = 0.7;
+    pathRules(p, tx, ty); PF.fire = fireBlock(p, tx, ty);
+    A.path = findPath(Math.floor(p.x / TILE), Math.floor(p.y / TILE), gtx, gty);
+    if (!A.path && PF.fire) { PF.fire = null; A.path = findPath(Math.floor(p.x / TILE), Math.floor(p.y / TILE), gtx, gty); } /* only a way through the fire: take it */
+    PF.stay = -1; PF.avoid = null; PF.fire = null; A.pathGoal = [gtx, gty]; A.pathT = 0.7;
   }
   if (!A.path || !A.path.length) {
     // blocked (probably by crates) — shoot toward the goal and push
@@ -6807,6 +6818,8 @@ function botControl(p, dt) {
     A.nVis = vis.length;
     A.errA = rr(-L.err, L.err);
     A.mode = decideMode(p, A, vis);
+    /* never walk into the fire: a goal the ring/wildfire will have reached by the time we arrive is dropped for the nearest safe spot */
+    if (A.mode === 'goto' && A.goal && G.circle && G.phase === 'day' && safeAt(p.x, p.y, 0, 3)) { const g = A.goal, t = Math.hypot(g.x - p.x, g.y - p.y) / 80; if (!safeAt(g.x, g.y, 6, 2 + t)) { const sp = safePoint(p); A.goal = d2(sp.x, sp.y, p.x, p.y) > 60 * 60 ? { x: sp.x, y: sp.y, near: 40 } : null; if (!A.goal) A.mode = vis.length && vis[0].d < 150 && safeAt(vis[0].e.x, vis[0].e.y, 0, 3) ? 'fight' : 'idle'; } }
   }
   A.wantMove = false;
   const tgt = A.target && !A.target.dead ? A.target : null;
@@ -6926,7 +6939,7 @@ function decideMode(p, A, vis) {
   if (G.phase === 'prep') {
     const sh = nearestShrine(p, true);
     if (sh && levelCost(p) != null && p.gold >= levelCost(p)) { A.goal = { x: sh.x, y: sh.y, near: 18, use: true, it: sh }; return 'goto'; }
-    const buy = bestPurchase(p); if (buy) { A.goal = { x: buy.x, y: buy.y + 6, near: 10, use: true, it: buy }; return 'goto'; }
+    const buy = bestPurchase(p, true); if (buy) { botAnnounce(p, `Buying ${buy.item ? buy.item.name : 'a chest'}`, 'buy' + Math.round(buy.x)); A.goal = { x: buy.x, y: buy.y + 6, near: 10, use: true, it: buy }; return 'goto'; }
     if (portal && !portal.ready.has(p)) { A.goal = { x: portal.x, y: portal.y + 8, near: 14, use: true, it: portal }; return 'goto'; }
     if (portal) { A.goal = { x: portal.x + rr(-40, 40), y: portal.y + 34, near: 24 }; return 'goto'; }
     return 'idle';
@@ -6959,14 +6972,18 @@ function decideMode(p, A, vis) {
   } }
   if (A.pingEnemy && !A.pingEnemy.dead) { const pe = A.pingEnemy; if (d2(pe.x, pe.y, p.x, p.y) < 160 * 160 && losClear(p.x, p.y, pe.x, pe.y)) { A.target = pe; return 'fight'; } A.goal = { x: pe.x, y: pe.y, near: 60 }; return 'goto'; }
   const myB = biomeAt(p.x, p.y);
-  /* the ring has reached the Dream Palace: leave through the burnt gate and farm elsewhere */
+  /* the ring has reached the Dream Palace: keep clearing it while the part we stand in (and the next guardian's hall) is safe;
+     only when the fire is close to us, or every guardian left stands in the fire, walk out to the nearest safe room */
   if (myB && myB.lab && myB.chal && myB.seals.some(S => S.burnt)) {
-    const g = labGate();
-    if (g && safeAt(g.x, g.y + 30, 20, 8)) { botAnnounce(p, 'The fire reached the Dream Palace. Out, farm elsewhere!', 'labfire' + G.day); A.goal = { x: g.x, y: g.y + 30, near: 24 }; if (vis.length && vis[0].d < 50) return 'fight'; return 'goto'; }
-    /* the gate is already in the fire: hold the safe part of the palace and only fight what comes close */
-    if (vis.length && vis[0].d < 110 && safeAt(vis[0].e.x, vis[0].e.y, 10, 4)) return 'fight';
-    const sp = safePoint(p); if (d2(sp.x, sp.y, p.x, p.y) > 50 * 50) { A.goal = { x: sp.x, y: sp.y, near: 40 }; return 'goto'; }
-    return 'idle';
+    const left = labBosses().filter(e => e.aggro ? safeAt(e.x, e.y, 0, 4) : labRoomSafe(e.home));
+    if (!left.length || A.labOut > G.time) {
+      if (!(A.labOut > G.time)) A.labOut = G.time + 15;
+      if (vis.length && vis[0].d < 60 && safeAt(p.x, p.y, 10, 3)) return 'fight';
+      const ex = labExit(p);
+      botAnnounce(p, 'The fire has the guardians\' halls. Out of the Dream Palace!', 'labfire' + G.day);
+      A.goal = { x: ex.x, y: ex.y, near: 30 }; return 'goto';
+    }
+    if (G.labFocus && !left.includes(G.labFocus)) G.labFocus = null; /* chalHunt picks again, from the safe ones */
   }
   if (myB && myB.chal) {
     if (myB.lab) { // in the Dream Palace the team moves as one: follow the leader, fight what is around the leader
@@ -6977,8 +6994,8 @@ function decideMode(p, A, vis) {
         const v = vis.find(o => Math.hypot(o.e.x - ld.x, o.e.y - ld.y) < 190); if (v) { A.target = v.e; return 'fight'; }
       } else if (ld === p && !(vis.length && vis[0].d < 150)) {
         const lag = G.players.filter(q => q !== p && q.state === 'up' && bmAt(q.x, q.y) === myB.id && d2(q.x, q.y, p.x, p.y) > 220 * 220);
-        if (lag.length && (A.leadWait = (A.leadWait || 0) + (L0react(p))) < 6) return 'idle'; // wait for the stragglers (a few seconds at most)
-        A.leadWait = 0;
+        /* wait for the stragglers, a few seconds at most (then go on without them until they catch up) */
+        if (!lag.length) A.leadSince = null; else { if (A.leadSince == null) A.leadSince = G.time; if (G.time - A.leadSince < 6) return 'idle'; }
       }
     }
     if (vis.length && vis[0].d < 210) return 'fight';
@@ -6999,14 +7016,17 @@ function decideMode(p, A, vis) {
       const sh = nearestShrineNow(p);
       if (sh && !(G.botPlan && G.botPlan.B.lab && d2(sh.x, sh.y, p.x, p.y) > 900 * 900) && safeAt(sh.x, sh.y, 30, Math.min(30, Math.hypot(sh.x - p.x, sh.y - p.y) / 80 + 4))) { botAnnounce(p, 'Levelling up at the shrine', 'lvl' + p.level); A.goal = { x: sh.x, y: sh.y, near: 18, use: true, it: sh }; return 'goto'; }
     } }
+  if ((G.phase === 'day' || G.phase === 'embers')) { const lt = lootFor(p, vis); if (lt) { botAnnounce(p, lt.free ? 'Grabbing the reward chest' : 'Opening a chest', 'loot' + Math.round(lt.x) + ',' + Math.round(lt.y)); A.goal = { x: lt.x, y: lt.y + 6, near: 10, use: true, it: lt }; return 'goto'; } }
   if (vis.length && vis[0].d < (rushing ? 120 : 200) && (vis[0].e.aggro || vis[0].d < 150) && (!(vis[0].e.champ || vis[0].e.castle) || botCanFight(p, vis[0].e.room || vis[0].e.home))) return 'fight';
+  /* a shrine close by restores health and flasks at once: worth a detour whenever we are scratched or have drunk */
+  { const sh = restShrine(p, vis); if (sh) { botAnnounce(p, 'Topping up at the shrine', 'rest' + Math.round(sh.x)); A.goal = { x: sh.x + rr(-10, 10), y: sh.y + 20, near: 14 }; return 'goto'; } }
   { const m = corrPlan(p, A, vis); if (m) return m; }
   { const m = cfontPlan(p, A, vis); if (m) return m; }
   if (A.pingSpot && A.pingSpotUntil > G.time && safeAt(A.pingSpot.x, A.pingSpot.y, 20)) { if (d2(p.x, p.y, A.pingSpot.x, A.pingSpot.y) < 40 * 40) A.pingSpot = null; else { A.goal = { x: A.pingSpot.x + rr(-16, 16), y: A.pingSpot.y + rr(-16, 16), near: 30 }; return 'goto'; } }
   { const m = joinPlan(p, A); if (m) return m; }
   if (A.helpT > 0 && H && H.state === 'up') { A.goal = { x: H.x, y: H.y, near: 40 }; return 'goto'; }
   // a Krystal Font close by is worth the detour right now (each Font serves only one of us)
-  { const m = fontPlan(p, A, vis, 800); if (m) return m; }
+  { const m = fontPlan(p, A, vis, 1100); if (m) return m; }
   // coins
   let coin = null; bd = (G.botPlan && G.botPlan.B.lab ? 50 : 120) ** 2;
   for (const k of G.coins) { if (k.botSkip > G.time) continue; const dd = d2(k.x, k.y, p.x, p.y); if (dd < bd && losClear(p.x, p.y, k.x, k.y)) { bd = dd; coin = k; } }
@@ -7064,7 +7084,8 @@ function pickCamp(p, relaxed) {
   for (const r of G.rooms) {
     if (!(r.type === 'themed' || r.type === 'castle') || r.spawnedDay !== G.day) continue;
     if (r.cleared && r.alive < 3) continue; // cleared rooms refill with stragglers: still worth a visit
-    if (r.castle && (r.sub === 'tower' || r.sub === 'keep')) continue; // Dream Palace bosses are raided as a planned team (embersPlan)
+    if (r.castle && (r.sub === 'tower' || r.sub === 'keep')) continue;
+    if (r.castle && p.ai.labOut > G.time) continue; /* just walked out of the burning palace */ // Dream Palace bosses are raided as a planned team (embersPlan)
     { const rb = bmAt(r.px, r.py); if (rb >= 0 && sealHolds(G.biomes[rb]) && rb !== bmAt(p.x, p.y)) continue; }
     const bossAlive = r.type === 'castle' ? (r.hasBoss && !r.bossDone) : (r.hasBoss && !r.bossKilled && r.bossDone !== G.day);
     if (r.alive <= 0 && !bossAlive) continue;
@@ -7080,7 +7101,45 @@ function pickCamp(p, relaxed) {
   }
   return best;
 }
-function bestPurchase(p) {
+/* chests worth a detour right now: every free reward chest (nobody else is heading for it), and a paid chest close by when the gold is spare */
+function restShrine(p, vis) {
+  if (G.phase !== 'day' && G.phase !== 'embers') return null;
+  if (vis.length && vis[0].d < 100 && vis[0].e.aggro) return null;
+  const need = (1 - p.hp / p.maxHp) + Math.max(0, flaskMax(p) - p.flasks) * 0.22;
+  if (need < 0.15) return null;
+  const reach = clamp(need * 1500, 220, 1100), here = bmAt(p.x, p.y), sealed = here >= 0 && sealHolds(G.biomes[here]);
+  let best = null, bd = reach * reach;
+  for (const it of G.inter) {
+    if (it.kind !== 'shrine') continue;
+    const dd = d2(it.x, it.y, p.x, p.y); if (dd > bd) continue;
+    const ib = bmAt(it.x, it.y); if (sealed && ib !== here) continue; if (!sealed && ib >= 0 && sealHolds(G.biomes[ib])) continue;
+    if (!campSafe(p, it.x, it.y, 30, 3)) continue;
+    if (G.enemies.some(e => !e.dead && !e.def.objective && e.type !== 'dummy' && (e.boss || e.champ || e.castle) && d2(e.x, e.y, it.x, it.y) < 170 * 170)) continue; /* a guardian sits on it: no rest there */
+    bd = dd; best = it;
+  }
+  return best;
+}
+function lootFor(p, vis) {
+  if (vis.length && vis[0].d < 120 && vis[0].e.aggro) return null;
+  const here = bmAt(p.x, p.y), sealed = here >= 0 && sealHolds(G.biomes[here]), lc = levelCost(p);
+  let best = null, bs = 1e12;
+  for (const it of G.inter) {
+    if (it.kind !== 'chest' || it.used) continue;
+    const dd = Math.hypot(it.x - p.x, it.y - p.y);
+    if (it.free ? dd > 1100 : dd > 320) continue;
+    if (!it.free) { const cost = chestCost(it, p); if (p.gold < cost || (lc != null && p.gold - cost < lc && p.gold < lc * 1.6)) continue; }
+    if (G.players.some(q => q !== p && q.ai && q.ai.goal && q.ai.goal.it === it)) continue;
+    if (G.players.some(q => !q.isBot && q.state === 'up' && d2(q.x, q.y, it.x, it.y) < 220 * 220 && d2(q.x, q.y, it.x, it.y) < dd * dd)) continue; /* the human is right there: theirs */
+    if (p.ai.badGoal && p.ai.badGoal.until > G.time && Math.abs(p.ai.badGoal.x - it.x) < 20 && Math.abs(p.ai.badGoal.y - it.y - 6) < 20) continue;
+    const ib = bmAt(it.x, it.y); if (sealed && ib !== here) continue; if (!sealed && ib >= 0 && sealHolds(G.biomes[ib])) continue;
+    if (!campSafe(p, it.x, it.y, 20, 4)) continue;
+    if (it.room && !it.room.cleared && G.enemies.some(e => !e.dead && e.room === it.room && d2(e.x, e.y, it.x, it.y) < 90 * 90)) continue; /* monsters still on it */
+    const sc = dd - (it.free ? 250 : 0) - (it.rare ? 120 : 0);
+    if (sc < bs) { bs = sc; best = it; }
+  }
+  return best;
+}
+function bestPurchase(p, lastShop) {
   let best = null, bs = -1;
   const lc = levelCost(p);
   for (const it of G.inter) {
@@ -7095,9 +7154,13 @@ function bestPurchase(p) {
       else score = 4 + RARITY[it.item.rarity].rank * 1.5;
     }
     // keep gold for levels unless rich
-    if (score && lc != null && p.gold - pr.cost < lc && p.gold < lc * 2) score -= 8; // a level comes first
-    if (score && lc != null && p.gold - pr.cost < lc * 0.6 && p.level < 6) score -= 3;
-    score -= Math.hypot(it.x - p.x, it.y - p.y) / 250;
+    /* a level comes first (free chests cost nothing; in the last Bazaar gold has no later use, so whatever cannot buy a level is spent) */
+    if (score && pr.cost > 0 && !(lastShop && lc != null && p.gold < lc)) {
+      if (lc != null && p.gold - pr.cost < lc && p.gold < lc * 2) score -= 8;
+      if (lc != null && p.gold - pr.cost < lc * 0.6 && p.level < 6) score -= 3;
+    }
+    if (lastShop && score <= 0 && pr.cost > 0 && it.kind === 'stand' && it.item.id !== 'stew' && !(it.item.active && p.active) && !(lc != null && p.gold >= lc)) score = 1; /* still worth something */
+    score -= Math.hypot(it.x - p.x, it.y - p.y) / (lastShop ? 2000 : 250);
     if (score > bs && score > 0) { bs = score; best = it; }
   }
   return best;
@@ -7163,6 +7226,7 @@ function healerFor(p) { let best = null, bd = 1e12; for (const q of G.players) i
 /* a hurt Krystalker with no flask left walks to the healing: a Hymn Pool on the ground, else the nearest Serpent / Goat */
 function healSpot(p) {
   if (p.hp >= p.maxHp * 0.45 || p.flasks > 0 || p.drinkT > 0 || HEALERS.includes(p.char)) return null;
+  { const sh = G.inter.find(i => i.kind === 'shrine' && d2(i.x, i.y, p.x, p.y) < 380 * 380 && safeAt(i.x, i.y, 20, 4) && !(G.enemies.some(e => !e.dead && (e.boss || e.castle) && d2(e.x, e.y, i.x, i.y) < 170 * 170))); if (sh && !G.bossFight) return { x: sh.x, y: sh.y + 20, near: 30 }; }
   const pool = (G.zones || []).find(z => z.kind === 'storm' && z.owner && z.owner.char === 'serpent' && z.t < z.life - 1 && d2(z.x, z.y, p.x, p.y) < 260 * 260);
   if (pool) return { x: pool.x, y: pool.y, near: pool.r * 0.55, pool };
   const h = healerFor(p); if (!h || d2(h.x, h.y, p.x, p.y) > 700 * 700) return null;
@@ -7426,17 +7490,51 @@ function labLeader(B) {
   const inLab = G.players.filter(q => q.state === 'up' && bmAt(q.x, q.y) === B.id);
   return inLab.find(q => !q.isBot) || inLab.sort((a, b) => (a.slot ?? 0) - (b.slot ?? 0))[0] || null;
 }
+/* a Dream Palace hall the fire will not reach while we fight there */
+function labRoomSafe(r) { if (!r || !G.circle) return true; const m = Math.min(r.w, r.h) * TILE * 0.3; return safeAt(r.px, r.py, m, 14); }
+/* the Dream Palace doors as points just outside them (the gate and the side exits) */
+function labExitPts() {
+  const B = G.lab; if (!B) return [];
+  if (B._exits && B._exits.n === B.seals.length) return B._exits.pts;
+  const pts = [];
+  for (const S of B.seals) {
+    let sx = 0, sy = 0, n = 0, cx = 0, cy = 0;
+    for (const [tx, ty] of S.tiles) { cx += tx; cy += ty; for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const x = tx + dx, y = ty + dy; if (tget(x, y) === T_FLOOR && bmAt((x + 0.5) * TILE, (y + 0.5) * TILE) !== B.id && !S.tiles.some(([u, v]) => u === x && v === y)) { sx += x; sy += y; n++; } } }
+    if (!n) continue; cx /= S.tiles.length; cy /= S.tiles.length; const ox = sx / n, oy = sy / n;
+    let fx = ox + (ox - cx) * 2, fy = oy + (oy - cy) * 2; if (tget(Math.floor(fx), Math.floor(fy)) !== T_FLOOR) { fx = ox; fy = oy; }
+    pts.push({ x: (fx + 0.5) * TILE, y: (fy + 0.5) * TILE, S });
+  }
+  B._exits = { n: B.seals.length, pts }; return pts;
+}
+/* leaving a burning Dream Palace: the burnt door with the shortest way out that does not run through the fire */
+function labExit(p) {
+  const A = p.ai; if (A.labEx && A.labExT > G.time) return A.labEx;
+  let best = null, bs = 1e12;
+  for (const e of labExitPts()) {
+    if (!e.S.burnt && sealHolds(G.lab)) continue;
+    pathRules(p, e.x, e.y); const path = findPath(Math.floor(p.x / TILE), Math.floor(p.y / TILE), Math.floor(e.x / TILE), Math.floor(e.y / TILE)); PF.stay = -1; PF.avoid = null; PF.open = null;
+    if (!path || !path.length) continue;
+    let hot = 0; for (let i = 0; i < path.length; i += 2) { const [tx, ty] = path[i]; if (!safeAt((tx + 0.5) * TILE, (ty + 0.5) * TILE, 0, 2 + i * TILE / 80)) hot++; }
+    const sc = path.length + hot * 400 + (safeAt(e.x, e.y, 30, 10) ? 0 : 2000);
+    if (sc < bs) { bs = sc; best = e; }
+  }
+  if (!best) { const g = labGate(); best = g ? { x: g.x, y: g.y + 30 } : safePoint(p); }
+  A.labEx = best; A.labExT = G.time + 2; return best;
+}
 function chalHunt(p, A, B) {
   let boss = null;
   if (B.lab) {
-    const L = labBosses(); if (G.labFocus && (G.labFocus.dead || !L.includes(G.labFocus))) G.labFocus = null;
+    const L = labBosses().filter(e => !G.circle || (e.aggro ? safeAt(e.x, e.y, 0, 4) : labRoomSafe(e.home))); if (G.labFocus && (G.labFocus.dead || !L.includes(G.labFocus))) G.labFocus = null;
     if (!G.labFocus && L.length) { const c = teamCentre(); G.labFocus = L.sort((a, b) => d2(a.x, a.y, c.x, c.y) - d2(b.x, b.y, c.x, c.y))[0]; }
     boss = G.labFocus;
     if (!boss) { const h = G.castle.hall; A.goal = { x: h.px + rr(-30, 30), y: h.py + rr(-20, 20), near: 40 }; return 'goto'; }
     // regroup before pulling the next guardian
     const room = boss.home;
     // before the next guardian (above all the Keep): heal up at a Dream Palace shrine, drink if needed
-    if (!boss.aggro && p.hp < p.maxHp * (room.sub === 'keep' ? 0.85 : 0.6)) { const sh = G.inter.filter(i => i.kind === 'shrine' && bmAt(i.x, i.y) === B.id).sort((a, b) => d2(a.x, a.y, p.x, p.y) - d2(b.x, b.y, p.x, p.y))[0]; if (sh) { botAnnounce(p, 'Healing up before the next guardian', 'labheal' + boss.type); A.goal = { x: sh.x + rr(-10, 10), y: sh.y + 22, near: 16 }; return 'goto'; } if (p.flasks > 0 && p.hp < p.maxHp * 0.6) A.drinkNow = true; A.goal = { x: p.x, y: p.y, near: 999 }; return 'idle'; }
+    if (!boss.aggro && p.hp < p.maxHp * (room.sub === 'keep' ? 0.85 : 0.6)) { const sh = G.inter.filter(i => i.kind === 'shrine' && bmAt(i.x, i.y) === B.id && safeAt(i.x, i.y, 20, 10)).sort((a, b) => d2(a.x, a.y, p.x, p.y) - d2(b.x, b.y, p.x, p.y))[0]; if (sh) { botAnnounce(p, 'Healing up before the next guardian', 'labheal' + boss.type); A.goal = { x: sh.x + rr(-10, 10), y: sh.y + 22, near: 16 }; return 'goto'; } /* no safe shrine: drink, or let the healer top us up; with nothing that heals, waiting is pointless: go on */
+      if (p.flasks > 0 && p.hp < p.maxHp * 0.6) { A.drinkNow = true; A.goal = { x: p.x, y: p.y, near: 999 }; return 'idle'; }
+      const hv = healAnchor(p); if (hv) { A.goal = { x: hv.x, y: hv.y, near: hv.near }; return 'goto'; }
+      if (p.st.regen > 0 && p.hp < p.maxHp * 0.5) { A.goal = { x: p.x, y: p.y, near: 999 }; return 'idle'; } }
     if (!boss.aggro && room.sub === 'keep') { const lc = levelCost(p), sh = lc != null && p.gold >= lc ? G.inter.find(i => i.kind === 'shrine' && bmAt(i.x, i.y) === B.id) : null; if (sh) { A.goal = { x: sh.x, y: sh.y, near: 18, use: true, it: sh }; return 'goto'; } }
     if (!boss.aggro) { const mates = G.players.filter(q => q.state === 'up' && bmAt(q.x, q.y) === B.id); const ex = exitPoint(room, teamCentre()); if (mates.some(q => d2(q.x, q.y, ex.x, ex.y) > 170 * 170) && d2(p.x, p.y, ex.x, ex.y) < 170 * 170) { A.goal = { x: ex.x + rr(-20, 20), y: ex.y + rr(-20, 20), near: 30 }; return 'goto'; } if (d2(p.x, p.y, ex.x, ex.y) > 170 * 170) { A.goal = { x: ex.x, y: ex.y, near: 40 }; return 'goto'; } }
   } else boss = B.chal && B.chal.boss;
@@ -7455,6 +7553,7 @@ function joinPlan(p, A) {
     if (!sealHolds(B) || here === B.id) continue;
     if (!G.players.some(q => q !== p && q.state !== 'dead' && bmAt(q.x, q.y) === B.id)) continue;
     if (p.level < chalRec(B) - (B.lab ? 4 : 2)) continue;
+    if (B.lab && p.ai.labOut > G.time) continue;
     const r = B.lab ? G.castle.hall : B.altarRoom; if (!r || !campSafe(p, r.px, r.py, 40, 30)) continue;
     botAnnounce(p, `Joining ${B.lab ? "the Dream Palace" : "the " + B.name} challenge`, 'join' + B.id);
     A.goal = { x: r.px + rr(-20, 20), y: r.py + rr(-20, 20), near: 40 }; return 'goto';
@@ -7535,12 +7634,12 @@ function altarPlan(p, A) {
 function fontPlan(p, A, vis, reach = 1300) {
   if (G.phase !== 'day' || (vis.length && vis[0].d < 160) || flaskCapped(p)) return null;
   // share them out: a bot already 2 upgrades ahead of a teammate leaves the Fonts to the others
-  const lowest = Math.min(...G.players.filter(q => q !== p && q.state !== 'dead').map(q => q.flaskUp || 0)); if ((p.flaskUp || 0) >= lowest + 2) return null;
+  const lowest = Math.min(...G.players.filter(q => q !== p && q.state !== 'dead' && q.isBot).map(q => q.flaskUp || 0)); const spare = G.inter.filter(i => i.kind === 'font' && !i.used).length >= G.players.filter(q => q.isBot && q.state !== 'dead').length; if (!spare && (p.flaskUp || 0) >= lowest + 2) return null; /* share them among bots only while they are scarce; a human takes the Fonts they walk to */
   if (A.fontTgt && (fontTaken(A.fontTgt, p) || G.time > A.fontUntil)) { if (G.time > A.fontUntil && !fontTaken(A.fontTgt, p)) A.fontSkip = A.fontTgt; A.fontTgt = null; }
   if (!A.fontTgt) {
     const here = bmAt(p.x, p.y), sealed = here >= 0 && sealHolds(G.biomes[here]);
     let best = null, bd = reach * reach;
-    for (const it of G.inter) { if (it.kind !== 'font' || fontTaken(it, p) || it === A.fontSkip || fontBusy(it, p) || G.players.some(q => q !== p && q.ai && q.ai.fontTgt === it)) continue; const ib = bmAt(it.x, it.y); if (sealed && ib !== here) continue; if (!sealed && ib >= 0 && sealHolds(G.biomes[ib])) continue; if (!campSafe(p, it.x, it.y, 40, 20)) continue; const dd = d2(it.x, it.y, p.x, p.y); if (dd < bd) { bd = dd; best = it; } }
+    for (const it of G.inter) { if (it.kind !== 'font' || fontTaken(it, p) || it === A.fontSkip || fontBusy(it, p) || G.players.some(q => q !== p && q.ai && q.ai.fontTgt === it) || G.players.some(q => !q.isBot && q.state === 'up' && !flaskCapped(q) && d2(q.x, q.y, it.x, it.y) < 300 * 300 && d2(q.x, q.y, it.x, it.y) < d2(p.x, p.y, it.x, it.y))) continue; const ib = bmAt(it.x, it.y); if (sealed && ib !== here) continue; if (!sealed && ib >= 0 && sealHolds(G.biomes[ib])) continue; if (!campSafe(p, it.x, it.y, 40, 20)) continue; const dd = d2(it.x, it.y, p.x, p.y); if (dd < bd) { bd = dd; best = it; } }
     if (!best) return null;
     A.fontTgt = best; A.fontUntil = G.time + 50;
   }
