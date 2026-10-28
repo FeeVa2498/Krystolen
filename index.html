@@ -3743,7 +3743,7 @@ const CHARS = {
   hedgehog: {
     name: 'Hedgehog', role: 'Balanced gunner', color: '#e0a868', hp: 100, spd: 82, range: 110, weapon: 'w_minigun', wx: 3,
     lmb: 'Minigun. Hold to fire. Long bursts overheat the gun; while it cools, attacks become a melee bash.',
-    sp: 'Roll. A quick dodge, invulnerable while rolling.',
+    sp: 'Roll. A quick dodge, invulnerable while rolling. Your Spiny Back skewers every enemy you roll into (damage, Bleed, a short stun).',
     q: 'Barrage. 2.5s of extreme fire rate. The recoil hurls you backward fast and you cannot brake: steer only by turning your aim. Then the gun overheats. Used while overheated it becomes Furnace Flurry: 1.6s of lightning-fast red-hot bashes, after which the gun has cooled.',
     init(p) { p.heat = 0; p.over = false; p.barrage = 0; p.fired = 0; p.bT = 0; p.qn = 0; },
     quill(p, a, spd, dmg, o) {
@@ -5177,7 +5177,7 @@ function addBearDialogue() {
 // the supports (Polar Bear, Serpent, Goat, Beaver) a little lower (~42); area/chain kits a touch lower too (~44)
 const CHAR_DMG = { hedgehog: 1.14, crow: 1.34, pangolin: 0.5, reindeer: 1.6, rabbit: 1.09, wolf: 0.75, goat: 1.42, lizard: 0.54, serpent: 1.15, beaver: 1.6, owl: 0.88, monkey: 1.25, bear: 1.0 };
 const PASSIVES = {
-  hedgehog: { name: 'Spiny Back', desc: 'Hits from behind you deal 40% less damage, and enemies that touch your back are pricked by your spines (damage and knockback).' },
+  hedgehog: { name: 'Spiny Back', desc: 'Hits from behind you deal 40% less damage, and enemies that touch your back are pricked by your spines (damage, Bleed and knockback). Rolling turns you into a spiked ball: everything you roll into is skewered hard (damage, Bleed, a short stun).' },
   crow: { name: 'Arcane Echo', desc: 'Every fourth Arcane Orb explodes a second time a moment later.' },
   pangolin: { name: 'Thick Scales', desc: 'You take 10% less damage, and 25% less while below half health.' },
   reindeer: { name: 'Static Fur', desc: 'Walking builds static. After 1.5s on the move, your next Arc Bolt jumps to 2 extra enemies.' },
@@ -5217,11 +5217,26 @@ function updatePassives(dt) {
     if (p.state !== 'up') continue;
     if (p.char === 'beaver') p.stillT = p.moving ? 0 : (p.stillT || 0) + dt;
     if (p.char === 'reindeer' && p.moving) { p.staticT = Math.min(3, (p.staticT || 0) + dt); if (p.staticT >= 1.5 && R() < 0.2) burst(p.x + rr(-6, 6), p.y - rr(4, 16), '#bff4ff', 1, 16, 0.3, { shape: 'spark', glow: true }); }
-    if (p.char === 'hedgehog') for (const e of G.enemies) {
-      if (e.dead || e.hidden || (e.spineT || 0) > G.time || d2(e.x, e.y, p.x, p.y) > (p.r + e.r + 7) ** 2) continue;
-      if (Math.abs(angDiff(p.aimA, Math.atan2(e.y - p.y, e.x - p.x))) < 1.9) continue;
-      e.spineT = G.time + 0.5; damage(e, 7 * p.st.dmg, p, { kb: 160, kbAng: Math.atan2(e.y - p.y, e.x - p.x), proc: true, noCrit: true, elem: 'bleed', color: '#ffe08a' });
-      burst(e.x, e.y - 6, '#ffe08a', 4, 50, 0.25, { shape: 'spark' });
+    if (p.char === 'hedgehog') {
+      /* Spiny Back. Rolling turns the whole hedgehog into a spiked ball: it skewers everything it rolls into (any side, wider reach, much harder) */
+      const rolling = !!(p.dash && p.dash.roll);
+      if (!rolling) p.rollHit = null; else if (!p.rollHit) p.rollHit = new Set();
+      for (const e of G.enemies) {
+        if (e.dead || e.hidden || e.decoy) continue;
+        const reach = p.r + e.r + (rolling ? 14 : 8); if (d2(e.x, e.y, p.x, p.y) > reach * reach) continue;
+        const ang = Math.atan2(e.y - p.y, e.x - p.x);
+        if (rolling) {
+          if (p.rollHit.has(e)) continue; p.rollHit.add(e);
+          damage(e, 30 * p.st.dmg, p, { kb: e.boss ? 60 : 240, kbAng: ang, stun: e.boss ? 0 : 0.35, elem: 'bleed', color: '#ffe08a' });
+          applyStatus(e, 'bleed', 4, { dmg: 3 * p.st.dmg, src: p });
+          burst(e.x, e.y - 6, '#ffe08a', 10, 90, 0.35, { shape: 'spark' }); shock(e.x, e.y - 4, 14, '#ffcd45', 0.2);
+          continue;
+        }
+        if ((e.spineT || 0) > G.time || Math.abs(angDiff(p.aimA, ang)) < 1.9) continue;
+        e.spineT = G.time + 0.4; damage(e, 14 * p.st.dmg, p, { kb: 200, kbAng: ang, proc: true, noCrit: true, elem: 'bleed', color: '#ffe08a' });
+        applyStatus(e, 'bleed', 3, { dmg: 2 * p.st.dmg, src: p });
+        burst(e.x, e.y - 6, '#ffe08a', 6, 60, 0.25, { shape: 'spark' });
+      }
     }
   }
 }
@@ -6669,7 +6684,7 @@ function sweepChests() { let gone = false; for (const i of G.inter) if ((i.kind 
 { const _up = updatePassives; updatePassives = function (dt) { _up(dt); if (!G.hub) { updateArsenal(dt); updateBossAdds(dt); sweepChests(); } }; }
 // ===== Bot AI =====
 // one difficulty: allied Krystalkers always play as well as they can
-const BOT_SKILL = { err: 0.04, react: 0.11, dodge: 0.85, perfect: 0.85, lead: 1, heatSmart: 0.95 };
+const BOT_SKILL = { err: 0.04, react: 0.11, dodge: 1, perfect: 0.85, lead: 1, heatSmart: 0.95 };
 const PERSONAS = {
   Aggressive: { range: 0.75, retreatHp: 0.2, greed: 0.6, reviveRisk: 4 },
   Careful: { range: 1.25, retreatHp: 0.45, greed: 0.5, reviveRisk: 2 },
@@ -7198,7 +7213,7 @@ function fightMove(p, A, tgt, c, dt, stayZone) {
   const dd = Math.hypot(tgt.x - p.x, tgt.y - p.y);
   const lowHp = p.hp < p.maxHp * A.P.retreatHp;
   const los = losClear(p.x, p.y - 4, tgt.x, tgt.y - 4);
-  if (A.strafeT <= 0) { A.strafeT = rr(0.8, 2); A.strafe = R() < 0.5 ? 1 : -1; }
+  if (A.strafeT <= 0) { const big = tgt.boss || tgt.champ; A.strafeT = big ? rr(3, 5) : rr(0.8, 2); A.strafe = big && A.strafe && R() < 0.7 ? A.strafe : R() < 0.5 ? 1 : -1; }
   const away = Math.atan2(p.y - tgt.y, p.x - tgt.x);
   let mvA = null;
   const hv = healAnchor(p); if (hv && Math.hypot(hv.x - p.x, hv.y - p.y) > hv.near) { goTo(p, A, hv.x, hv.y, c, dt); A.wantMove = true; return; }
@@ -7262,6 +7277,7 @@ function botCombat(p, A, tgt, c, dt, L, def) {
   switch (p.char) {
     case 'hedgehog':
       if (ready('ult') && (p.over ? dd < 40 + (tgt.r || 5) : los && dd < 170 && (n >= 3 || big))) c.ultP = true; // overheated: Furnace Flurry up close
+      if (ready('skill') && !c.ultP && los && dd < 50 + (tgt.r || 5) && dd > 12 && (n >= 2 || !tgt.boss || p.hp > p.maxHp * 0.5)) { const ra = Math.atan2(tgt.y - p.y, tgt.x - p.x); c.skP = true; c.mx = Math.cos(ra); c.my = Math.sin(ra); } /* spiked roll straight through them */
       break;
     case 'crow':
       if (ready('ult') && (big || clusterAt(tgt.x, tgt.y, 46) >= 3) && dd < 170) { c.ultP = true; c.ax = tgt.x; c.ay = tgt.y; c.atk = false; }
@@ -7366,28 +7382,59 @@ function botNewKits(p, A, tgt, c, dd, n, big, los) {
       break;
   }
 }
+/* ---- dodging: sample the next half second of every bullet and telegraph around us and steer through the gaps ----
+   The bot keeps shooting (aim is separate) and only bends its intended move as much as needed. When every way gets hit,
+   it spends an i-frame skill (roll, slither, dash, blink) through the bullets. */
+const DODGE_MOVE = new Set(['hedgehog', 'goat', 'lizard', 'serpent', 'owl', 'monkey']), DODGE_BACK = new Set(['wolf', 'beaver']);
+const DODGE_K = [0.07, 0.15, 0.24, 0.35, 0.48, 0.62];
 function botDodge(p, A, c, L) {
-  if (A.dodgeCd > 0 || busy(p)) return;
-  let threat = null;
+  if (busy(p) || p.state !== 'up') return;
+  const def = CHARS[p.char], spd = def.spd * (p.st.spd || 1) * (p.drinkT > 0 ? 0.45 : 1), hr = p.r * 0.6;
+  const near = [];
   for (const b of G.bullets) {
     if (b.team !== 'enemy') continue;
-    const dx = p.x - b.x, dy = p.y - b.y; const dd = dx * dx + dy * dy; if (dd > 70 * 70) continue;
-    const sp2 = b.vx * b.vx + b.vy * b.vy; const t = (dx * b.vx + dy * b.vy) / sp2;
-    if (t < 0 || t > 0.4) continue;
-    const cx = b.x + b.vx * t - p.x, cy = b.y + b.vy * t - p.y;
-    if (cx * cx + cy * cy < (p.r + b.r + 3) ** 2) { threat = b; break; }
+    const dx = b.x - p.x, dy = b.y - (p.y - 3), dd = dx * dx + dy * dy; if (dd > 200 * 200) continue;
+    if (dx * b.vx + dy * b.vy > 0 && dd > 30 * 30) continue; // flying away from us
+    near.push(b);
   }
-  for (const s of G.tele) if (d2(s.x, s.y, p.x, p.y) < (s.r + 4) ** 2 && s.life - s.t < 0.5) threat = threat || { vx: p.x - s.x || 1, vy: p.y - s.y || 1, tele: true };
-  if (!threat) return;
-  A.dodgeCd = 0.35;
-  if (R() > L.dodge) return;
-  const ba = Math.atan2(threat.vy, threat.vx); const side = R() < 0.5 ? 1 : -1;
-  const da = threat.tele ? ba : ba + side * Math.PI / 2;
-  c.mx = Math.cos(da); c.my = Math.sin(da);
-  if (p.cd.skill <= 0) {
-    if (p.char === 'hedgehog') c.skP = true;
-    if (p.char === 'crow') { c.skP = true; c.ax = p.x + c.mx * 80; c.ay = p.y + c.my * 80; }
-    if (p.char === 'wolf') { c.skP = true; c.ax = p.x - c.mx * 40; c.ay = p.y - c.my * 40; }
+  const teles = G.tele.filter(s => s.life - s.t < 1 && d2(s.x, s.y, p.x, p.y) < ((s.r || 20) + 70) ** 2);
+  const zs = (G.ezones || []).filter(z => d2(z.x, z.y, p.x, p.y) < (z.r + 60) ** 2);
+  if (!near.length && !teles.length) return;
+  const danger = (vx, vy) => {
+    let d = 0;
+    for (const b of near) {
+      const rr2 = (hr + (b.r || 3) + 3.5) ** 2;
+      for (const k of DODGE_K) { const ex = p.x + vx * k - (b.x + b.vx * k), ey = p.y - 3 + vy * k - (b.y + b.vy * k); if (ex * ex + ey * ey < rr2) { d += 1.4 - k * 1.6; break; } }
+    }
+    for (const s of teles) { const left = s.life - s.t, k = clamp(left, 0.05, 0.62); if (d2(p.x + vx * k, p.y + vy * k, s.x, s.y) < ((s.r || 20) + 6) ** 2) d += 1.3; }
+    for (const z of zs) if (d2(p.x + vx * 0.3, p.y + vy * 0.3, z.x, z.y) < (z.r + 4) ** 2) d += 0.5;
+    return d;
+  };
+  const il = Math.hypot(c.mx || 0, c.my || 0), ia = il > 0.1 ? Math.atan2(c.my, c.mx) : null;
+  const d0 = danger(ia == null ? 0 : Math.cos(ia) * spd, ia == null ? 0 : Math.sin(ia) * spd);
+  if (d0 <= 0) return;
+  const tgt = A.target && !A.target.dead ? A.target : null, keep = tgt && (tgt.boss || tgt.champ) ? (tgt.r || 10) + 34 : 0;
+  let best = null, bs = 1e9;
+  for (let i = -1; i < 16; i++) {
+    const a = i < 0 ? null : i * Math.PI / 8 + (A.dodgeSpin || 0);
+    const vx = a == null ? 0 : Math.cos(a) * spd, vy = a == null ? 0 : Math.sin(a) * spd;
+    let d = danger(vx, vy), sc = d * 10;
+    if (a != null && hitsWall(p.x + vx * 0.22, p.y + vy * 0.22, p.r)) sc += 6; // a wall: we would just stand there
+    if (a != null && ia != null) sc += (1 - Math.cos(a - ia)) * 0.7; else if (a == null && ia != null) sc += 0.8;
+    if (keep && a != null && Math.hypot(p.x + vx * 0.4 - tgt.x, p.y + vy * 0.4 - tgt.y) < keep) sc += 3; // never dodge into the boss
+    if (G.circle && G.phase === 'day' && a != null && !safeAt(p.x + vx * 0.5, p.y + vy * 0.5, 0, 1)) sc += 4;
+    if (sc < bs) { bs = sc; best = { a, d }; }
+  }
+  A.dodgeSpin = ((A.dodgeSpin || 0) + 0.37) % (Math.PI / 8);
+  if (best.a == null) { c.mx = 0; c.my = 0; } else { c.mx = Math.cos(best.a); c.my = Math.sin(best.a); }
+  A.dodging = G.time;
+  // no clean way out: burn the i-frames now (skills are spent on dodging only when a hit is coming within ~0.3s)
+  if (best.d >= 0.75 && p.cd.skill <= 0 && !(A.dodgeCd > 0)) {
+    const a = best.a ?? (ia ?? p.aimA) + Math.PI / 2, ca = Math.cos(a), sa = Math.sin(a);
+    if (DODGE_MOVE.has(p.char)) { c.skP = true; c.mx = ca; c.my = sa; }
+    else if (p.char === 'crow') { c.skP = true; c.ax = p.x + ca * 100; c.ay = p.y + sa * 100; }
+    else if (DODGE_BACK.has(p.char)) { c.skP = true; c.ax = p.x - ca * 40; c.ay = p.y - sa * 40; }
+    if (c.skP) A.dodgeCd = 0.4;
   }
 }
 
@@ -9363,6 +9410,49 @@ function cfontPlan(p, A, vis) {
   if (!it) return null;
   A.goal = { x: it.x, y: it.y + 6, near: 12, use: true, it }; return 'goto';
 }
+// ===== Shrines that follow the fire =====
+// Krystal Shrines are rare and the ring / Wildfire swallows them one by one, so late in an Act nobody can level up or rest.
+// While an Act is running we keep at least SAFE_SHRINES shrines in the part of the map the fire will not reach for a while:
+// when one is missing, a new shrine rises in a quiet room near the team (never in a sealed biome, the Dream Palace or the arena).
+const SAFE_SHRINES = 2, SHRINE_AHEAD = 35, SHRINE_CAP = 6;
+function shrineSafe(x, y, m, ahead) {
+  const c = G.circle; if (!c || G.phase !== 'day') return true;
+  if (c.spread) return !fireOut(x, y, m, ahead);
+  return Math.hypot(x - c.x, y - c.y) < Math.min(c.r, predictR(ahead)) - m && Math.hypot(x - predictCentre(ahead).x, y - predictCentre(ahead).y) < predictR(ahead) - m;
+}
+function shrineRoomOk(r) {
+  if (!r || r.castle || r.type === 'castle' || r.type === 'font' || r.type === 'bazaar' || r.type === 'ever' || r.type === 'hub' || r.type === 'void') return false;
+  if (r === G.nightRoom || r === G.bossRoom || r.locked) return false;
+  if (G.nightRooms && G.nightRooms.includes(r)) return false;
+  if (G.inter.some(i => i.kind === 'shrine' && (i.room === r || d2(i.x, i.y, r.px, r.py) < 260 * 260))) return false;
+  const b = bmAt(r.px, r.py); if (b >= 0 && G.biomes[b] && (G.biomes[b].lab || sealHolds(G.biomes[b]))) return false;
+  if (r.type === 'themed' && !r.cleared && G.enemies.some(e => !e.dead && (e.room === r || e.home === r) && (e.champ || e.boss))) return false; // a guardian lives here
+  return true;
+}
+function keepShrines(dt) {
+  if (G.phase !== 'day' || !G.circle || G.hub || G.dev) return;
+  if ((G.shrineChk = (G.shrineChk || 0) - dt) > 0) return; G.shrineChk = 4;
+  if (G.shrineAddDay !== G.day) { G.shrineAdded = 0; G.shrineAddDay = G.day; }
+  if (G.shrineAdded >= SHRINE_CAP) return;
+  const safeN = G.inter.filter(i => i.kind === 'shrine' && shrineSafe(i.x, i.y, 40, SHRINE_AHEAD)).length;
+  if (safeN >= SAFE_SHRINES) return;
+  const al = G.players.filter(q => q.state !== 'dead'); if (!al.length) return;
+  const cx = al.reduce((a, q) => a + q.x, 0) / al.length, cy = al.reduce((a, q) => a + q.y, 0) / al.length;
+  let best = null, bs = 1e12;
+  for (const r of G.rooms) {
+    if (!shrineRoomOk(r) || !shrineSafe(r.px, r.py, 60, SHRINE_AHEAD + 10)) continue;
+    let sc = Math.hypot(r.px - cx, r.py - cy);
+    if (r.type === 'themed' && !r.cleared) sc += 400; // monsters around: resting there is harder
+    if (sc < bs) { bs = sc; best = r; }
+  }
+  if (!best) return;
+  spawnShrine(best, { x: best.px, y: best.py + 4 });
+  const sh = G.inter.find(i => i.kind === 'shrine' && i.room === best); if (!sh) return;
+  sh.day = G.day; sh.safeSpawn = true; G.shrineAdded = (G.shrineAdded || 0) + 1;
+  feed(`A Krystal Shrine rises in ${best.cname || (best.tpl ? best.tpl.name : 'a quiet room')}, safe from the fire for now.`, '#7ff0ff');
+  if (typeof sfx === 'function') sfx('portal');
+}
+{ const _f = updateShrineRest; updateShrineRest = function (dt) { _f(dt); keepShrines(dt); }; }
 // ===== Rendering =====
 const cv = document.getElementById('game'), ctx = cv.getContext('2d');
 let W = 0, H = 0, ZOOM = 3, U = 1, DPR = 1, VIGNETTE = null;
