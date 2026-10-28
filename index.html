@@ -2685,7 +2685,7 @@ function endChallenge(B, won, e) {
   for (const p of G.players) if (p.state === 'downed' && bmAt(p.x, p.y) === B.id && won) { p.state = 'up'; p.hp = Math.round(p.maxHp * 0.6); p.invulnT = 2; p.revive = 0; }
   if (B.bossRoom) B.bossRoom.hasBoss = false;
   if (won) {
-    B.bossKilled = true;
+    B.bossKilled = true; B.conqT = G.time;
     const altar = G.inter.find(i => i.kind === 'altar' && i.B === B);
     if (altar) { G.inter = G.inter.filter(i => i !== altar); const sh = addInter({ kind: 'shrine', x: altar.x, y: altar.y, room: altar.B.altarRoom, r: 16, day: 9, born: G.time }); pillar(sh.x, sh.y, '#7ff0ff', 110, 22, 1.2); glow(sh.x, sh.y - 20, 60, '#7ff0ff', 0.8); }
     setBanner(`${B.name} conquered`, 'Its altar is a Krystal Shrine again.', 3, '#ffe6a0');
@@ -2804,6 +2804,7 @@ function drawAltar(it) {
 }
 function drawBossChest(it) {
   const x = it.x, y = it.y, H0 = human(), mine = H0 && !it.taken.has(H0);
+  if (H0 && !mine && !G.watch) return; /* opened by you: gone from your view */
   shadow(x, y, 10);
   if (mine) { ctx.save(); ctx.globalCompositeOperation = 'lighter'; const g = ctx.createRadialGradient(x, y - 8, 2, x, y - 8, 26); g.addColorStop(0, `rgba(255,212,74,${0.45 + 0.2 * Math.sin(G.time * 4)})`); g.addColorStop(1, 'rgba(255,212,74,0)'); ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y - 8, 26, 0, Math.PI * 2); ctx.fill(); ctx.restore(); }
   ctx.save(); ctx.translate(x, y); ctx.scale(1.35, 1.35); ctx.translate(-x, -y); drawFrame(mine ? SPR.chest : SPR.chestOpen, x, y); ctx.restore();
@@ -5663,7 +5664,7 @@ function killEnemy(e, src) {
     endChallenge(e.chalB, true, e);
   } else if (e.champ) {
     feed(`${e.def.name} defeated! Each player gets a reward, and a Krystal Shrine rises.`, '#ffd44a');
-    spawnRewardOrbs(e.x, e.y, G.day >= 2 ? ODDS.room2 : ODDS.room1, e.def.name, e.room && e.room.tpl && e.room.tpl.elem); e.room.bossDone = G.day; e.room.bossKilled = true; if (e.room.biome) { e.room.biome.bossKilled = true; feed(`${e.room.biome.tpl.name} is conquered!`, '#7ae07a'); schedule(0.6, () => spawnRewardOrbs(e.x, e.y + 26, G.day >= 2 ? ODDS.room2 : ODDS.room1, e.def.name + ' (spoils)', e.room.tpl && e.room.tpl.elem)); } questEvent('champ', e);
+    spawnRewardOrbs(e.x, e.y, G.day >= 2 ? ODDS.room2 : ODDS.room1, e.def.name, e.room && e.room.tpl && e.room.tpl.elem); e.room.bossDone = G.day; e.room.bossKilled = true; if (e.room.biome) { e.room.biome.bossKilled = true; e.room.biome.conqT = G.time; feed(`${e.room.biome.tpl.name} is conquered!`, '#7ae07a'); schedule(0.6, () => spawnRewardOrbs(e.x, e.y + 26, G.day >= 2 ? ODDS.room2 : ODDS.room1, e.def.name + ' (spoils)', e.room.tpl && e.room.tpl.elem)); } questEvent('champ', e);
     spawnShrine(e.room);
   }
   if (e.room && !e.extra) {
@@ -6663,7 +6664,9 @@ function updateBossAdds(dt) {
 }
 { const _sp = spawnEnemy; spawnEnemy = function (type, x, y, o = {}) { const e = _sp(type, x, y, o); if (o.addOf) { e.addOf = o.addOf; e.goldM *= 0.25; e.home = homeRoom(o.addOf); } return e; }; }
 { const _ke = killEnemy; killEnemy = function (e, src) { const was = e.dead; _ke(e, src); if (!was && e.boss) for (const o of G.enemies) if (!o.dead && o.addOf === e) { o.dead = true; burst(o.x, o.y - 6, '#c8c8ff', 8, 50, 0.4); } }; }
-{ const _up = updatePassives; updatePassives = function (dt) { _up(dt); if (!G.hub) { updateArsenal(dt); updateBossAdds(dt); } }; }
+// opened chests vanish (normal chests at once; boss chests once everyone has opened theirs)
+function sweepChests() { let gone = false; for (const i of G.inter) if ((i.kind === 'chest' || i.kind === 'bosschest') && i.used) { gone = true; burst(i.x, i.y - 6, '#ffe6a0', 12, 60, 0.5, { glow: true }); smoke(i.x, i.y - 4, 6, '#d8c8a8', 30, 0.6); } if (gone) G.inter = G.inter.filter(i => !((i.kind === 'chest' || i.kind === 'bosschest') && i.used)); }
+{ const _up = updatePassives; updatePassives = function (dt) { _up(dt); if (!G.hub) { updateArsenal(dt); updateBossAdds(dt); sweepChests(); } }; }
 // ===== Bot AI =====
 // one difficulty: allied Krystalkers always play as well as they can
 const BOT_SKILL = { err: 0.04, react: 0.11, dodge: 0.85, perfect: 0.85, lead: 1, heatSmart: 0.95 };
@@ -8978,7 +8981,7 @@ function corrNest(B) {
   return ok.sort((a, b) => b.w * b.h - a.w * a.h)[0];
 }
 function corrCandidates(loose) {
-  return (G.biomes || []).filter(B => !B.lab && !B.corrupted && !B.chal && (B.bossKilled || loose) && corrNest(B));
+  return (G.biomes || []).filter(B => !B.lab && !B.corrupted && !B.chal && (B.bossKilled || loose) && G.time - (B.conqT ?? -1e9) >= 30 && corrNest(B)); /* never right after the team cleared it */
 }
 function spawnCorruptor(B) {
   const room = corrNest(B); if (!room) return null;
@@ -10211,7 +10214,7 @@ function drawHUD() {
   }
   if (G.watch && G.lord && ENEMY[G.lord]) { const D = ENEMY[G.lord], wk = D.weak && ELEM[D.weak], t = `Dungeon Master: ${D.name}${wk ? ' · weak to ' + wk.name : ' · no weakness'}`, ww2 = 340 * s; panel(cx - ww2 / 2, H - pad - 58 * s, ww2, 24 * s, 0.7, 10 * s); txt(t, cx, H - pad - 41 * s, 10, wk ? wk.color : '#7ff0ff', 'center'); }
   if (G.watch) { const ww = 420 * s; panel(cx - ww / 2, H - pad - 30 * s, ww, 26 * s, 0.7, 10 * s); txt(`WATCHING BOTS · ${SIM_SPEED}x · Tab: next camera · 1-3: speed · V: reveal map & lair ${G.noFog ? "ON" : "off"} · Esc: menu`, cx, H - pad - 12 * s, 10, '#cfe8ff', 'center'); }
-  if (H0 && !G.watch && !G.bigMap) drawEdgeMarkers(H0);
+  if (H0 && !G.watch && !G.bigMap) { drawGuides(H0); drawEdgeMarkers(H0); }
   if (G.stickerOpen) drawStickerWheel();
   if (G.hoverItem && !G.bigMap) drawTooltip(G.hoverItem.it, G.hoverItem.x, G.hoverItem.y + 6 * s, focus);
   if (G.bigMap) drawMinimap(true);
@@ -10536,6 +10539,7 @@ function drawEdgeMarkers(H0) {
   const s = U, m = 46 * s, list = [];
   for (const P of G.piles) if (P.owner === H0) list.push({ x: P.x, y: P.y, col: '#ffd44a', label: `${P.amount}g` });
   for (const P0 of G.pings || []) list.push({ x: P0.x, y: P0.y, col: P0.enemy ? '#ff5a5a' : '#ffd44a', label: P0.enemy ? '!' : '📍' });
+  for (const g of guideTargets(H0)) if (g.kind !== 'ping') list.push(g);
   for (const t of list) {
     const sp = worldToScreen(t.x, t.y); if (sp.x > m && sp.x < W - m && sp.y > m && sp.y < H - m) continue;
     const cx = W / 2, cy = H / 2, a = Math.atan2(sp.y - cy, sp.x - cx), k = Math.min((W / 2 - m) / Math.abs(Math.cos(a) || 1e-6), (H / 2 - m) / Math.abs(Math.sin(a) || 1e-6));
@@ -10543,6 +10547,43 @@ function drawEdgeMarkers(H0) {
     ctx.save(); ctx.translate(x, y); ctx.rotate(a); ctx.fillStyle = t.col; ctx.strokeStyle = UI.edge; ctx.lineWidth = 1.5 * s;
     ctx.beginPath(); ctx.moveTo(14 * s, 0); ctx.lineTo(-6 * s, -9 * s); ctx.lineTo(-2 * s, 0); ctx.lineTo(-6 * s, 9 * s); ctx.closePath(); ctx.fill(); ctx.stroke(); ctx.restore();
     txt(`${t.label} ${d}m`, x - Math.cos(a) * 26 * s, y - Math.sin(a) * 22 * s + 4 * s, 10, t.col, 'center', FONT2);
+  }
+}
+
+// ---- guide arrows: a small compass around you points along the walkable way to what matters right now ----
+function guideTargets(H0) {
+  const out = [];
+  if (G.bell && G.bellMode && G.phase === 'day' && bellOpenIn() <= 0 && !inRoom(G.nightRoom, H0.x, H0.y, -8)) out.push({ kind: 'bell', x: G.bell.x, y: G.bell.y, col: '#ffe6a0', label: '🔔' });
+  for (const it of G.inter) if (it.kind === 'bosschest' && !it.used && !it.taken.has(H0)) out.push({ kind: 'chest', x: it.x, y: it.y, col: '#ffd44a', label: '▣', it });
+  for (const P0 of G.pings || []) if (P0.by && P0.by !== H0) out.push({ kind: 'ping', x: P0.x, y: P0.y, col: P0.enemy ? '#ff5a5a' : '#7ff0ff', label: P0.enemy ? '!' : '📍' });
+  return out;
+}
+function guideDir(H0, t) {
+  // cached path to the target: the arrow follows corridors instead of pointing through walls
+  const G0 = H0.guides || (H0.guides = new Map()), key = Math.floor(t.x / TILE) + ',' + Math.floor(t.y / TILE); let c = G0.get(key);
+  if (!c || G.time - c.t > 0.6) {
+    const sx = Math.floor(H0.x / TILE), sy = Math.floor(H0.y / TILE), path = findPath(sx, sy, Math.floor(t.x / TILE), Math.floor(t.y / TILE), 40000);
+    let wx = t.x, wy = t.y; if (path && path.length > 2) { const w = path[Math.min(path.length - 1, 5)]; wx = (w[0] + 0.5) * TILE; wy = (w[1] + 0.5) * TILE; }
+    c = { t: G.time, wx, wy, steps: path ? path.length : null }; G0.set(key, c);
+    if (G0.size > 12) G0.delete(G0.keys().next().value);
+  }
+  return c;
+}
+function drawGuides(H0) {
+  if (H0.state !== 'up' || G.hub) return;
+  const s = U, me = worldToScreen(H0.x, H0.y - 10), groups = [];
+  for (const t of guideTargets(H0)) {
+    const d = Math.hypot(t.x - H0.x, t.y - H0.y); if (d < 70) continue;
+    const c = guideDir(H0, t), wp = worldToScreen(c.wx, c.wy), a = Math.atan2(wp.y - me.y, wp.x - me.x);
+    let g = groups.find(q => Math.abs(angDiff(q.a, a)) < 0.4); if (!g) groups.push(g = { a, items: [] });
+    g.items.push({ t, d });
+  }
+  for (const g of groups) {
+    const a = g.a, R0 = 72 * s, x = me.x + Math.cos(a) * R0, y = me.y + Math.sin(a) * R0, pulse = 1 + 0.12 * Math.sin(G.time * 6), col = g.items[0].t.col;
+    ctx.save(); ctx.translate(x, y); ctx.rotate(a); ctx.scale(pulse, pulse); ctx.globalAlpha = 0.92;
+    ctx.fillStyle = col; ctx.strokeStyle = UI.edge; ctx.lineWidth = 1.4 * s;
+    ctx.beginPath(); ctx.moveTo(16 * s, 0); ctx.lineTo(-7 * s, -10 * s); ctx.lineTo(-2 * s, 0); ctx.lineTo(-7 * s, 10 * s); ctx.closePath(); ctx.fill(); ctx.stroke(); ctx.restore();
+    g.items.forEach((it, k) => { const lr = R0 + (28 + 15 * k) * s; txt(`${it.t.label} ${Math.round(it.d / TILE)}m`, me.x + Math.cos(a) * lr, me.y + Math.sin(a) * lr + 4 * s + (Math.sin(a) < -0.3 ? -0 : 0), 11, it.t.col, 'center', FONT2); });
   }
 }
 // ===== Menus, input wiring, main loop =====
