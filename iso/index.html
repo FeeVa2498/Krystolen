@@ -2913,9 +2913,7 @@ function damage(target, amt, src, o = {}) {
   }
   if (target.labMob && !labActive()) { if (src && !src.isBot && src.team === 'player' && (target.oorT || 0) < G.time) { target.oorT = G.time + 1.5; floatText(target.x, target.y - target.r - 12, 'Dormant: restore the Dream Palace altar', '#c8c8ff', 0.9); } return 0; }
   if (target.invT > 0) { if (settings.dmgNumbers && R() < 0.2) floatText(target.x, target.y - target.r - 12, 'immune', '#9aa4bd', 0.4); return 0; }
-  // rooms can only be fought from inside: attacks from the corridor do nothing
-  const lair = lairOf(target);
-  if (lair && src && src.team === 'player' && !o.minion && !inRoom(lair, src.x, src.y, 14) && !chalReach(lair, src)) { if (!src.isBot && (target.oorT || 0) < G.time) { target.oorT = G.time + 1.2; floatText(target.x, target.y - target.r - 12, 'Enter the room to fight', '#ffe6a0', 0.8); } return 0; }
+  /* rooms can be fought from anywhere now (the old 'enter the room to fight' rule is gone) */
   if (!target.aggro) aggroRoom(target);
   let crit = false;
   if (src && src.team === 'player') { const r = playerHitMods(src, target, amt, o); amt = r.amt; crit = r.crit; }
@@ -5341,7 +5339,8 @@ function schedule(t, fn) { G.delayed.push({ t, fn }); }
 function updateDelayed(dt) { for (let i = G.delayed.length - 1; i >= 0; i--) { const d = G.delayed[i]; d.t -= dt; if (d.t <= 0) { G.delayed.splice(i, 1); d.fn(); } } }
 // the room a monster belongs to (its "lair"); room monsters only notice players inside it
 function lairOf(e) { if (e.boss && !e.castle) return null; if (e.labMob) return labArea(); const r = e.home || e.room; return r && (r.type === 'themed' || r.type === 'castle') ? r : null; }
-function inLair(e, p, m = 10) { const L = lairOf(e); return !L || inRoom(L, p.x, p.y, m) || chalReach(L, p); }
+const LAIR_REACH = 140; // room monsters notice and fight anyone near their room, not only inside it (you can shoot in from the doorway, they shoot back)
+function inLair(e, p, m = 10) { const L = lairOf(e); return !L || inRoom(L, p.x, p.y, Math.max(m, LAIR_REACH)) || chalReach(L, p); }
 /* while a biome's challenge runs, its corridors count as part of every room in it */
 function chalReach(L, p) { const B = L && L.biome; return !!(B && B.chal && G.bmask && bmAt(p.x, p.y) === B.id); }
 function nearestUp(e, maxD = 1e9) {
@@ -5451,8 +5450,8 @@ function updateEnemy(e, dt) {
   if (e.champ) { if (champLeash(e, dt)) return; if (!e.aggro) return; }
   else if (!e.castle && lairOf(e)) {
     const L = lairOf(e);
-    if (!inRoom(L, e.x, e.y, 10)) { mobReset(e, true); return; }
-    if (e.aggro && !G.players.some(p => p.state === 'up' && inRoom(L, p.x, p.y, 10))) { e.calm = (e.calm || 0) + dt; if (e.calm > 2.5) { mobReset(e, false); return; } } else e.calm = 0;
+    if (!inRoom(L, e.x, e.y, 90)) { mobReset(e, true); return; }
+    if (e.aggro && !G.players.some(p => p.state === 'up' && inRoom(L, p.x, p.y, LAIR_REACH))) { e.calm = (e.calm || 0) + dt; if (e.calm > 2.5) { mobReset(e, false); return; } } else e.calm = 0;
   }
   if (!tg) { if (!e.boss && !e.def.objective) { const dh = Math.hypot(e.hx - e.x, e.hy - e.y); if (dh > 20) enemyMoveToward(e, { x: e.hx, y: e.hy }, e.spd, dt, losClear(e.x, e.y, e.hx, e.hy)); else if (!e.room || !e.room.locked) e.aggro = false; } return; }
   const dd = Math.hypot(tg.x - e.x, tg.y - e.y), spd = e.spd * slow;
@@ -7248,7 +7247,7 @@ function fightMove(p, A, tgt, c, dt, stayZone) {
   if (A.strafeT <= 0) { A.strafeT = rr(0.8, 2); A.strafe = R() < 0.5 ? 1 : -1; }
   const away = Math.atan2(p.y - tgt.y, p.x - tgt.x);
   let mvA = null;
-  const L0 = lairOf(tgt); if (L0 && !inRoom(L0, p.x, p.y, -4)) { const q = inRoom(L0, tgt.x, tgt.y, -10) ? tgt : { x: L0.px, y: L0.py }; goTo(p, A, q.x, q.y, c, dt); A.wantMove = true; return; }
+  const L0 = lairOf(tgt); if (L0 && !inRoom(L0, p.x, p.y, -4) && (!los || dd > pd + 30)) { /* no need to enter any more: shoot from the doorway when there is a clear shot */ const q = inRoom(L0, tgt.x, tgt.y, -10) ? tgt : { x: L0.px, y: L0.py }; goTo(p, A, q.x, q.y, c, dt); A.wantMove = true; return; }
   if (!los || dd > pd + 30) { if (!lowHp) { goTo(p, A, tgt.x, tgt.y, c, dt); A.wantMove = true; return; } }
   if (p.char === 'lizard' && !lowHp) mvA = dd > pd + 5 ? away + Math.PI + A.strafe * 0.35 : dd < pd - 5 ? away + A.strafe * 0.35 : away + A.strafe * Math.PI / 2; // keep the target right on the ring
   else if (dd < pd - 25 || lowHp) mvA = away + A.strafe * 0.5;
@@ -7259,9 +7258,9 @@ function fightMove(p, A, tgt, c, dt, stayZone) {
   for (const z of G.ezones) if (d2(p.x, p.y, z.x, z.y) < (z.r + 6) ** 2) { mvA = Math.atan2(p.y - z.y, p.x - z.x); break; }
   for (const z of G.bhz || []) if (z.on !== false && d2(p.x, p.y, z.x, z.y) < (z.r + 4) ** 2) { mvA = Math.atan2(p.y - z.y, p.x - z.x); break; }
   let mx = Math.cos(mvA), my = Math.sin(mvA);
-  // room fights happen inside the room: never kite out into the corridor
+  // room fights stay near the room: never kite far down the corridor
   const lair = lairOf(tgt);
-  if (lair && !inRoom(lair, p.x + mx * 18, p.y + my * 18, -8)) { const a2 = Math.atan2(lair.py - p.y, lair.px - p.x); mvA = a2 + A.strafe * 0.6; mx = Math.cos(mvA); my = Math.sin(mvA); }
+  if (lair && !inRoom(lair, p.x + mx * 18, p.y + my * 18, LAIR_REACH - 30)) { const a2 = Math.atan2(lair.py - p.y, lair.px - p.x); mvA = a2 + A.strafe * 0.6; mx = Math.cos(mvA); my = Math.sin(mvA); }
   if (hitsWall(p.x + mx * 10, p.y + my * 10, p.r)) { A.strafe *= -1; mvA = away - A.strafe * Math.PI / 2; mx = Math.cos(mvA); my = Math.sin(mvA); }
   c.mx = mx; c.my = my; A.wantMove = true;
 }
