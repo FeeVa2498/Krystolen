@@ -6966,6 +6966,10 @@ function botControl(p, dt) {
   if (A.jitter > 0) { A.jitter -= dt; c.mx = Math.cos(A.jitA); c.my = Math.sin(A.jitA); }
   // ---- aim & shoot whatever is around ----
   if (tgt) botCombat(p, A, tgt, c, dt, L, def);
+  else if (p.char === 'serpent' && p.cd.ult <= 0 && !busy(p)) { /* nothing to shoot: still pour a Hymn Pool on a hurt teammate */
+    const q = G.players.filter(o => o.state === 'up' && o.hp < o.maxHp * 0.6 && d2(o.x, o.y, p.x, p.y) < 140 * 140).sort((a, b) => a.hp / a.maxHp - b.hp / b.maxHp)[0];
+    if (q && !(G.zones || []).some(z => z.owner === p && z.kind === 'storm' && d2(z.x, z.y, q.x, q.y) < 30 * 30)) { c.ultP = true; c.ax = q.x; c.ay = q.y; }
+  }
   else if (!c.atk) { const a = (c.mx || c.my) ? Math.atan2(c.my, c.mx) : p.aimA; c.ax = p.x + Math.cos(a) * 40; c.ay = p.y + Math.sin(a) * 40; }
   botDodge(p, A, c, L);
   // wolf reload timing
@@ -7066,6 +7070,12 @@ function decideMode(p, A, vis) {
   const hereR = roomAt(p.x, p.y);
   if (p.hp < p.maxHp * 0.28 && vis.length && vis[0].d < 170 && hereR && (hereR.type === 'themed' || hereR.type === 'castle') && !labFight(p) && !(p.char === 'serpent' && p.cd.ult <= 0)) { const ex = exitPoint(hereR, p); A.goal = { x: ex.x, y: ex.y, near: 14 }; A.fleeing = G.time + 3; return 'goto'; }
   if (A.fleeing > G.time && A.goal) return 'goto';
+  { const hv = healAnchor(p); if (hv && !(vis.length && vis[0].d < 70)) {
+    if (hv.h) botAnnounce(p, `Out of flasks: coming to ${hv.h.isBot ? hv.h.name : 'you'} for healing!`, 'needheal' + Math.floor(G.time / 25));
+    if (hv.pt && hv.pt.hp < hv.pt.maxHp * 0.4) botAnnounce(p, `Hold on ${hv.pt.isBot ? hv.pt.name : ''}, healing you!`, 'healing' + Math.floor(G.time / 25));
+    if (Math.hypot(hv.x - p.x, hv.y - p.y) > hv.near) { A.goal = { x: hv.x, y: hv.y, near: hv.near * 0.8 }; return 'goto'; }
+    if (vis.length) return 'fight';
+  } }
   if (A.pingEnemy && !A.pingEnemy.dead) { const pe = A.pingEnemy; if (d2(pe.x, pe.y, p.x, p.y) < 160 * 160 && losClear(p.x, p.y, pe.x, pe.y)) { A.target = pe; return 'fight'; } A.goal = { x: pe.x, y: pe.y, near: 60 }; return 'goto'; }
   const myB = biomeAt(p.x, p.y);
   /* the ring has reached the Dream Palace: leave through the burnt gate and farm elsewhere */
@@ -7247,6 +7257,7 @@ function fightMove(p, A, tgt, c, dt, stayZone) {
   if (A.strafeT <= 0) { A.strafeT = rr(0.8, 2); A.strafe = R() < 0.5 ? 1 : -1; }
   const away = Math.atan2(p.y - tgt.y, p.x - tgt.x);
   let mvA = null;
+  const hv = healAnchor(p); if (hv && Math.hypot(hv.x - p.x, hv.y - p.y) > hv.near) { goTo(p, A, hv.x, hv.y, c, dt); A.wantMove = true; return; }
   const L0 = lairOf(tgt); if (L0 && !inRoom(L0, p.x, p.y, -4) && (!los || dd > pd + 30)) { /* no need to enter any more: shoot from the doorway when there is a clear shot */ const q = inRoom(L0, tgt.x, tgt.y, -10) ? tgt : { x: L0.px, y: L0.py }; goTo(p, A, q.x, q.y, c, dt); A.wantMove = true; return; }
   if (!los || dd > pd + 30) { if (!lowHp) { goTo(p, A, tgt.x, tgt.y, c, dt); A.wantMove = true; return; } }
   if (p.char === 'lizard' && !lowHp) mvA = dd > pd + 5 ? away + Math.PI + A.strafe * 0.35 : dd < pd - 5 ? away + A.strafe * 0.35 : away + A.strafe * Math.PI / 2; // keep the target right on the ring
@@ -7262,7 +7273,30 @@ function fightMove(p, A, tgt, c, dt, stayZone) {
   const lair = lairOf(tgt);
   if (lair && !inRoom(lair, p.x + mx * 18, p.y + my * 18, LAIR_REACH - 30)) { const a2 = Math.atan2(lair.py - p.y, lair.px - p.x); mvA = a2 + A.strafe * 0.6; mx = Math.cos(mvA); my = Math.sin(mvA); }
   if (hitsWall(p.x + mx * 10, p.y + my * 10, p.r)) { A.strafe *= -1; mvA = away - A.strafe * Math.PI / 2; mx = Math.cos(mvA); my = Math.sin(mvA); }
+  if (hv && Math.hypot(p.x + mx * 10 - hv.x, p.y + my * 10 - hv.y) > hv.near) { const a3 = Math.atan2(hv.y - p.y, hv.x - p.x) + A.strafe * 1.2; mx = Math.cos(a3) * 0.5; my = Math.sin(a3) * 0.5; } /* stay in the healing */
   c.mx = mx; c.my = my; A.wantMove = true;
+}
+/* ---- support: who heals, who needs it ---- */
+const HEALERS = ['serpent', 'goat'];
+function healerFor(p) { let best = null, bd = 1e12; for (const q of G.players) if (q !== p && q.state === 'up' && HEALERS.includes(q.char)) { const dd = d2(q.x, q.y, p.x, p.y); if (dd < bd) { bd = dd; best = q; } } return best; }
+/* a hurt Krystalker with no flask left walks to the healing: a Hymn Pool on the ground, else the nearest Serpent / Goat */
+function healSpot(p) {
+  if (p.hp >= p.maxHp * 0.45 || p.flasks > 0 || p.drinkT > 0 || HEALERS.includes(p.char)) return null;
+  const pool = (G.zones || []).find(z => z.kind === 'storm' && z.owner && z.owner.char === 'serpent' && z.t < z.life - 1 && d2(z.x, z.y, p.x, p.y) < 260 * 260);
+  if (pool) return { x: pool.x, y: pool.y, near: pool.r * 0.55, pool };
+  const h = healerFor(p); if (!h || d2(h.x, h.y, p.x, p.y) > 700 * 700) return null;
+  return { x: h.x, y: h.y, near: h.char === 'goat' ? goatRange(h) * 0.5 : 34, h };
+}
+/* healers: the most hurt teammate worth walking toward (no flasks left counts as more hurt) */
+function patientFor(p) {
+  if (!HEALERS.includes(p.char) || p.hp < p.maxHp * 0.3) return null;
+  let best = null, bk = 0.6; for (const q of G.players) if (q !== p && q.state === 'up') { const k = q.hp / q.maxHp - (q.flasks > 0 ? 0 : 0.12); if (k < bk && d2(q.x, q.y, p.x, p.y) < 500 * 500) { bk = k; best = q; } }
+  return best;
+}
+function healAnchor(p) {
+  const hs = healSpot(p); if (hs) return hs;
+  const pt = patientFor(p); if (!pt) return null;
+  return { x: pt.x, y: pt.y, near: p.char === 'goat' ? goatRange(p) * 0.55 : 105, pt };
 }
 function botCombat(p, A, tgt, c, dt, L, def) {
   // lead the target
@@ -7326,9 +7360,10 @@ function botNewKits(p, A, tgt, c, dd, n, big, los) {
   const ready = s => p.cd[s] <= 0 && !busy(p), allies = G.players.filter(q => q.state === 'up');
   switch (p.char) {
     case 'goat': {
-      const hurt = allies.find(q => q.hp < q.maxHp * 0.55 && d2(q.x, q.y, p.x, p.y) < 80 * 80);
-      const close = dd < 38, want = !close ? (p.lastSong === 'hymn' && !(p.songs && p.songs.hymn) ? 'AAA' : 'AAA') : hurt ? 'ABA' : n >= 3 ? 'BAB' : big ? (p.lastSong === 'hymn' ? 'BBB' : 'AAA') : p.hp < p.maxHp * 0.5 ? 'BBB' : 'AAB';
-      if (dd < 120) { const need = want[(p.notes || '').length] || null; if ((p.notes || '') === want) { c.atk = false; if (ready('ult')) c.ultP = true; } else if (!want.startsWith(p.notes || '')) { p.notes = ''; } else if (need === 'B') { c.atk = false; if (p.altCd <= 0) c.altD = true; } else { c.atk = true; c.altD = false; } }
+      const gr = goatRange(p), lifeOn = p.songs && p.songs.life && p.songs.life.t > 1.5;
+      const hurt = !lifeOn && allies.some(q => q.hp < q.maxHp * 0.62 && d2(q.x, q.y, p.x, p.y) < gr * gr);
+      const close = dd < 38, want = hurt ? 'ABA' : !close ? (p.lastSong === 'hymn' && !(p.songs && p.songs.hymn) ? 'AAA' : 'AAA') : hurt ? 'ABA' : n >= 3 ? 'BAB' : big ? (p.lastSong === 'hymn' ? 'BBB' : 'AAA') : p.hp < p.maxHp * 0.5 ? 'BBB' : 'AAB';
+      if (dd < 120 || hurt) { const need = want[(p.notes || '').length] || null; if ((p.notes || '') === want) { c.atk = false; if (ready('ult')) c.ultP = true; } else if (!want.startsWith(p.notes || '')) { p.notes = ''; } else if (need === 'B') { c.atk = false; if (p.altCd <= 0) c.altD = true; } else { c.atk = true; c.altD = false; } }
       if (ready('skill') && dd > 60 && dd < 160 && los) { c.skP = true; c.mx = Math.cos(Math.atan2(tgt.y - p.y, tgt.x - p.x)); c.my = Math.sin(Math.atan2(tgt.y - p.y, tgt.x - p.x)); }
       break;
     }
@@ -7341,10 +7376,14 @@ function botNewKits(p, A, tgt, c, dd, n, big, los) {
       break;
     }
     case 'serpent': {
-      const hurt = allies.filter(q => q.hp < q.maxHp * 0.65 && d2(q.x, q.y, p.x, p.y) < 150 * 150).sort((a, b) => a.hp / a.maxHp - b.hp / b.maxHp)[0];
+      /* Hymn Pool: drop it where it heals the most missing health (two scratched allies beat one), or on anyone below half */
+      const near = allies.filter(q => q.hp < q.maxHp * 0.8 && d2(q.x, q.y, p.x, p.y) < 150 * 150);
+      let hurt = null, hs = 0; for (const q of near) { let sc = 0; for (const o of near) if (d2(o.x, o.y, q.x, q.y) < 36 * 36) sc += 1 - o.hp / o.maxHp; if (sc > hs) { hs = sc; hurt = q; } }
+      if (hurt && !(hs > 0.45 || near.some(q => q.hp < q.maxHp * 0.5))) hurt = null;
+      if (hurt && (G.zones || []).some(z => z.owner === p && z.kind === 'storm' && z.t < z.life - 1.5 && d2(z.x, z.y, hurt.x, hurt.y) < 30 * 30)) hurt = null;
       if (ready('ult')) { if (hurt) { c.ultP = true; c.ax = hurt.x; c.ay = hurt.y; } else if (clusterAt(tgt.x, tgt.y, 40) >= 3 && dd < 140) { c.ultP = true; c.ax = tgt.x; c.ay = tgt.y; } }
       const downed = G.players.filter(q => q.state === 'downed').length, low = allies.filter(q => q.hp < q.maxHp * 0.35).length;
-      if (p.level >= ULT_LEVEL && p.cd.super <= 0 && !busy(p) && ((G.bossFight && downed >= 1) || low >= 2 || downed >= 2)) c.supP = true;
+      if (p.level >= ULT_LEVEL && p.cd.super <= 0 && !busy(p) && ((G.bossFight && downed >= 1) || low >= 2 || downed >= 2 || (G.bossFight && allies.some(q => q.hp < q.maxHp * 0.2 && !(q.flasks > 0))))) c.supP = true;
       if (ready('skill') && dd < 40) { const a = Math.atan2(p.y - tgt.y, p.x - tgt.x); c.skP = true; c.mx = Math.cos(a); c.my = Math.sin(a); }
       break;
     }
@@ -10125,7 +10164,7 @@ function renderWorld(dt, sx, sy) {
   drawAimHelpers(human());
   for (const p of G.players) up(p.y, () => {
     if (p.state === 'dead') return;
-    drawWolfReload(p); drawHeatBar(p); drawBearBar(p); drawStamina(p);
+    drawWolfReload(p); drawHeatBar(p); drawBearBar(p); drawStamina(p); drawFootHp(p);
     if (p.state === 'up') drawStatusIcons(p, p.y - (p.isBot ? 41 : 36) - ((p.char === 'wolf' && (p.reload || !p.loaded)) || (p.char === 'hedgehog' && (p.heat > 0.02 || p.over)) ? 8 : 0));
     if (p.isBot) { ctx.font = `6.5px ${FONT}`; ctx.textAlign = 'center'; ctx.lineWidth = 2; ctx.strokeStyle = OUTL; const ty = p.y - 34; ctx.strokeText(p.name, p.x, ty); ctx.fillStyle = CHARS[p.char].color; ctx.fillText(p.name, p.x, ty); }
     if (p.sticker) {
@@ -10259,6 +10298,24 @@ function drawLighting() {
 }
 
 // Genshin-style stamina: a curved gauge beside the character, shown while it is not full
+/* a small health bar under every Krystalker's feet: the team (and the healers) can read it at a glance */
+function drawFootHp(p) {
+  if (p.state !== 'up' || !(p.maxHp > 0)) return;
+  const k = clamp(p.hp / p.maxHp, 0, 1);
+  p.hpLag = p.hpLag == null ? k : Math.max(k, p.hpLag - 0.6 / 60);
+  const w = 24, h = 3, x = Math.round(p.x - w / 2), y = Math.round(p.y + 5);
+  ctx.save();
+  ctx.fillStyle = 'rgba(10,8,14,0.78)'; ctx.fillRect(x - 1, y - 1, w + 2, h + 2);
+  if (p.hpLag > k) { ctx.fillStyle = 'rgba(255,240,220,0.75)'; ctx.fillRect(x, y, w * p.hpLag, h); }
+  const low = k < 0.3, col = k > 0.6 ? '#6fdc6a' : k > 0.3 ? '#f0c84a' : '#ff5a4a';
+  ctx.globalAlpha = low ? 0.65 + 0.35 * Math.sin(G.time * 10) : 1;
+  ctx.fillStyle = col; ctx.fillRect(x, y, w * k, h);
+  ctx.globalAlpha = 1;
+  ctx.fillStyle = 'rgba(255,255,255,0.28)'; ctx.fillRect(x, y, w * k, 1);
+  if (p.shieldHp > 1) { const sk = clamp(p.shieldHp / p.maxHp, 0, 1); ctx.fillStyle = 'rgba(150,220,255,0.9)'; ctx.fillRect(x, y + h, w * sk, 1.4); }
+  ctx.fillStyle = CHARS[p.char].color; ctx.fillRect(x - 3, y - 1, 2, h + 2); /* who it belongs to */
+  ctx.restore();
+}
 function drawStamina(p) {
   if (p.state !== 'up' || p.stam == null) return;
   const focus = camTarget(); if (p !== focus && !(G.watch && p === focus)) return;
