@@ -10214,7 +10214,7 @@ function drawHUD() {
   }
   if (G.watch && G.lord && ENEMY[G.lord]) { const D = ENEMY[G.lord], wk = D.weak && ELEM[D.weak], t = `Dungeon Master: ${D.name}${wk ? ' · weak to ' + wk.name : ' · no weakness'}`, ww2 = 340 * s; panel(cx - ww2 / 2, H - pad - 58 * s, ww2, 24 * s, 0.7, 10 * s); txt(t, cx, H - pad - 41 * s, 10, wk ? wk.color : '#7ff0ff', 'center'); }
   if (G.watch) { const ww = 420 * s; panel(cx - ww / 2, H - pad - 30 * s, ww, 26 * s, 0.7, 10 * s); txt(`WATCHING BOTS · ${SIM_SPEED}x · Tab: next camera · 1-3: speed · V: reveal map & lair ${G.noFog ? "ON" : "off"} · Esc: menu`, cx, H - pad - 12 * s, 10, '#cfe8ff', 'center'); }
-  if (H0 && !G.watch && !G.bigMap) { drawGuides(H0); drawEdgeMarkers(H0); }
+  { const F = camTarget(); if (F && F.state !== 'dead' && !G.bigMap && !G.hub) { drawGuides(F); drawEdgeMarkers(F); } } /* you, the teammate you spectate, or the watched bot */
   if (G.stickerOpen) drawStickerWheel();
   if (G.hoverItem && !G.bigMap) drawTooltip(G.hoverItem.it, G.hoverItem.x, G.hoverItem.y + 6 * s, focus);
   if (G.bigMap) drawMinimap(true);
@@ -10550,7 +10550,7 @@ function drawEdgeMarkers(H0) {
   }
 }
 
-// ---- guide arrows: a small compass around you points along the walkable way to what matters right now ----
+// ---- guide arrows: a small compass around you points straight at what matters right now ----
 function guideTargets(H0) {
   const out = [];
   if (G.bell && G.bellMode && G.phase === 'day' && bellOpenIn() <= 0 && !inRoom(G.nightRoom, H0.x, H0.y, -8)) out.push({ kind: 'bell', x: G.bell.x, y: G.bell.y, col: '#ffe6a0', label: '🔔' });
@@ -10558,23 +10558,12 @@ function guideTargets(H0) {
   for (const P0 of G.pings || []) if (P0.by && P0.by !== H0) out.push({ kind: 'ping', x: P0.x, y: P0.y, col: P0.enemy ? '#ff5a5a' : '#7ff0ff', label: P0.enemy ? '!' : '📍' });
   return out;
 }
-function guideDir(H0, t) {
-  // cached path to the target: the arrow follows corridors instead of pointing through walls
-  const G0 = H0.guides || (H0.guides = new Map()), key = Math.floor(t.x / TILE) + ',' + Math.floor(t.y / TILE); let c = G0.get(key);
-  if (!c || G.time - c.t > 0.6) {
-    const sx = Math.floor(H0.x / TILE), sy = Math.floor(H0.y / TILE), path = findPath(sx, sy, Math.floor(t.x / TILE), Math.floor(t.y / TILE), 40000);
-    let wx = t.x, wy = t.y; if (path && path.length > 2) { const w = path[Math.min(path.length - 1, 5)]; wx = (w[0] + 0.5) * TILE; wy = (w[1] + 0.5) * TILE; }
-    c = { t: G.time, wx, wy, steps: path ? path.length : null }; G0.set(key, c);
-    if (G0.size > 12) G0.delete(G0.keys().next().value);
-  }
-  return c;
-}
 function drawGuides(H0) {
   if (H0.state !== 'up' || G.hub) return;
   const s = U, me = worldToScreen(H0.x, H0.y - 10), groups = [];
   for (const t of guideTargets(H0)) {
     const d = Math.hypot(t.x - H0.x, t.y - H0.y); if (d < 70) continue;
-    const c = guideDir(H0, t), wp = worldToScreen(c.wx, c.wy), a = Math.atan2(wp.y - me.y, wp.x - me.x);
+    const wp = worldToScreen(t.x, t.y), a = Math.atan2(wp.y - me.y, wp.x - me.x); /* straight at it, through walls: open the map to plan the way */
     let g = groups.find(q => Math.abs(angDiff(q.a, a)) < 0.4); if (!g) groups.push(g = { a, items: [] });
     g.items.push({ t, d });
   }
