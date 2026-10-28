@@ -6615,6 +6615,163 @@ function drawBiomeHz() {
     }
   }
 }
+// ===== Arsenal relics (Risk of Rain style): area damage, on-kill chains, chest blessings =====
+// Every one of them stacks. Stacking rules, so piles of copies stay strong but never absurd:
+//   chances stack hyperbolically:  1 - 1 / (1 + base × stacks)      (never reaches 100%)
+//   radius grows a little per copy and is capped; damage grows linearly per copy
+//   counts (targets, daggers, fireworks) add per copy; cooldowns shrink ×0.85 per extra copy
+// All relic damage is a "proc" hit: it never triggers other on-hit relics (no infinite loops),
+// but kills it causes do trigger on-kill relics, so chain reactions are possible (and intended).
+const stackR = id => s => { const rk = s.rk || (s.rk = {}); rk[id] = (rk[id] || 0) + 1; };
+const ARSENAL = [
+  // on hit
+  R_('lute', 'Storm Lute', 'common', 'bolt', '#9fe8ff', '25% chance on hit to fire chain lightning through 3 enemies for 60% of the hit. More copies: higher chance, +2 enemies each.', stackR('lute'), { arsenal: true }),
+  R_('barnacle', 'Barnacle Bomb', 'common', 'bomb', '#ffb35a', '8% chance on hit to stick a bomb to the enemy that blows up 1.5s later for 180% of the hit around it. More copies: higher chance, bigger blast.', stackR('barnacle'), { arsenal: true }),
+  R_('seeker', 'Seeker Feather', 'rare', 'feather', '#ff8a5a', '10% chance on hit to loose a seeking bolt for 300% of the hit. More copies: higher chance and +150% damage each.', stackR('seeker'), { arsenal: true }),
+  R_('bands', 'Twin Bands', 'rare', 'orb', '#ff9a6a', 'Every 6s your next hit sets off a fire pillar and a frost burst around the target (freezes small foes). More copies: more damage, shorter cooldown.', stackR('bands'), { arsenal: true }),
+  R_('cannon', 'Cannon Core', 'legendary', 'gear', '#ffd36a', 'All your attacks explode on impact, hitting everything nearby for 40% of the hit. More copies: bigger blasts, +30% each.', stackR('cannon'), { arsenal: true }),
+  // on kill
+  R_('wisp', 'Ember Wisp Jar', 'common', 'flame', '#ff8a3c', 'Slain enemies burst into a fiery blast half a second later. More copies: bigger and stronger blasts.', stackR('wisp'), { arsenal: true }),
+  R_('oil', 'Lamp Oil', 'common', 'drop', '#ffb030', 'Slain enemies spill burning oil that Scorches everything around them. More copies: wider and hotter.', stackR('oil'), { arsenal: true }),
+  R_('daggers', 'Spirit Daggers', 'rare', 'sword', '#e8f0ff', 'Slain enemies release 3 spirit daggers that seek nearby enemies. More copies: +3 daggers each.', stackR('daggers'), { arsenal: true }),
+  R_('contagion', 'Contagion Seal', 'rare', 'skull', '#b86aff', 'When an afflicted enemy dies, all its status effects (and poison) leap to 2 enemies nearby. More copies: +1 enemy each.', stackR('contagion'), { arsenal: true }),
+  R_('rimeheart', 'Rimeheart', 'epic', 'snow', '#bff4ff', 'Kills wrap you in a freezing storm for 4s that damages and Chills enemies around you; every kill widens it. More copies: longer and stronger.', stackR('rimeheart'), { arsenal: true }),
+  R_('gorecrown', 'Gore Crown', 'legendary', 'crown', '#ff3a5a', 'Enemies that die while Bleeding explode for 12% of their max health. More copies: +8% each. Crits make enemies Bleed.', stackR('gorecrown'), { arsenal: true }),
+  // when hurt
+  R_('razorwire', 'Razorwire', 'rare', 'spike', '#c8ccd4', 'Getting hit lashes razor wire at 4 enemies nearby. More copies: +2 enemies and longer reach.', stackR('razorwire'), { arsenal: true }),
+  // chest blessings
+  R_('fireworks', 'Firework Crate', 'common', 'pouch', '#ffd24a', 'Opening a chest launches 8 fireworks at enemies nearby. More copies: +4 fireworks each.', stackR('fireworks'), { arsenal: true }),
+  R_('banner', 'Rally Banner', 'common', 'bell', '#ffb35a', 'Opening a chest or levelling up plants a war banner for 10s: allies inside attack and move faster and hit harder. More copies: wider banner.', stackR('banner'), { arsenal: true }),
+  R_('purse', "Smuggler's Purse", 'common', 'coin', '#ffd44a', 'Opening a chest refunds 25% of its price and heals you 15%. More copies: +15% refund each (up to 70%).', stackR('purse'), { arsenal: true }),
+  R_('ward', 'Bulwark Ward', 'rare', 'shield', '#7ff0ff', 'Opening a chest raises a dome for 8s: allies inside take 40% less damage and enemy shots that enter it fizzle. More copies: wider and longer.', stackR('ward'), { arsenal: true }),
+  R_('censer', 'Sunfall Censer', 'epic', 'sun', '#ffd36a', 'Opening any chest calls down a meteor on every enemy near you. More copies: more damage.', stackR('censer'), { arsenal: true }),
+];
+RELICS.push(...ARSENAL);
+for (const it of ARSENAL) ALL_ITEMS[it.id] = it;
+const rkN = (p, id) => (p && p.st && p.st.rk && p.st.rk[id]) || 0;
+const hyper = (base, n) => n > 0 ? 1 - 1 / (1 + base * n) : 0;
+const relicDmg = { proc: true, noCrit: true };
+function arsenalTrail(x, y, e, color, then, delay = 0.22) {
+  fx({ k: 'trail', x, y: y - 8, x2: e.x, y2: e.y - 8, color, life: delay });
+  schedule(delay, () => { if (!e.dead) then(e); });
+}
+// ---- on hit ----
+{ const _onHit = playerOnHit; playerOnHit = function (src, target, amt, crit, o) {
+  _onHit(src, target, amt, crit, o);
+  if (o.proc || !src.st || !src.st.rk) return;
+  const pk = o.procK ?? 1, n = k => rkN(src, k);
+  if (n('cannon')) { const r = Math.min(50, 16 + 8 * (n('cannon') - 1)), k = 0.4 + 0.3 * (n('cannon') - 1), x = target.x, y = target.y; for (const e of enemiesIn(x, y, r)) if (e !== target) damage(e, amt * k, src, Object.assign({ color: '#ffd36a' }, relicDmg)); if (R() < 0.5) fx({ k: 'boom', x, y, r, life: 0.18, color: '#ffd36a' }); }
+  if (target.dead) return;
+  if (n('lute') && R() < hyper(0.25, n('lute')) * pk) procChain(src, target, amt * 0.6, 3 + 2 * (n('lute') - 1));
+  if (n('barnacle') && R() < hyper(0.08, n('barnacle')) * pk && !target.bomb) {
+    const r = Math.min(56, 30 + 6 * (n('barnacle') - 1)), d = amt * 1.8, T = target; T.bomb = true;
+    schedule(1.5, () => { T.bomb = false; const x = T.x, y = T.y; explode(x, y, r, d, src, Object.assign({ boomColor: '#ffb35a', kb: 90 }, relicDmg)); });
+  }
+  if (n('seeker') && R() < hyper(0.1, n('seeker')) * pk) { const d = amt * (3 + 1.5 * (n('seeker') - 1)); arsenalTrail(src.x, src.y, target, '#ff8a5a', e => { damage(e, d, src, Object.assign({ color: '#ff8a5a' }, relicDmg)); burst(e.x, e.y - 8, '#ff8a5a', 10, 70, 0.4, { glow: true }); }, 0.3); }
+  if (n('bands') && (src.bandsT || 0) <= G.time) {
+    const c = n('bands'); src.bandsT = G.time + 6 * Math.pow(0.85, c - 1); const x = target.x, y = target.y, D = src.st.dmg * (1 + 0.6 * (c - 1));
+    pillar(x, y, '#ff8a2a', 90, 18, 0.6); for (const e of enemiesIn(x, y, 42)) { damage(e, 90 * D, src, Object.assign({ elem: 'fire', color: '#ff8a2a' }, relicDmg)); applyStatus(e, 'scorch', 4, { dps: 8 * D, src }); }
+    schedule(0.15, () => { shock(x, y, 42, '#bff4ff', 0.4); for (const e of enemiesIn(x, y, 42)) { damage(e, 60 * D, src, Object.assign({ elem: 'frost', color: '#bff4ff' }, relicDmg)); if (!e.boss && !e.champ) applyStatus(e, 'frozen', 1.5, { src }); else applyStatus(e, 'chill', 0, { src, n: 2 }); } });
+  }
+}; }
+// ---- on kill ----
+{ const _onKill = playerOnKill; playerOnKill = function (src, e) {
+  _onKill(src, e);
+  if (!src.st || !src.st.rk) return;
+  const n = k => rkN(src, k), D = src.st.dmg, x = e.x, y = e.y;
+  if (n('wisp')) { const c = n('wisp'), r = Math.min(64, 32 + 6 * (c - 1)), d = 45 * D * (1 + 0.6 * (c - 1)); glow(x, y - 6, 20, '#ff8a3c', 0.4); schedule(0.5, () => explode(x, y, r, d, src, Object.assign({ boomColor: '#ff8a3c', elem: 'fire', kb: 120 }, relicDmg))); }
+  if (n('oil')) { const c = n('oil'), r = Math.min(80, 36 + 10 * (c - 1)); for (const o of enemiesIn(x, y, r)) { damage(o, 18 * D * (1 + 0.5 * (c - 1)), src, Object.assign({ elem: 'fire', color: '#ffb030' }, relicDmg)); applyStatus(o, 'scorch', 3, { dps: 5 * D * c, src }); } fx({ k: 'boom', x, y, r, life: 0.3, color: '#ffb030' }); decal(x, y, 'scorch', r * 0.6, 4); }
+  if (n('daggers')) { const k = 3 * n('daggers'), T = G.enemies.filter(o => !o.dead && o !== e && d2(o.x, o.y, x, y) < 160 * 160); for (let i = 0; i < k && T.length; i++) { const t = T[i % T.length]; schedule(i * 0.04, () => arsenalTrail(x, y, t, '#e8f0ff', o => damage(o, 22 * D, src, Object.assign({ color: '#e8f0ff' }, relicDmg)), 0.25)); } }
+  if (n('contagion')) {
+    const sts = Object.keys(e.sts || {}).filter(k => e.sts[k] && e.sts[k].t > 0), pois = e.poison ? e.poison.stacks : 0;
+    if (sts.length || pois) { const T = G.enemies.filter(o => !o.dead && o !== e && d2(o.x, o.y, x, y) < 90 * 90).sort((a, b) => d2(a.x, a.y, x, y) - d2(b.x, b.y, x, y)).slice(0, 1 + n('contagion'));
+      for (const o of T) { for (const k of sts) { const S = e.sts[k]; applyStatus(o, k, Math.max(1.5, S.t), { dps: S.dps, dmg: S.dmg, amt: S.amt, src }); } if (pois) addPoison(o, pois, src); fx({ k: 'trail', x, y: y - 6, x2: o.x, y2: o.y - 6, color: '#b86aff', life: 0.25 }); } }
+  }
+  if (n('rimeheart')) { const c = n('rimeheart'); src.rimeT = G.time + 4 + 2 * (c - 1); src.rimeR = Math.min(95, (src.rimeR || 30) + 10); }
+  if (n('gorecrown') && hasSt(e, 'bleed')) { const k = 0.12 + 0.08 * (n('gorecrown') - 1); for (const o of enemiesIn(x, y, 44)) if (o !== e) damage(o, e.maxHp * k * (o.boss ? 0.25 : 1), src, Object.assign({ elem: 'bleed', color: '#ff3a5a' }, relicDmg)); burst(x, y - 6, '#c8102e', 24, 120, 0.5, { g: 160 }); fx({ k: 'boom', x, y, r: 44, life: 0.25, color: '#ff3a5a' }); }
+}; }
+// Gore Crown: crits make enemies Bleed
+{ const _hm = playerHitMods; playerHitMods = function (src, target, amt, o) { const r = _hm(src, target, amt, o); if (r.crit && rkN(src, 'gorecrown')) applyStatus(target, 'bleed', 4, { dmg: 3 * src.st.dmg, src }); return r; }; }
+// ---- when hurt ----
+{ const _hurt = playerOnHurt; playerOnHurt = function (p, amt, src) {
+  let a = _hurt(p, amt, src); if (a <= 0) return a;
+  for (const w of G.wards || []) if (d2(p.x, p.y, w.x, w.y) < w.r * w.r) { a *= 0.6; break; }
+  const c = rkN(p, 'razorwire');
+  if (c && (p.wireT || 0) <= G.time) { p.wireT = G.time + 0.5; const T = G.enemies.filter(e => !e.dead && !e.hidden && d2(e.x, e.y, p.x, p.y) < (120 + 20 * (c - 1)) ** 2).slice(0, 4 + 2 * (c - 1)); for (const e of T) { fx({ k: 'trail', x: p.x, y: p.y - 8, x2: e.x, y2: e.y - 6, color: '#e8ecf4', life: 0.18 }); damage(e, 30 * p.st.dmg, p, Object.assign({ color: '#e8ecf4' }, relicDmg)); applyStatus(e, 'bleed', 3, { dmg: 2 * p.st.dmg, src: p }); } }
+  return a;
+}; }
+// ---- chest blessings ----
+function relicOnChest(p, it) {
+  const n = k => rkN(p, k), D = p.st.dmg;
+  if (n('purse') && it.kind === 'chest') { const k = Math.min(0.7, 0.25 + 0.15 * (n('purse') - 1)), g = Math.round((it.paid || 0) * k); if (g > 0) { p.gold += g; floatText(p.x, p.y - 40, `+${g} gold`, '#ffd44a', 0.9); } p.hp = Math.min(p.maxHp, p.hp + p.maxHp * 0.15); }
+  if (n('fireworks')) { const k = 8 + 4 * (n('fireworks') - 1), T = G.enemies.filter(e => !e.dead && !e.hidden && d2(e.x, e.y, p.x, p.y) < 220 * 220); for (let i = 0; i < k && T.length; i++) { const t = T[i % T.length]; schedule(0.1 + i * 0.06, () => arsenalTrail(p.x, p.y - 20, t, pick(['#ffd24a', '#ff6a8a', '#7ff0ff', '#9cf06a']), e => { explode(e.x, e.y, 16, 28 * D, p, Object.assign({ boomColor: '#ffd24a', kb: 40 }, relicDmg)); }, 0.35)); } }
+  if (n('banner')) plantBanner(p);
+  if (n('ward')) { const c = n('ward'); (G.wards || (G.wards = [])).push({ x: p.x, y: p.y, r: Math.min(110, 64 + 12 * (c - 1)), t: 0, life: 8 + 2 * (c - 1), owner: p }); shock(p.x, p.y, 64, '#7ff0ff', 0.6); }
+  if (n('censer')) { const c = n('censer'), T = G.enemies.filter(e => !e.dead && !e.hidden && d2(e.x, e.y, p.x, p.y) < 280 * 280); for (const e of T) { const x = e.x, y = e.y; tele({ x, y, r: 26, life: 0.7, color: 'meteor' }); (G.fallers || (G.fallers = [])).push({ x, y, t: -0.3, dur: 0.4, col: '#ffd36a' }); schedule(0.7, () => explode(x, y, 26, 120 * D * (1 + 0.5 * (c - 1)), p, Object.assign({ boomColor: '#ffd36a', elem: 'radiant', kb: 120 }, relicDmg))); } if (T.length) setBanner('Sunfall!', '', 1.2, '#ffd36a'); }
+}
+function plantBanner(p) { const c = rkN(p, 'banner'); if (!c) return; (G.banners || (G.banners = [])).push({ x: p.x, y: p.y, r: Math.min(130, 70 + 15 * (c - 1)), t: 0, life: 10, owner: p }); burst(p.x, p.y - 20, '#ffb35a', 14, 70, 0.5, { glow: true }); }
+{ const _ui = useInter; useInter = function (it, p) {
+  const isChest = it.kind === 'chest' || it.kind === 'bosschest', cost = isChest && it.kind === 'chest' ? (interPrompt(it, p) || {}).cost : 0;
+  const before = it.kind === 'bosschest' ? it.taken && it.taken.has(p) : it.used;
+  const r = _ui(it, p);
+  const after = it.kind === 'bosschest' ? it.taken && it.taken.has(p) : it.used;
+  if (isChest && r !== false && after && !before) { it.paid = cost || 0; relicOnChest(p, it); }
+  return r;
+}; }
+{ const _lu = levelUp; levelUp = function (p) { const r = _lu(p); if (r) plantBanner(p); return r; }; }
+// ---- every frame: Rimeheart storms, banners, wards ----
+function updateArsenal(dt) {
+  for (const p of G.players) {
+    if (p.state !== 'up' || !(p.rimeT > G.time)) { if (p.rimeR && !(p.rimeT > G.time)) p.rimeR = 0; continue; }
+    p.rimeTick = (p.rimeTick || 0) - dt; if (R() < 0.6) { const a = R() * 6.28; burst(p.x + Math.cos(a) * p.rimeR, p.y + Math.sin(a) * p.rimeR * 0.8, '#e8faff', 1, 20, 0.6, { glow: true }); }
+    if (p.rimeTick <= 0) { p.rimeTick = 0.5; const c = rkN(p, 'rimeheart'); for (const e of enemiesIn(p.x, p.y, p.rimeR)) { damage(e, 10 * p.st.dmg * (1 + 0.5 * (c - 1)), p, Object.assign({ elem: 'frost', color: '#bff4ff' }, relicDmg)); applyStatus(e, 'chill', 0, { src: p }); } }
+  }
+  if (G.banners) { for (const b of G.banners) { b.t += dt; for (const q of G.players) if (q.state === 'up' && d2(q.x, q.y, b.x, b.y) < b.r * b.r) q.buffT = Math.max(q.buffT, 0.3); } G.banners = G.banners.filter(b => b.t < b.life); }
+  if (G.wards) {
+    for (const w of G.wards) { w.t += dt; for (let i = G.bullets.length - 1; i >= 0; i--) { const b = G.bullets[i]; if (b.team === 'enemy' && d2(b.x, b.y, w.x, w.y) < w.r * w.r) { burst(b.x, b.y, '#7ff0ff', 3, 30, 0.3, { glow: true }); G.bullets.splice(i, 1); } } }
+    G.wards = G.wards.filter(w => w.t < w.life);
+  }
+}
+function drawArsenal() {
+  for (const p of G.players) if (p.rimeT > G.time && p.rimeR) { ctx.strokeStyle = 'rgba(200,240,255,0.45)'; ctx.lineWidth = 1.2; ctx.setLineDash([4, 5]); ctx.lineDashOffset = -G.time * 30; ctx.beginPath(); ctx.ellipse(p.x, p.y, p.rimeR, p.rimeR * 0.8, 0, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]); }
+  for (const b of G.banners || []) {
+    const a = Math.min(1, (b.life - b.t) * 2);
+    ctx.fillStyle = `rgba(255,180,90,${0.08 * a})`; ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = `rgba(255,180,90,${0.5 * a})`; ctx.lineWidth = 1; ctx.stroke();
+    ctx.strokeStyle = OUTL; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.moveTo(b.x, b.y); ctx.lineTo(b.x, b.y - 30); ctx.stroke();
+    ctx.fillStyle = '#c8402a'; ctx.beginPath(); ctx.moveTo(b.x, b.y - 30); ctx.lineTo(b.x + 12 + Math.sin(G.time * 5) * 1.5, b.y - 25); ctx.lineTo(b.x, b.y - 20); ctx.closePath(); ctx.fill(); ctx.stroke();
+  }
+  for (const w of G.wards || []) {
+    const a = Math.min(1, (w.life - w.t) * 2, w.t * 4);
+    const g = ctx.createRadialGradient(w.x, w.y, w.r * 0.6, w.x, w.y, w.r); g.addColorStop(0, `rgba(127,240,255,${0.04 * a})`); g.addColorStop(1, `rgba(127,240,255,${0.22 * a})`);
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(w.x, w.y, w.r, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = `rgba(190,250,255,${0.7 * a})`; ctx.lineWidth = 1.4; ctx.stroke();
+  }
+}
+// ---- boss fights bring small fry, so area relics always have something to chew on ----
+const BOSS_FODDER = { gorehorn: 'boar', chieftain: 'grub', bramble: 'thornling', hivequeen: 'wasp', mudslug: 'slime', sporemother: 'caster', frostfang: 'frostling', emberdrake: 'emberling', bonecolossus: 'bonewalker', thundertoad: 'sparkwisp',
+  warden: 'shardling', shellback: 'scarab', moth: 'shade', phoenix: 'emberling', rimehorn: 'icebeetle', stormcoil: 'sparkwisp', vesper: 'hushling', sovereign: 'voidspawn', sovereign2: 'voidspawn',
+  nullmaw: 'voidspawn', blightfather: 'rat', riftweaver: 'eyestalk', shardveil: 'shade' };
+function updateBossAdds(dt) {
+  if (NET.role === 'guest') return;
+  for (const e of G.enemies) {
+    if (e.dead || !e.boss || !e.aggro || e.hidden || e.def.objective) continue;
+    const fighting = (G.bossFight && e === G.boss) || (G.phase === 'final' && e === G.boss) || (e.castle && G.players.some(q => q.state === 'up' && e.home && inRoom(e.home, q.x, q.y)));
+    if (!fighting) continue;
+    e.addT = (e.addT ?? 6) - dt; if (e.addT > 0) continue;
+    e.addT = rr(8, 11);
+    const alive = G.enemies.filter(o => !o.dead && o.addOf === e).length; if (alive >= 7) continue;
+    const A = homeRoom(e), type = BOSS_FODDER[e.type] || 'grub', n = Math.min(7 - alive, 2 + (G.players.length > 2 ? 1 : 0) + (e.hp < e.maxHp * 0.5 ? 1 : 0));
+    for (let i = 0; i < n; i++) {
+      const q = A ? randomFloorIn(A, G.players, 90, 1) : { x: e.x + rr(-120, 120), y: e.y + rr(-80, 80) };
+      if (hitsWall(q.x, q.y, 6)) continue;
+      queueSpawn(type, q.x, q.y, 0.9, { aggro: true, extra: true, hpMul: 0.55, addOf: e });
+    }
+  }
+}
+{ const _sp = spawnEnemy; spawnEnemy = function (type, x, y, o = {}) { const e = _sp(type, x, y, o); if (o.addOf) { e.addOf = o.addOf; e.goldM *= 0.25; e.home = homeRoom(o.addOf); } return e; }; }
+{ const _ke = killEnemy; killEnemy = function (e, src) { const was = e.dead; _ke(e, src); if (!was && e.boss) for (const o of G.enemies) if (!o.dead && o.addOf === e) { o.dead = true; burst(o.x, o.y - 6, '#c8c8ff', 8, 50, 0.4); } }; }
+{ const _up = updatePassives; updatePassives = function (dt) { _up(dt); if (!G.hub) { updateArsenal(dt); updateBossAdds(dt); } }; }
 // ===== Bot AI =====
 // one difficulty: allied Krystalkers always play as well as they can
 const BOT_SKILL = { err: 0.04, react: 0.11, dodge: 0.85, perfect: 0.85, lead: 1, heatSmart: 0.95 };
@@ -9890,7 +10047,7 @@ function renderWorld(dt, sx, sy) {
   drawTiles(); drawDecals();
   if (G.decor) for (const d of G.decor) if (d.flat) drawDecor(d);
   drawLighting();
-  drawZones(); if (typeof drawBiomeHz === 'function') drawBiomeHz(); drawTele(); for (const g of G.glaciers || []) drawGlacierAura(g);
+  drawZones(); if (typeof drawBiomeHz === 'function') drawBiomeHz(); if (typeof drawArsenal === 'function') drawArsenal(); drawTele(); for (const g of G.glaciers || []) drawGlacierAura(g);
   for (const t of G.traps) { ctx.fillStyle = '#7a8090'; ctx.strokeStyle = OUTL; ctx.lineWidth = 0.7; ctx.beginPath(); ctx.ellipse(t.x, t.y, 5, 2.2, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); ctx.fillStyle = '#e8eaf0'; for (let i = 0; i < 5; i++) { ctx.beginPath(); ctx.moveTo(t.x - 4 + i * 2, t.y - 1); ctx.lineTo(t.x - 3 + i * 2, t.y - 3.5); ctx.lineTo(t.x - 2 + i * 2, t.y - 1); ctx.fill(); } }
   for (const s of G.spawns) { const k = 1 - s.t / s.life; ctx.strokeStyle = `rgba(200,106,255,${0.4 + 0.5 * k})`; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.arc(s.x, s.y, 10 * (1 - k) + 2, 0, Math.PI * 2); ctx.stroke(); }
   for (const c of G.coins) { const f = SPR.coin; ctx.drawImage(f.c, c.x - 2.5, c.y - 4 - Math.abs(Math.sin(c.t * 6)) * 1.5, 5, 5); }
