@@ -234,11 +234,22 @@ th { font-family: var(--display); letter-spacing: 0.08em; }
 .card .takenby { font-size: 12px; color: #ff9a8a; }
 #scr-archive .box { width: min(1100px, 94vw); height: min(72vh, 760px); grid-template-rows: auto minmax(0, 1fr); box-sizing: border-box; }
 #scr-archive .entries { max-height: none; height: 100%; min-height: 0; overflow-y: auto; align-content: start; }
+#choicebar { position: fixed; left: 50%; bottom: 96px; transform: translateX(-50%); z-index: 6; display: grid; gap: 6px; justify-items: center; pointer-events: none; }
+#choicebar .cb-h { font-family: var(--display); color: #ffe6a0; font-size: 15px; letter-spacing: 0.06em; text-shadow: 0 2px 0 #000; }
+#choicebar .cb-row { display: flex; gap: 10px; }
+#choicebar .ccard { pointer-events: auto; cursor: pointer; width: 230px; display: grid; grid-template-columns: 44px 1fr; gap: 8px; align-items: start; text-align: left; background: rgba(22,15,20,0.93); border: 2px solid var(--rc, #888); border-radius: 10px; padding: 8px 10px; color: #f3e9d8; font: 700 12px/1.3 var(--body); box-shadow: 0 6px 18px rgba(0,0,0,0.5); }
+#choicebar .ccard:hover { transform: translateY(-3px); }
+#choicebar .ccard img { width: 44px; height: 44px; }
+#choicebar .ccard .nm { font-family: var(--display); font-size: 14px; }
+#choicebar .ccard .rk { font-size: 11px; opacity: 0.75; }
+#choicebar .ccard .kk { font-size: 10px; color: #ffe6a0; margin-top: 2px; }
+@media (max-width: 760px) { #choicebar .ccard { width: 30vw; } }
 </style>
 
 <canvas id="game" aria-label="Krystolen game view"></canvas>
 <canvas id="title-bg" aria-hidden="true" hidden></canvas>
 
+<div id="choicebar" hidden></div>
 <div id="menu" class="overlay">
   <section id="scr-title" class="screen narrow" hidden>
     <p class="eyebrow" style="text-align:center">Co-op roguelike · you + 3 bots</p>
@@ -6888,6 +6899,13 @@ function decideMode(p, A, vis) {
   const orb = G.orbs.find(o => o.owner === p);
   if (orb) { A.goal = { x: orb.x, y: orb.y, near: 4 }; return 'goto'; }
   if (!p.active) { const d = G.drops.find(d => d2(d.x, d.y, p.x, p.y) < 300 * 300); if (d) { A.goal = { x: d.x, y: d.y, near: 8, use: true }; return 'goto'; } }
+  if (G.phase === 'dawn' && G.day === 1) { // the Crossroads: walk to a gate and vote (bots lean toward what the team already picked)
+    const gates = G.inter.filter(i => i.kind === 'xroad');
+    if (gates.length && !gates.some(g => g.ready.has(p))) {
+      if (!A.xvote || !gates.includes(A.xvote)) { const tot = gates.map(g => xroadVotes(g) + 0.6 + (g.xk === 'siege' && teamLv().avg >= 8 ? 1 : 0)); let r = R() * tot.reduce((a, b) => a + b, 0); A.xvote = gates[0]; for (let i = 0; i < gates.length; i++) { r -= tot[i]; if (r < 0) { A.xvote = gates[i]; break; } } }
+      A.goal = { x: A.xvote.x, y: A.xvote.y + 6, near: 14, use: true, it: A.xvote }; return 'goto';
+    }
+  }
   const chest = chestFor(p, vis);
   if (chest) { botAnnounce(p, `Picking up ${chest.label}'s chest`, 'chest' + chest.x); A.goal = { x: chest.x, y: chest.y, near: 16, use: true, it: chest }; return 'goto'; }
   const portal = G.inter.find(i => i.kind === 'portal');
@@ -7574,6 +7592,9 @@ const GK_HP = [0, 1, 1.7], GK_DMG = [0, 1, 1.2], FINAL_HP = 4.5, FINAL_DMG = 1.5
 const DM_LV = { warden: 9, shellback: 11, moth: 11, phoenix: 11, rimehorn: 13, stormcoil: 13, vesper: 13, sovereign: 15 };
 function dmRec(id) { return DM_LV[id] || FINAL_REC; }
 function dmTune(id) { const lv = dmRec(id), k = (1 + 0.07 * (lv - 1)) / (1 + 0.07 * (FINAL_REC - 1)), t = lv <= 9 ? 0 : lv <= 11 ? 1 : lv <= 13 ? 2 : 3; return { hp: FINAL_HP * k * [0.8, 0.92, 0.97, 1][t], dmg: FINAL_DMG * [0.7, 0.85, 0.93, 1][t] }; }
+// Dungeon Masters tower over the arena: twice the size, a bigger body
+const DM_SCALE = 2;
+for (const id of [...DM_IDS, 'sovereign2', 'mothdecoy']) { const d = ENEMY[id]; if (!d || d.dmBig) continue; d.dmBig = true; d.scale = (d.scale || 1) * DM_SCALE; d.r = Math.round(d.r * 1.5); }
 const BOSS_HP_NERF = 0.75; // every Gatekeeper, Dream Palace guardian and Dungeon Master
 function tuneBoss(e, hp, dmg) { e.hp *= hp; e.maxHp *= hp; e.dmgM *= dmg; return e; }
 function setBanner(title, sub, life = 4.5, color) { G.banner = { title, sub, t: 0, life, color }; if (!G.hub) sfx('bell'); }
@@ -7968,7 +7989,7 @@ function step(dt) {
   if (NET.role === 'client') { clientStep(dt); return; }
   if (G.hub) { stepHub(dt); return; }
   if (G.phase === 'won' || G.phase === 'lost') { G.endT += dt; updateFxAll(dt); return; }
-  if (G.choice && !NET.role) { updateFxAll(dt); return; }
+  /* reward choices no longer pause the game */
   G.time += dt;
   if (G.intro) updateIntro(dt);
   if (G.everWait && G.players.some(p => p.state === 'up' && p.y < G.ever.trigY)) startFinalBoss();
@@ -7998,7 +8019,7 @@ function step(dt) {
     if (G.bossT <= 0) { const type = G.day === 1 ? G.night1 : G.night2; G.boss = spawnEnemy(type, G.bossRoom.px, G.bossRoom.py - 50); G.boss.rec = GK_REC[G.day]; tuneBoss(G.boss, GK_HP[G.day], GK_DMG[G.day]); sfx('roar'); burst(G.boss.x, G.boss.y, '#7ff0ff', 40, 160, 0.7, { glow: true }); pillar(G.boss.x, G.boss.y, '#ff9ad8', 120, 30, 0.8); shock(G.boss.x, G.boss.y, 90, '#ff9ad8', 0.6); shake(8); }
   }
   if (G.phase === 'embers') G.embersT += dt;
-  if (G.phase === 'dawn') { G.dawnT += dt; const crOk = G.day !== 1 || !G.crossMode || crossroadsReady(dt); if (G.day === 1 && crOk && ((!G.choice && G.dawnT > 8 && G.inter.filter(i => i.kind === 'bosschest' && !i.used).every(i => G.players.every(p => i.taken.has(p) || p.state !== 'up'))) || G.dawnT > 30)) startDay(2); }
+  if (G.phase === 'dawn') { G.dawnT += dt; const crOk = G.day !== 1 || !G.crossMode || crossroadsReady(dt); if (G.day === 1 && crOk && (G.crossGo || (!G.choice && G.dawnT > 8 && G.inter.filter(i => i.kind === 'bosschest' && !i.used).every(i => G.players.every(p => i.taken.has(p) || p.state !== 'up'))) || G.dawnT > 30)) { G.crossGo = false; startDay(2); } }
   G.flowT -= dt; if (G.flowT <= 0) { G.flowT = 0.35; updateFlow(); }
   if (G.phase === 'day' || G.phase === 'dawn' || G.phase === 'embers') updateRefill(dt);
   updateChallenges(dt); updateCorruptors(dt);
@@ -8599,7 +8620,7 @@ function fullMapCanvas() {
 // "Early Bell" relic chest and extra gold; with ≥20% left, the chest. If nobody rings, the night comes when the Act ends as before.
 let BELL_MODE = false;
 try { BELL_MODE = localStorage.getItem('kry_bell') === '1'; } catch (e) { }
-const BELL_FROM = 0.35, BELL_TOLL = 10, BELL_TIERS = [0.4, 0.2];
+const BELL_FROM = 0.35, BELL_TOLL = 1.5, BELL_TIERS = [0.4, 0.2];
 // the bell appears when the lair is revealed (the ring's first closing); the early-bell tiers split the time left after that
 function bellTier() { const o = G.bellOpenAt ?? 0, W = Math.max(1, actLen() - o), e = (actElapsed() - o) / W; return e < 0.35 ? 2 : e < 0.7 ? 1 : 0; }
 function bellOpenIn() { return G.gkRevealed ? 0 : 999; }
@@ -8779,25 +8800,35 @@ function openCrossroads() {
   setBanner('The Crossroads', 'Three ways into Act II. Stand at a gate and press F to vote.', 4, '#ffe6a0');
   G.crossT = 0;
 }
+// everyone votes (bots too); more votes = better odds. All voted = go at once; after XROAD_T seconds the vote closes:
+// a weighted roll among the gates that got votes, or a random gate if nobody voted.
+const XROAD_T = 10;
+function xroadVotes(g) { return [...g.ready].filter(q => q.state !== 'dead').length; }
 function xroadPrompt(it, p) {
-  const X = XROADS[it.xk];
-  if (it.ready.has(p)) return { text: `Voted: ${X.name} · waiting for the team`, sub: X.desc, locked: true };
-  return { text: `Vote: ${X.name}`, sub: X.desc };
+  const X = XROADS[it.xk], gates = G.inter.filter(i => i.kind === 'xroad'), tot = gates.reduce((a, g) => a + xroadVotes(g), 0), left = Math.max(0, Math.ceil(XROAD_T - (G.crossT || 0)));
+  const odds = tot ? ` · ${Math.round(xroadVotes(it) / tot * 100)}% odds` : '';
+  if (it.ready.has(p)) return { text: `Voted: ${X.name} (${xroadVotes(it)} vote${xroadVotes(it) === 1 ? '' : 's'}${odds}) · ${left}s`, sub: X.desc, locked: true };
+  return { text: `Vote: ${X.name} (${xroadVotes(it)} vote${xroadVotes(it) === 1 ? '' : 's'}${odds}) · ${left}s`, sub: X.desc + ' · more votes, better odds' };
 }
 function useXroad(it, p) {
   for (const o of G.inter) if (o.kind === 'xroad') o.ready.delete(p);
   it.ready.add(p); burst(p.x, p.y - 8, XROADS[it.xk].col, 12, 60, 0.5, { glow: true }); floatText(p.x, p.y - 30, 'Vote: ' + XROADS[it.xk].name, XROADS[it.xk].col, 1);
+  feed(`${p === human() && !NET.role ? 'You vote' : p.name + ' votes'} for ${XROADS[it.xk].name}.`, XROADS[it.xk].col);
 }
-// host: decide once every living human has voted (or the dawn runs long); returns true when Act II may start
+// host: returns true when Act II may start (right away)
 function crossroadsReady(dt) {
   const gates = G.inter.filter(i => i.kind === 'xroad'); if (!gates.length) return true;
   G.crossT = (G.crossT || 0) + dt;
-  const hum = G.players.filter(q => !q.isBot && q.state === 'up'), voted = hum.filter(q => gates.some(g => g.ready.has(q)));
-  if (hum.length && voted.length < hum.length && G.crossT < 45) return false;
-  if (!hum.length && G.crossT < 4) return false;
-  let best = null, bv = -1;
-  for (const g of shuffle(gates.slice())) { const v = [...g.ready].filter(q => q.state === 'up').length + (G.players[0] && g.ready.has(G.players[0]) ? 0.5 : 0); if (v > bv) { bv = v; best = g; } }
-  chooseCross(best); return true;
+  const live = G.players.filter(q => q.state !== 'dead'), all = live.length && live.every(q => gates.some(g => g.ready.has(q)));
+  if (!all && G.crossT < XROAD_T) return false;
+  const tot = gates.reduce((a, g) => a + xroadVotes(g), 0);
+  let pickG;
+  if (!tot) pickG = pick(gates);
+  else { let r = R() * tot; for (const g of gates) { r -= xroadVotes(g); if (r < 0) { pickG = g; break; } } pickG = pickG || gates[0]; }
+  const tally = gates.filter(g => xroadVotes(g)).map(g => `${XROADS[g.xk].name} ${xroadVotes(g)}`).join(', ');
+  if (tot) feed(`Votes: ${tally}. The roll picks ${XROADS[pickG.xk].name} (${Math.round(xroadVotes(pickG) / tot * 100)}% odds).`, '#ffe6a0');
+  else feed(`Nobody voted: fate picks ${XROADS[pickG.xk].name}.`, '#ffe6a0');
+  chooseCross(pickG); G.crossGo = true; return true;
 }
 function chooseCross(g) {
   G.cross = g.xk; G.hazard = XROADS[g.xk].hazard; // the gate no longer decides Gatekeeper II
@@ -9728,7 +9759,8 @@ function drawNPC(n) {
 }
 function drawTaunt(t) { ctx.globalAlpha = 0.55 + 0.2 * Math.sin(G.time * 10); drawFrame(SPR.crow.idle, t.x, t.y); ctx.globalAlpha = 1; ctx.strokeStyle = 'rgba(200,168,255,0.8)'; ctx.lineWidth = 0.8; ctx.setLineDash([2, 2]); ctx.beginPath(); ctx.arc(t.x, t.y - 12, 14, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]); }
 // ---- Dungeon Master entrances ----
-function drawIntro() {
+function drawIntro() { const I0 = G.intro; ctx.save(); ctx.translate(I0.x, I0.y); ctx.scale(DM_SCALE, DM_SCALE); ctx.translate(-I0.x, -I0.y); try { drawIntro0(); } finally { ctx.restore(); } }
+function drawIntro0() {
   const I = G.intro, t = I.t, x = I.x, y = I.y, S = SPR[I.lord]; if (!S) return;
   const f = S.idle;
   if (I.lord === 'warden') {
@@ -10085,6 +10117,7 @@ function timelineText() {
   return ['', ''];
 }
 function drawHUD() {
+  { const cb = document.getElementById('choicebar'); if (cb && !cb.hidden && !(G && G.choice)) cb.hidden = true; }
   if (G.hub) { drawHubHUD(); return; }
   const H0 = human(), focus = G.watch ? camTarget() : H0, s = U, pad = Math.round(16 * s);
   // ---- player card ----
@@ -10674,26 +10707,25 @@ function buildArchive() {
   if (archTab === 'Dungeon Masters') for (const D of NIGHTLORDS) L.appendChild(entry(spriteCanvas(D.id, 128), D.name, `${D.epithet} · fair at Lv ${dmRec(D.id)}`, weakTxt(D.id) + (D.final ? '<b>No weakness.</b> ' : '') + BOSS_LORE[D.id] + '<br>' + ENEMY_INFO[D.id] + '<br>' + resText(D.id), '#7ff0ff'));
 }
 // ---------- rewards & results ----------
+// rewards are picked from a small card bar while the game keeps running (no pause)
 function showChoice(ch) {
-  if (!NET.role) paused = true;
-  $('relic-label').textContent = ch.label ? `${ch.label} reward` : 'Reward';
-  const wrap = $('relics'); wrap.innerHTML = '';
+  const bar = $('choicebar'); bar.innerHTML = '';
+  const h = document.createElement('div'); h.className = 'cb-h'; h.textContent = `${ch.label ? ch.label + ' reward' : 'Reward'} · choose one (1 / 2 / 3)`; bar.appendChild(h);
+  const row = document.createElement('div'); row.className = 'cb-row';
   ch.cards.forEach((it, i) => {
-    const b = document.createElement('button'); b.className = 'relic';
+    const b = document.createElement('button'); b.className = 'ccard';
     const col = it.rarity ? RARITY[it.rarity].color : it.active ? '#5ad07a' : '#7ff0ff';
     b.style.setProperty('--rc', col);
-    const img = document.createElement('img'); img.src = itemIcon(it, 96).toDataURL(); img.alt = '';
-    b.appendChild(img);
-    const d = document.createElement('div'); d.style.display = 'grid'; d.style.gap = '6px';
-    const kind = it.rarity ? `${RARITY[it.rarity].name} relic` : `Active item · ${it.cd}s cooldown${ch.p.active ? ` (replaces ${ch.p.active.name})` : ''}`;
-    d.innerHTML = `<div class="nm" style="color:${col}">${it.name}</div><div class="rk">${kind}</div><div class="ds">${it.desc}</div><div class="kk">Press ${i + 1}</div>`;
-    b.appendChild(d);
-    b.onclick = () => pickChoice(i);
-    wrap.appendChild(b);
+    const img = document.createElement('img'); img.src = itemIcon(it, 96).toDataURL(); img.alt = ''; b.appendChild(img);
+    const kind = it.rarity ? `${RARITY[it.rarity].name} relic` : `Active item · ${it.cd}s${ch.p.active ? ` (replaces ${ch.p.active.name})` : ''}`;
+    const d = document.createElement('div'); d.innerHTML = `<div class="nm" style="color:${col}">${it.name}</div><div class="rk">${kind}</div><div>${it.desc}</div><div class="kk">Press ${i + 1}</div>`; b.appendChild(d);
+    b.onmousedown = e => { e.stopPropagation(); };
+    b.onclick = e => { e.stopPropagation(); pickChoice(i); };
+    row.appendChild(b);
   });
-  showScreen('relic');
+  bar.appendChild(row); bar.hidden = false;
 }
-function pickChoice(i) { if (!G || !G.choice) return; const ch = G.choice; G.choice = null; showScreen(null); paused = false; if (ch.net) { netSend({ t: 'pickrelic', id: ch.cards[i].id }); return; } giveItem(ch.p, ch.cards[i]); }
+function pickChoice(i) { if (!G || !G.choice) return; const ch = G.choice; G.choice = null; $('choicebar').hidden = true; if (screen === 'relic') showScreen(null); if (ch.net) { netSend({ t: 'pickrelic', id: ch.cards[i].id }); return; } giveItem(ch.p, ch.cards[i]); }
 function showResults() {
   if (!G || !G.result) return;
   const r = G.result;
@@ -10779,7 +10811,7 @@ function togglePause() {
 function wireInput() {
   addEventListener('keydown', e => {
     if (Input.listening) { e.preventDefault(); inputPress(e.code); return; }
-    if (screen === 'relic') { const m = /^Digit([1-3])$/.exec(e.code); if (m) { e.preventDefault(); pickChoice(+m[1] - 1); } return; }
+    if (G && G.choice && !screen) { const m = /^Digit([1-3])$/.exec(e.code); if (m) { e.preventDefault(); pickChoice(+m[1] - 1); return; } }
     if (e.code === 'Escape') { e.preventDefault(); if (G && G.stickerOpen) { G.stickerOpen = false; return; } if (G && G.talk) { G.talk = null; return; } if (screen === 'settings') { $('b-back3').click(); return; } togglePause(); return; }
     if (!inGame()) return;
     const gameKey = Object.values(settings.binds).includes(e.code) || /^Digit[1-4]$/.test(e.code) || e.code === 'Space' || e.code === 'Tab';
