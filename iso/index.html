@@ -4637,7 +4637,7 @@ Object.assign(CHARS, {
         glow(l.tx, l.ty, 40, '#fff1a8', 0.4); burst(l.tx, l.ty, '#fff6c8', 16, 80, 0.5, { glow: true });
         zone({ x: l.tx, y: l.ty, r: 40, life: 6, tick: 0.5, kind: 'storm', owner: p, onTick: z => {
           for (const q of G.players) if (q.state === 'up' && d2(q.x, q.y, z.x, z.y) < z.r * z.r) { const h = q.maxHp * 0.025; healAlly(p, q, h); if (!p.isBot) questEvent('heal', h); }
-          for (const e of enemiesIn(z.x, z.y, z.r)) { damage(e, 6 * p.st.dmg, p, { proc: true, elem: 'radiant', color: '#fff1a8' }); if (hasGem(p, 's_lull')) applyStatus(e, 'hush', 0.6, { src: p }); }
+          for (const e of enemiesIn(z.x, z.y, z.r)) { damage(e, 10 * p.st.dmg, p, { proc: true, elem: 'radiant', color: '#fff1a8' }); if (hasGem(p, 's_lull')) applyStatus(e, 'hush', 0.6, { src: p }); }
           burst(z.x + rr(-z.r, z.r) * 0.7, z.y + rr(-z.r, z.r) * 0.5, '#fff1a8', 2, 15, 0.8, { glow: true, g: -30 });
         } });
       }, 4);
@@ -5272,6 +5272,125 @@ function updatePassives(dt) {
     if (p.atkCd > before) { p.echoN = (p.echoN || 0) + 1; if (p.echoN % 4 === 0) { const t = clampTarget(p, c.ax, c.ay, 150); schedule(0.6 + Math.hypot(t.x - p.x, t.y - p.y) / 700, () => explode(t.x, t.y, 28, 14 * p.st.dmg, p, { boomColor: '#d8b8ff', kb: 40, decal: 'rune', elem: 'shadow' })); } }
   };
 })();
+// ===== v18.40: Serpent homing harp notes, and a unique twist for the plain right-click melees =====
+// Serpent  LMB: notes fly out on a random arc and curve into the nearest enemy (no aiming needed); more damage.
+//          RMB: Coil Snap also heals teammates it touches.
+// Hedgehog RMB Gun Bash (and the red-hot bash): sends enemies flying; one that slams into a wall or another enemy takes a hit and is stunned.
+// Wolf     RMB Hunting Knife: marks the target; the next rifle hit on it deals +50%.
+// Owl      RMB Wing Buffet: also blows enemy bullets back at the enemies.
+// (Crow, Pangolin, Reindeer, Rabbit, Goat, Lizard, Beaver, Monkey and Bear already had something special on RMB.)
+
+// ---------- Serpent: homing harp notes ----------
+const SERP_SEEK_R = 240;
+CHARS.serpent.lmb = 'Harp Notes. Radiant notes fly out on a random arc and curve into the nearest enemy: no need to aim.';
+CHARS.serpent.attack = function (p, c) {
+  if (!(c.atk && p.atkCd <= 0)) return;
+  const m = muzzle(p, 13); p.atkCd = 0.34 / p.st.rate;
+  const arc = (R() < 0.5 ? -1 : 1) * rr(0.55, 1.25);
+  const b = shoot(p, m.x, m.y, p.aimA + arc, 200, 13 * p.st.dmg, { life: 1.5, color: '#fff1a8', r: 2.6, elem: 'radiant', onHit: hasGem(p, 's_venom') ? (b, e) => addPoison(e, 1, p) : null });
+  b.seek = { turn: rr(4.5, 6.5), aim: p.aimA, tgt: seekTarget(p.x, p.y, c.ax ?? null, c.ay ?? null) };
+  if (R() < 0.4) burst(m.x, m.y, '#fff6c8', 2, 30, 0.3, { glow: true, size: 0.8 });
+};
+// nearest living enemy to the shooter (a little bias toward the cursor so a deliberate aim still matters)
+function seekTarget(x, y, ax, ay) {
+  let best = null, bs = 1e12;
+  for (const e of G.enemies) {
+    if (e.dead || e.hidden || e.decoyHidden) continue;
+    const d = d2(e.x, e.y, x, y); if (d > SERP_SEEK_R * SERP_SEEK_R) continue;
+    const s = d + (ax != null ? d2(e.x, e.y, ax, ay) * 0.35 : 0);
+    if (s < bs) { bs = s; best = e; }
+  }
+  return best;
+}
+function steerSeekers(dt) {
+  for (const b of G.bullets) {
+    const S = b.seek; if (!S || b.team !== 'player') continue;
+    if (!S.tgt || S.tgt.dead || S.tgt.hidden) S.tgt = seekTarget(b.x, b.y, null, null);
+    const sp = Math.min(330, Math.hypot(b.vx, b.vy) + 160 * dt), a0 = Math.atan2(b.vy, b.vx);
+    const a1 = S.tgt ? Math.atan2(S.tgt.y - 5 - b.y, S.tgt.x - b.x) : S.aim;
+    const rate = S.turn * Math.min(1, 0.35 + b.age * 3); // gentle at first: that is what draws the arc
+    const a = a0 + clamp(angDiff(a0, a1), -rate * dt, rate * dt);
+    b.vx = Math.cos(a) * sp; b.vy = Math.sin(a) * sp; b.ang = a;
+    if (R() < 0.35) burst(b.x, b.y, '#fff6c8', 1, 6, 0.25, { glow: true, size: 0.7 });
+  }
+}
+{ const _ub = updateBullets; updateBullets = function (dt) { steerSeekers(dt); _ub(dt); }; }
+// bots: the notes find their own way, so Serpent can fight from a bit further back
+CHARS.serpent.range = 150;
+
+// ---------- Serpent: Coil Snap heals teammates ----------
+CHARS.serpent.alt = { name: 'Coil Snap', short: 'Snap', cd: 0.9, desc: 'A coiling bite: enemies take damage and are Mired, teammates it touches are healed a little.', use(p) {
+  meleeArc(p, 24, 1.2, 16 * p.st.dmg, 140, { elem: 'poison', st: { k: 'mire', t: 1.5 } }); swing(p, '#8affc8');
+  for (const q of G.players) {
+    if (q === p || q.state !== 'up' || d2(q.x, q.y, p.x, p.y) > 30 * 30) continue;
+    if (d2(q.x, q.y, p.x, p.y) > 10 * 10 && Math.abs(angDiff(p.aimA, Math.atan2(q.y - p.y, q.x - p.x))) > 1.3) continue;
+    const h = q.maxHp * 0.04 + 3; healAlly(p, q, h); floatText(q.x, q.y - 30, '+' + Math.round(h), '#8affc8', 0.6);
+    burst(q.x, q.y - 10, '#8affc8', 8, 40, 0.5, { glow: true, g: -30 });
+  }
+} };
+
+// ---------- Hedgehog: bashes send enemies flying ----------
+function flingFrom(p, before) {
+  for (const [e, hp] of before) if (!e.dead && e.hp < hp) { e.flung = { by: p, until: G.time + 0.7, hit: new Set([e]) }; e._fx = e.x; e._fy = e.y; e._fk = 0; }
+}
+function nearHp(p, r) { const m = new Map(); for (const e of G.enemies) if (!e.dead && d2(e.x, e.y, p.x, p.y) < r * r) m.set(e, e.hp); return m; }
+CHARS.hedgehog.alt = { name: 'Gun Bash', short: 'Bash', cd: 0.75, desc: 'Club enemies with the minigun and send them flying (no heat). One that slams into a wall or another enemy takes a heavy hit and is stunned.', use(p) {
+  p.bashT = 0.24; const before = nearHp(p, 70);
+  meleeArc(p, 26, 1.2, 14 * p.st.dmg, 820); meleeFx(p, '#ffe8c0'); flingFrom(p, before);
+} };
+{ const _hb = heatBash; heatBash = function (p) { const before = nearHp(p, 70); const r = _hb(p); for (const [e] of before) if (!e.dead && e.hp < before.get(e)) { const a = Math.atan2(e.y - p.y, e.x - p.x), k = 250 * (e.kbRes ?? 1); e.kvx += Math.cos(a) * k; e.kvy += Math.sin(a) * k; } flingFrom(p, before); return r; }; }
+function updateFlung(dt) {
+  for (const e of G.enemies) {
+    const F = e.flung; if (!F) continue;
+    if (e.dead || G.time > F.until) { e.flung = null; continue; }
+    const k = Math.hypot(e.kvx || 0, e.kvy || 0), moved = Math.hypot(e.x - e._fx, e.y - e._fy), p = F.by;
+    // it was flying fast but barely moved: it hit a wall
+    if (e._fk > 160 && moved < e._fk * dt * 0.3) {
+      damage(e, 22 * p.st.dmg, p, { elem: 'bleed', color: '#ffe08a', noCrit: true }); if (!e.boss) e.stunT = Math.max(e.stunT || 0, 0.8);
+      shock(e.x, e.y - 4, 18, '#ffcd45', 0.25); burst(e.x, e.y - 6, '#d8c8a8', 10, 80, 0.4); shake(1.5); e.flung = null; e.kvx = e.kvy = 0; continue;
+    }
+    // bowling: it knocks over whatever it flies into
+    if (k > 120) for (const o of G.enemies) {
+      if (o.dead || F.hit.has(o) || d2(o.x, o.y, e.x, e.y) > (o.r + e.r + 2) ** 2) continue;
+      F.hit.add(o); const a = Math.atan2(e.kvy, e.kvx);
+      damage(o, 16 * p.st.dmg, p, { kb: 320, kbAng: a, color: '#ffe08a', noCrit: true }); if (!o.boss) o.stunT = Math.max(o.stunT || 0, 0.6);
+      damage(e, 10 * p.st.dmg, p, { color: '#ffe08a', noCrit: true, proc: true });
+      burst(o.x, o.y - 6, '#ffe08a', 8, 70, 0.3, { shape: 'spark' });
+    }
+    e._fx = e.x; e._fy = e.y; e._fk = k;
+  }
+}
+
+// ---------- Wolf: the knife marks prey ----------
+CHARS.wolf.alt = { name: 'Hunting Knife', short: 'Knife', cd: 0.55, desc: 'A quick knife slash that Bleeds and marks the prey for 5s: your next rifle hit on it deals +50%. Works while reloading.', use(p) {
+  const before = nearHp(p, 60); p._knife = true;
+  meleeArc(p, 24, 1.1, 18 * p.st.dmg, 120, { elem: 'bleed', st: { k: 'bleed', t: 3, dmg: 3 * p.st.dmg } }); meleeFx(p, '#ff8aa0'); p._knife = false;
+  for (const [e, hp] of before) if (!e.dead && e.hp < hp) { e.wolfMark = { by: p, until: G.time + 5 }; floatText(e.x, e.y - e.r - 18, 'MARKED', '#ff8aa0', 0.6); }
+} };
+{ const _hm = playerHitMods; playerHitMods = function (src, target, amt, o) {
+  const r = _hm(src, target, amt, o);
+  const M = target.wolfMark;
+  if (M && M.by === src && G.time < M.until && !o.proc && src.char === 'wolf' && !src._knife) {
+    r.amt *= 1.5; target.wolfMark = null; floatText(target.x, target.y - target.r - 24, 'PREY!', '#ffd36a', 0.8, 1.1); burst(target.x, target.y - 8, '#ff8aa0', 12, 90, 0.4, { shape: 'spark' });
+  }
+  return r;
+}; }
+
+// ---------- Owl: Wing Buffet blows bullets back ----------
+CHARS.owl.alt = { name: 'Wing Buffet', short: 'Buffet', cd: 2, desc: 'A close-range blast of the wings that hurls nearby enemies away and blows enemy bullets back at them.', use(p) {
+  hitAround(p, p.x, p.y, 32, 12 * p.st.dmg, { kb: 260, elem: 'shadow' });
+  let n = 0;
+  for (const b of G.bullets) {
+    if (b.team !== 'enemy' || d2(b.x, b.y, p.x, p.y - 4) > 52 * 52) continue;
+    const a = Math.atan2(b.y - (p.y - 4), b.x - p.x), sp = Math.max(220, Math.hypot(b.vx, b.vy) * 1.3);
+    b.team = 'player'; b.owner = p; b.vx = Math.cos(a) * sp; b.vy = Math.sin(a) * sp; b.ang = a; b.age = 0; b.life = 0.8; b.home = false; b.st = null;
+    b.dmg = Math.max(b.dmg || 0, 10 * p.st.dmg); b.color = '#c8b0ff'; b.elem = 'shadow'; b.pierce = 0; n++;
+  }
+  if (n) floatText(p.x, p.y - 34, n > 1 ? `Deflect x${n}` : 'Deflect', '#c8b0ff', 0.6);
+  fx({ k: 'ring', x: p.x, y: p.y - 6, r: 32, life: 0.25, color: '#c8b0ff' }); burst(p.x, p.y - 8, '#8a7ac8', 10, 60, 0.4, { shape: 'feather', g: 30 }); sfx('swing', p.x, p.y, p.isBot ? 0.4 : 0.9);
+} };
+
+{ const _up = updatePassives; updatePassives = function (dt) { _up(dt); updateFlung(dt); }; }
 // ===== Enemies, room champions, Gatekeepers (minibosses), Dungeon Masters =====
 const ST = (k, t, o = {}) => Object.assign({ k, t }, o);
 const ENEMY = {
@@ -7470,6 +7589,7 @@ function botNewKits(p, A, tgt, c, dd, n, big, los) {
       const downed = G.players.filter(q => q.state === 'downed').length, low = allies.filter(q => q.hp < q.maxHp * 0.35).length;
       if (p.level >= ULT_LEVEL && p.cd.super <= 0 && !busy(p) && ((G.bossFight && downed >= 1) || low >= 2 || downed >= 2 || (G.bossFight && allies.some(q => q.hp < q.maxHp * 0.2 && !(q.flasks > 0))))) c.supP = true;
       if (ready('skill') && dd < 40) { const a = Math.atan2(p.y - tgt.y, p.x - tgt.x); c.skP = true; c.mx = Math.cos(a); c.my = Math.sin(a); }
+      if (p.altCd <= 0) { const mate = allies.find(q => q !== p && q.hp < q.maxHp * 0.85 && d2(q.x, q.y, p.x, p.y) < 26 * 26); if (mate) { c.altD = true; c.ax = mate.x; c.ay = mate.y; } } /* Coil Snap a hurt teammate next to us: a small heal */
       break;
     }
     case 'beaver': {
