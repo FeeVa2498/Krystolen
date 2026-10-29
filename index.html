@@ -3432,12 +3432,13 @@ function playerHitMods(src, target, amt, o) {
   if (!o.noCrit && R() < s.crit) { m *= s.critDmg; crit = true; }
   return { amt: amt * m, crit };
 }
+function procKOf(src, o) { if (o && o.procK != null) return o.procK; const d = src && src.char && CHARS[src.char]; return (d && d.procK) || 1; }
 function playerOnHit(src, target, amt, crit, o) {
   const s = src.st;
   if (s.leech > 0) src.hp = Math.min(src.maxHp, src.hp + amt * s.leech);
   if (crit && s.bloodmoon) { src.hp = Math.min(src.maxHp, src.hp + src.maxHp * 0.02); applyStatus(target, 'bleed', 4, { dmg: 3 * s.dmg, src }); }
   if (o.proc || target.dead) return;
-  const pk = o.procK ?? 1; // some rapid hitters (the Red Lizard's fireballs) proc less often
+  const pk = procKOf(src, o); // rapid hitters (the Red Lizard's fireballs) proc less often, single big shots (the Wolf's rifle) far more often
   for (const h of s.hitSt) if (R() < h.ch * pk) applyStatus(target, h.k, h.t, { dps: (h.dps || 0) * s.dmg, dmg: (h.dmg || 0) * s.dmg, src });
   if (s.venom && R() < s.venom * pk) addPoison(target, 1, src);
   if (s.zap && R() < s.zap * pk) procChain(src, target, amt * 0.5, 2);
@@ -3999,8 +4000,8 @@ const CHARS = {
     },
   },
   wolf: {
-    name: 'Wolf', role: 'Sniper', color: '#8a93a8', hp: 90, spd: 78, range: 170, weapon: 'w_rifle', wx: 0,
-    lmb: 'Ballista Rifle. One huge shot that pierces every enemy until it hits a wall or crate. Then reload.',
+    name: 'Wolf', role: 'Sniper', color: '#8a93a8', hp: 90, spd: 78, range: 170, weapon: 'w_rifle', wx: 0, procK: 4, /* one shot per reload: every on-hit chance rolls 4x as likely */
+    lmb: 'Ballista Rifle. One huge shot that pierces every enemy until it hits a wall or crate. Then reload. Each hit is 4x as likely to trigger on-hit effects (relics, Bleed, chains...).',
     sp: 'Backstep. Leap away from the cursor.',
     q: 'Fated Shot. Aim for 0.8s, then fire a massive beam (3x damage) that also smashes through crates.',
     reloadInfo: 'After each shot a reload bar sweeps once (above your head and around the cursor). Click when the marker crosses the bright zone for an instant reload and a stronger next shot; miss and it simply loads when the bar ends.',
@@ -6567,7 +6568,7 @@ function arsenalTrail(x, y, e, color, then, delay = 0.22) {
 { const _onHit = playerOnHit; playerOnHit = function (src, target, amt, crit, o) {
   _onHit(src, target, amt, crit, o);
   if (o.proc || !src.st || !src.st.rk) return;
-  const pk = o.procK ?? 1, n = k => rkN(src, k);
+  const pk = procKOf(src, o), n = k => rkN(src, k);
   if (n('cannon')) { const r = Math.min(50, 16 + 8 * (n('cannon') - 1)), k = 0.4 + 0.3 * (n('cannon') - 1), x = target.x, y = target.y; for (const e of enemiesIn(x, y, r)) if (e !== target) damage(e, amt * k, src, Object.assign({ color: '#ffd36a' }, relicDmg)); if (R() < 0.5) fx({ k: 'boom', x, y, r, life: 0.18, color: '#ffd36a' }); }
   if (target.dead) return;
   if (n('lute') && R() < hyper(0.25, n('lute')) * pk) procChain(src, target, amt * 0.6, 3 + 2 * (n('lute') - 1));
@@ -7022,6 +7023,7 @@ function decideMode(p, A, vis) {
     if (vis.length && vis[0].d < 90 && vis[0].e.aggro && !vis[0].e.champ) return 'fight';
     const lc1 = levelCost(p), sh1 = lc1 != null && p.gold >= lc1 ? nearestShrineNow(p) : null;
     if (sh1 && d2(sh1.x, sh1.y, p.x, p.y) < 700 * 700) { A.goal = { x: sh1.x, y: sh1.y, near: 18, use: true, it: sh1 }; return 'goto'; }
+    if (!G.labGo) { const lt = lootFor(p, vis, 0.45); if (lt) { A.goal = { x: lt.x, y: lt.y + 6, near: 10, use: true, it: lt }; return 'goto'; } } /* chests on the way to the palace gate */
     const m = altarPlan(p, A); if (m) return m;
   }
   const rushing = G.botPlan && G.botPlan.B.lab && myB !== G.botPlan.B;
@@ -7134,22 +7136,25 @@ function restShrine(p, vis) {
   }
   return best;
 }
-function lootFor(p, vis) {
+function lootFor(p, vis, reach = 1) {
   if (vis.length && vis[0].d < 120 && vis[0].e.aggro) return null;
-  const here = bmAt(p.x, p.y), sealed = here >= 0 && sealHolds(G.biomes[here]), lc = levelCost(p);
+  const here = bmAt(p.x, p.y), sealed = here >= 0 && sealHolds(G.biomes[here]), lc = levelCost(p); let keep = null;
   let best = null, bs = 1e12;
   for (const it of G.inter) {
     if (it.kind !== 'chest' || it.used) continue;
     const dd = Math.hypot(it.x - p.x, it.y - p.y);
-    if (it.free ? dd > 1100 : dd > 320) continue;
-    if (!it.free) { const cost = chestCost(it, p); if (p.gold < cost || (lc != null && p.gold - cost < lc && p.gold < lc * 1.6)) continue; }
+    if (it.free ? dd > 1100 * reach : dd > 900 * reach) continue;
+    if (!it.free) { /* relics stack: open paid chests freely, only keeping part of the next level's price (less when no shrine is in reach) */
+      const cost = chestCost(it, p); if (p.gold < cost) continue;
+      if (keep == null) keep = lc == null || relicCount(p) < p.level * 1.3 ? 0 : lc * (nearestShrineNow(p) ? 0.5 : 0.2); /* behind on relics for our level: spend on chests first */
+      if (p.gold - cost < keep) continue; }
     if (G.players.some(q => q !== p && q.ai && q.ai.goal && q.ai.goal.it === it)) continue;
     if (G.players.some(q => !q.isBot && q.state === 'up' && d2(q.x, q.y, it.x, it.y) < 220 * 220 && d2(q.x, q.y, it.x, it.y) < dd * dd)) continue; /* the human is right there: theirs */
     if (p.ai.badGoal && p.ai.badGoal.until > G.time && Math.abs(p.ai.badGoal.x - it.x) < 20 && Math.abs(p.ai.badGoal.y - it.y - 6) < 20) continue;
     const ib = bmAt(it.x, it.y); if (sealed && ib !== here) continue; if (!sealed && ib >= 0 && sealHolds(G.biomes[ib])) continue;
     if (!campSafe(p, it.x, it.y, 20, 4)) continue;
     if (it.room && !it.room.cleared && G.enemies.some(e => !e.dead && e.room === it.room && d2(e.x, e.y, it.x, it.y) < 90 * 90)) continue; /* monsters still on it */
-    const sc = dd - (it.free ? 250 : 0) - (it.rare ? 120 : 0);
+    const sc = dd - (it.free ? 250 : 0) - (it.rare ? 150 : 0);
     if (sc < bs) { bs = sc; best = it; }
   }
   return best;
@@ -7522,6 +7527,8 @@ function chestFor(p, vis) {
   let best = null, bd = 1600 * 1600;
   for (const it of G.inter) {
     if (it.kind !== 'bosschest' || it.used || it.taken.has(p)) continue;
+    if (p.ai.badGoal && p.ai.badGoal.until > G.time && Math.abs(p.ai.badGoal.x - it.x) < 24 && Math.abs(p.ai.badGoal.y - it.y) < 24) continue; /* could not reach it a moment ago */
+    if (G.phase === 'dawn' && (G.dawnT || 0) > 45) continue; /* the team is waiting at the portal */
     if (!safeAt(it.x, it.y, 20, 8)) continue;
     const ib = bmAt(it.x, it.y); if (sealed && ib !== here) continue; if (!sealed && ib >= 0 && sealHolds(G.biomes[ib])) continue;
     const dd = d2(it.x, it.y, p.x, p.y); if (dd < bd) { bd = dd; best = it; }
