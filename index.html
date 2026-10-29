@@ -350,6 +350,8 @@ th { font-family: var(--display); letter-spacing: 0.08em; }
     <div class="box">
       <button class="toggle" id="t-quick" aria-pressed="false"><span class="sw"></span><span><b>Quick cast.</b> Targeted skills (Crow teleport and storm, Rabbit flask, Reindeer tablet) fire instantly at the cursor, clamped to their range. Off: hold the key to see the range, release to cast.</span></button>
       <button class="toggle" id="t-shake" aria-pressed="true"><span class="sw"></span><span>Screen shake</span></button>
+      <button class="toggle" id="t-tilt" aria-pressed="true"><span class="sw"></span><span>Tilted camera (test)</span></button>
+      <button class="toggle" id="t-paper" aria-pressed="true"><span class="sw"></span><span>Pop-up book style (test, reloads)</span></button>
       <button class="toggle" id="t-dmg" aria-pressed="true"><span class="sw"></span><span>Damage numbers</span></button>
       <label class="slider"><span>Sound effects</span><input type="range" id="v-sfx" min="0" max="100" step="5"><b id="v-sfx-n"></b></label>
       <label class="slider"><span>Music</span><input type="range" id="v-mus" min="0" max="100" step="5"><b id="v-mus-n"></b></label>
@@ -385,7 +387,8 @@ th { font-family: var(--display); letter-spacing: 0.08em; }
 <script>
 'use strict';
 // ===== Core constants & helpers =====
-const TILE = 16, GW = 6, GH = 6, CW = 30, CH = 24, ARENA_W = 46, MW = GW * CW + ARENA_W, MH = GH * CH;
+const TILE = 16, GW = 6, GH = 6, CW = 40, CH = 32, ARENA_W = 60, MW = GW * CW + ARENA_W, MH = GH * CH; // bigger world for the tilted camera (was 30×24 cells)
+const CASTLE_K = 4 / 3, CASTLE_W = 3 * CW, CASTLE_H = 2 * CH, CASTLE_GX = (CASTLE_W - 2) / 2; // the Dream Palace layout is drawn at 90×48 and scaled up
 const T_VOID = 0, T_FLOOR = 1, T_WALL = 2, T_DOOR = 3, T_CRATE = 4, T_FOG = 5, T_PROP = 6;
 // the random source can be seeded so a party's host and guests generate the very same map
 let RNG = Math.random;
@@ -850,9 +853,28 @@ function cacheDraw(w, h, ox, oy, fn, scale = RS) {
   const c = mkCanvas(w * scale, h * scale), x = c.getContext('2d');
   x.scale(scale, scale); x.translate(ox, oy); x.lineJoin = 'round'; x.lineCap = 'round';
   fn(x);
-  return { c, ox, oy, w, h };
+  const f = { c, ox, oy, w, h };
+  return paperOn() ? paperize(f, scale) : f;
 }
-function tintFrame(f, col, a) { const c = mkCanvas(f.c.width, f.c.height), x = c.getContext('2d'); x.drawImage(f.c, 0, 0); x.globalCompositeOperation = 'source-atop'; x.globalAlpha = a; x.fillStyle = col; x.fillRect(0, 0, c.width, c.height); return { c, ox: f.ox, oy: f.oy, w: f.w, h: f.h }; }
+// ---- pop-up book style (test branch): every sprite becomes a die-cut paper piece with a cream border and a thin dark cut line ----
+function paperOn() { return typeof settings !== 'undefined' && settings.paper2 === true; }
+const PAPER_COL = '#f3e7cc', PAPER_CUT = 'rgba(70,46,30,0.55)';
+function dilate(src, r, color, n = 10) {
+  const c = mkCanvas(src.width, src.height), x = c.getContext('2d');
+  for (let i = 0; i < n; i++) { const a = i / n * Math.PI * 2; x.drawImage(src, Math.cos(a) * r, Math.sin(a) * r); }
+  x.drawImage(src, 0, 0);
+  x.globalCompositeOperation = 'source-in'; x.fillStyle = color; x.fillRect(0, 0, c.width, c.height);
+  return c;
+}
+function paperize(f, scale) {
+  const pad = 1.7, pp = Math.ceil(pad * scale), c = mkCanvas(f.c.width + pp * 2, f.c.height + pp * 2), x = c.getContext('2d');
+  const base = mkCanvas(c.width, c.height); base.getContext('2d').drawImage(f.c, pp, pp);
+  x.drawImage(dilate(base, pp + Math.max(1, scale * 0.45), PAPER_CUT), 0, 0);
+  x.drawImage(dilate(base, pp, PAPER_COL), 0, 0);
+  x.drawImage(base, 0, 0);
+  return { c, ox: f.ox + pad, oy: f.oy + pad, w: f.w + pad * 2, h: f.h + pad * 2, pad };
+}
+function tintFrame(f, col, a) { const c = mkCanvas(f.c.width, f.c.height), x = c.getContext('2d'); x.drawImage(f.c, 0, 0); x.globalCompositeOperation = 'source-atop'; x.globalAlpha = a; x.fillStyle = col; x.fillRect(0, 0, c.width, c.height); return { c, ox: f.ox, oy: f.oy, w: f.w, h: f.h, pad: f.pad }; }
 function buildSet(drawFn, w, h, ox, oy, scale) {
   const S = { walk: [], flash: [] };
   S.idle = cacheDraw(w, h, ox, oy, x => drawFn(x, null), scale);
@@ -2110,12 +2132,12 @@ function generateDungeon() {
       const B = cellBiome[k], tier = B.tier, tpl = B.tpl;
       if (merged[k]) {
         const o = merged[k].split(',').map(Number), a = [Math.min(c[0], o[0]), Math.min(c[1], o[1])], horiz = c[1] === o[1];
-        const w = horiz ? ri(40, 54) : ri(17, 24), h = horiz ? ri(13, 19) : ri(32, 42);
+        const w = horiz ? ri(54, 72) : ri(23, 32), h = horiz ? ri(17, 25) : ri(43, 56);
         const x = a[0] * CW + Math.floor(((horiz ? 2 : 1) * CW - w) / 2) + ri(-1, 1), y = a[1] * CH + Math.floor(((horiz ? 1 : 2) * CH - h) / 2) + ri(-1, 1);
         r = makeRoom(a[0], a[1], 'themed', { w, h, x, y, th: TH[tpl.floor], tpl });
         G.grid[o[0]][o[1]] = r; G.grid[c[0]][c[1]] = r; done.add(merged[k]); r.hall = true;
       } else {
-        const w = clamp(ri(14, 21) + tier * 1 + (R() < 0.3 ? 4 : 0), 13, CW - 4), h = clamp(ri(10, 15) + tier + (R() < 0.3 ? 3 : 0), 10, CH - 4);
+        const w = clamp(ri(19, 28) + tier * 1 + (R() < 0.3 ? 5 : 0), 17, CW - 4), h = clamp(ri(13, 20) + tier + (R() < 0.3 ? 4 : 0), 13, CH - 4);
         r = makeRoom(c[0], c[1], 'themed', { w, h, th: TH[tpl.floor], tpl });
       }
       r.danger = tier; r.rec = TIER_REC[tier]; r.biome = B; B.rooms.push(r);
@@ -2160,14 +2182,14 @@ const ARENA_STYLE = {
 // The Bazaar (last shopping stop) and the Everfield (the Dungeon Master's battlefield), in the strip east of the map
 function buildEndgame() {
   const bx = GW * CW + 7;
-  G.bazaar = makeRoom(null, null, 'bazaar', { w: 33, h: 19, x: bx, y: 6, th: TH.shop });
+  G.bazaar = makeRoom(null, null, 'bazaar', { w: 38, h: 24, x: bx, y: 8, th: TH.shop });
   const B = G.bazaar;
   for (let y = B.y; y < B.y + B.h; y++) for (let x = B.x; x < B.x + B.w; x++) { const dx = Math.abs(x - B.cx), dy = Math.abs(y - B.cy); G.theme[y * MW + x] = dx <= 3 && dy <= 2 ? TH.shrine : (x + y) % 2 && dy <= 1 ? TH.start : TH.shop; }
   for (const [a, b] of [[-15, -8], [14, -8], [-15, 8], [14, 8]]) placeProp(B.cx + a, B.cy + b, 'barrel');
   for (const a of [-11, -5, 5, 11]) placeProp(B.cx + a, B.y + 1, 'tent');
   // each Dungeon Master fights on its own ground
   const ST = ARENA_STYLE[G.lord] || ARENA_STYLE.warden, T = k => TH[k] ?? TH.field;
-  G.ever = makeRoom(null, null, 'ever', { w: 42, h: 62, x: GW * CW + 2, y: 40, th: T(ST.base) });
+  G.ever = makeRoom(null, null, 'ever', { w: 56, h: 70, x: GW * CW + 2, y: 44, th: T(ST.base) });
   const E = G.ever;
   for (let y = E.y; y < E.y + E.h; y++) for (let x = E.x; x < E.x + E.w; x++) {
     const dx = x - E.cx, dy = y - (E.y + 18), d = Math.hypot(dx, dy * 1.2);
@@ -2187,7 +2209,7 @@ function buildEndgame() {
   E.bossX = E.px; E.bossY = (E.y + 18.5) * TILE; E.trigY = (E.y + 40) * TILE;
   G.arena = E;
   // the Sovereign's dimension, reached only after its first "death"
-  G.voidRoom = makeRoom(null, null, 'void', { w: 40, h: 34, x: GW * CW + 3, y: 107, th: TH.void });
+  G.voidRoom = makeRoom(null, null, 'void', { w: 52, h: 42, x: GW * CW + 3, y: 120, th: TH.void });
   const V = G.voidRoom; V.bossX = V.px; V.bossY = V.py - 40;
   for (let y = V.y - 1; y <= V.y + V.h; y++) for (let x = V.x - 1; x <= V.x + V.w; x++) if (tget(x, y) === T_WALL) G.wstyle[y * MW + x] = 2;
 }
@@ -2217,7 +2239,7 @@ function decorateRoom(room) {
 function roomAt(px, py) {
   const tx = Math.floor(px / TILE), ty = Math.floor(py / TILE);
   if (G.hub) return G.rooms.find(r => tx >= r.x && tx < r.x + r.w && ty >= r.y && ty < r.y + r.h) || null;
-  if (G.castle && tx >= G.castle.x0 && tx < G.castle.x0 + 90 && ty >= G.castle.y0 && ty < G.castle.y0 + 48) return G.castle.rooms.find(r => tx >= r.x && tx < r.x + r.w && ty >= r.y && ty < r.y + r.h) || null;
+  if (G.castle && tx >= G.castle.x0 && tx < G.castle.x0 + CASTLE_W && ty >= G.castle.y0 && ty < G.castle.y0 + CASTLE_H) return G.castle.rooms.find(r => tx >= r.x && tx < r.x + r.w && ty >= r.y && ty < r.y + r.h) || null;
   for (const A of [G.bazaar, G.ever, G.voidRoom]) if (A && tx >= A.x && tx < A.x + A.w && ty >= A.y && ty < A.y + A.h) return A;
   const gx = Math.floor(tx / CW), gy = Math.floor(ty / CH);
   const r = inGrid(gx, gy) ? G.grid[gx][gy] : null;
@@ -2511,34 +2533,34 @@ function castleCarve(x0, y0, x1, y1, th) {
   for (let y = c - 1; y <= d + 1; y++) for (let x = a - 1; x <= b + 1; x++) if (tget(x, y) !== T_FLOOR) { tset(x, y, T_FLOOR); G.theme[y * MW + x] = th; }
 }
 function buildCastle(cg) {
-  const ox = cg.gx0 * CW, oy = cg.gy0 * CH;
-  // stone mass: a triangle plus the three corner towers
+  const ox = cg.gx0 * CW, oy = cg.gy0 * CH, K = CASTLE_K, S = v => Math.round(v * K);
+  // stone mass: a triangle plus the three corner towers (the layout is authored at 90×48 and scaled by CASTLE_K)
   const inTri = (x, y) => { const t = (y + 4) / 51; const half = t * 50; return y <= 47 && y >= -4 && Math.abs(x - 44.5) <= half; };
-  const towers = [[2, 26, 14, 19], [73, 26, 14, 19], [34, 1, 21, 13]];
-  for (let y = 0; y < 48; y++) for (let x = 0; x < 90; x++) {
+  const towers = [[2, 26, 14, 19], [73, 26, 14, 19], [34, 1, 21, 13]].map(([a, b, w, h]) => [S(a), S(b), S(w), S(h)]);
+  for (let y = 0; y < CASTLE_H; y++) for (let x = 0; x < CASTLE_W; x++) {
     const inT = towers.some(([a, b, w, h]) => x >= a - 2 && x < a + w + 2 && y >= b - 2 && y < b + h + 2);
-    if (inTri(x, y) || inT) { const X = ox + x, Y = oy + y; if (tget(X, Y) === T_VOID) tset(X, Y, T_WALL); }
+    if (inTri(x / K, y / K) || inT) { const X = ox + x, Y = oy + y; if (tget(X, Y) === T_VOID) tset(X, Y, T_WALL); }
   }
   const defs = [];
-  for (const d of CASTLE_ROOMS) { defs.push(d); if (MIRROR[d[0]]) defs.push([MIRROR[d[0]], 89 - d[1] - d[3], d[2], d[3], d[4], d[5], MIRROR_NAME[d[6]] || d[6]]); }
+  for (const d0 of CASTLE_ROOMS) { const d = [d0[0], S(d0[1]), S(d0[2]), S(d0[3]), S(d0[4]), d0[5], d0[6]]; if (d0[0] === 'north' || d0[0] === 'keep' || d0[0] === 'hall') d[1] = Math.round(CASTLE_GX + 0.5 - d[3] / 2); defs.push(d); if (MIRROR[d[0]]) defs.push([MIRROR[d[0]], CASTLE_W - 1 - d[1] - d[3], d[2], d[3], d[4], d[5], MIRROR_NAME[d[6]] || d[6]]); }
   G.castle = { x0: ox, y0: oy, rooms: [] };
   for (const [id, x, y, w, h, sub, name] of defs) {
     const r = makeRoom(null, null, 'castle', { x: ox + x, y: oy + y, w, h, th: sub === 'chamber' || sub === 'hall' ? TH.dreamhall : TH.dream, tpl: CASTLE_TPL });
     Object.assign(r, { castle: true, sub, key: id, cname: name, danger: 4, rec: sub === 'keep' ? 11 : 10, cleared: false, hasBoss: false });
     G.castle.rooms.push(r); G.castle[id] = r;
   }
-  const paths = [];
-  for (const P of CASTLE_PATHS) { paths.push(P); if (P[0][0] !== 44 || P[P.length - 1][0] !== 44) paths.push(P.map(([x, y]) => [88 - x, y])); }
+  const paths = [], SP = P => P.map(([x, y]) => [x === 44 ? CASTLE_GX : S(x), S(y)]);
+  for (const P0 of CASTLE_PATHS) { const P = SP(P0); paths.push(P); if (P0[0][0] !== 44 || P0[P0.length - 1][0] !== 44) paths.push(P.map(([x, y]) => [CASTLE_W - 2 - x, y])); }
   for (const P of paths) for (let i = 0; i < P.length - 1; i++) castleCarve(ox + P[i][0], oy + P[i][1], ox + P[i + 1][0], oy + P[i + 1][1], TH.dreamhall);
   // main gate: straight down out of the Gate Hall to the room below
-  const gx = ox + 44; castleCarve(gx, oy + 44, gx, oy + 47, TH.dreamhall);
+  const gx = ox + CASTLE_GX; castleCarve(gx, oy + S(44), gx, oy + CASTLE_H - 1, TH.dreamhall);
   const B = G.grid[cg.gate[0]][cg.gate[1]];
   if (B) {
     const bx = clamp(gx, B.x + CORR, B.x + B.w - 1 - CORR);
-    if (bx === gx) carveV(oy + 48, B.y - 1, gx); else { const my = oy + 49; carveV(oy + 48, my, gx); carveH(gx, bx, my); carveV(my, B.y - 1, bx); }
+    if (bx === gx) carveV(oy + CASTLE_H, B.y - 1, gx); else { const my = oy + CASTLE_H + 1; carveV(oy + CASTLE_H, my, gx); carveH(gx, bx, my); carveV(my, B.y - 1, bx); }
     const kn = doorKey(B, 'n'); B.doorPos[kn] = bx; B.doors[kn] = 'castle'; B.doorTiles[kn] = doorTilesFor(B, kn);
   }
-  for (let y = -1; y < 50; y++) for (let x = -1; x < 91; x++) { const X = ox + x, Y = oy + y; if (X >= 0 && Y >= 0 && X < MW && Y < MH && tget(X, Y) === T_WALL && (y >= 0 && y < 48 && x >= 0 && x < 90)) G.wstyle[Y * MW + X] = 3; /* pearly dream walls */ }
+  for (let y = -1; y < CASTLE_H + 2; y++) for (let x = -1; x < CASTLE_W + 1; x++) { const X = ox + x, Y = oy + y; if (X >= 0 && Y >= 0 && X < MW && Y < MH && tget(X, Y) === T_WALL && (y >= 0 && y < CASTLE_H && x >= 0 && x < CASTLE_W)) G.wstyle[Y * MW + X] = 3; /* pearly dream walls */ }
   G.castle.towers = [G.castle.north, G.castle.sw, G.castle.se]; G.castle.keepRoom = G.castle.keep;
 }
 function decorateCastle(room) {
@@ -2548,7 +2570,7 @@ function decorateCastle(room) {
   else if (room.sub === 'hall') { P(room.x + 1, room.y + 1, 'brazier'); P(room.x + room.w - 2, room.y + 1, 'brazier'); }
 }
 // the whole Dream Palace is one lair: its monsters wake when the challenge starts, roam every hall, and never come back once slain
-function labArea() { const C = G.castle; if (!C) return null; if (!C.all) C.all = { x: C.x0, y: C.y0, w: 90, h: 48, px: (C.x0 + 45) * TILE, py: (C.y0 + 30) * TILE, type: 'castle', castle: true, all: true, cname: 'The Dream Palace', rec: 10, tpl: CASTLE_TPL }; return C.all; }
+function labArea() { const C = G.castle; if (!C) return null; if (!C.all) C.all = { x: C.x0, y: C.y0, w: CASTLE_W, h: CASTLE_H, px: (C.x0 + CASTLE_W / 2) * TILE, py: (C.y0 + Math.round(30 * CASTLE_K)) * TILE, type: 'castle', castle: true, all: true, cname: 'The Dream Palace', rec: 10, tpl: CASTLE_TPL }; return C.all; }
 function labActive() { return !!(G.lab && G.lab.chal); }
 function spawnLabMobs() {
   if (!G.castle || G.labMobsDone) return; G.labMobsDone = true;
@@ -2607,8 +2629,8 @@ function buildBiomeMask() {
   if (G.castle) {
     const C = G.castle, L = { id: G.biomes.length, lab: true, tpl: CASTLE_TPL, tier: 4, rooms: C.rooms, rec: 10, name: 'The Dream Palace', altarRoom: C.hall, seals: [], bossKilled: false };
     G.biomes.push(L); G.lab = L; C.biome = L;
-    for (let y = 0; y < 48; y++) for (let x = 0; x < 90; x++) { const X = C.x0 + x, Y = C.y0 + y; if (tget(X, Y) !== T_VOID) G.bmask[Y * MW + X] = L.id; }
-    const gx = C.x0 + 44, gy = C.y0 + 47; L.seals.push({ room: C.hall, key: 'gate', tiles: [[gx - 1, gy], [gx, gy], [gx + 1, gy]] });
+    for (let y = 0; y < CASTLE_H; y++) for (let x = 0; x < CASTLE_W; x++) { const X = C.x0 + x, Y = C.y0 + y; if (tget(X, Y) !== T_VOID) G.bmask[Y * MW + X] = L.id; }
+    const gx = C.x0 + CASTLE_GX, gy = C.y0 + CASTLE_H - 1; L.seals.push({ room: C.hall, key: 'gate', tiles: [[gx - 1, gy], [gx, gy], [gx + 1, gy]] });
   }
 }
 function chalRec(B) { return B.lab ? B.rec : (B.rec || 1) + (G.day - 1) * 2; }
@@ -2769,8 +2791,8 @@ function chalHidden(x, y) {
 function drawChalVeils() {
   if (!G.chalOn) return;
   const v = viewer(); if (!v) return; const vb = bmAt(v.x, v.y);
-  const vx0 = Math.max(0, Math.floor((G.cam.x - W / 2 / ZOOM) / TILE) - 1), vy0 = Math.max(0, Math.floor((G.cam.y - H / 2 / ZOOM) / TILE) - 1);
-  const vw = Math.min(MW - vx0, Math.ceil(W / ZOOM / TILE) + 3), vh = Math.min(MH - vy0, Math.ceil(H / ZOOM / TILE) + 3);
+  const vx0 = Math.max(0, Math.floor((G.cam.x - VW2) / TILE) - 1), vy0 = Math.max(0, Math.floor((G.cam.y - VH2) / TILE) - 1);
+  const vw = Math.min(MW - vx0, Math.ceil((2 * VW2) / TILE) + 3), vh = Math.min(MH - vy0, Math.ceil((2 * VH2) / TILE) + 3);
   ctx.save(); ctx.imageSmoothingEnabled = false;
   for (const B of G.biomes) {
     if (!sealHolds(B)) continue;
@@ -3032,6 +3054,29 @@ function sealPockets(room) {
   while (q.length) { const [x, y] = q.pop(); for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const nx = x + dx, ny = y + dy; if (!ok(nx, ny) || seen[idx(nx, ny)]) continue; seen[idx(nx, ny)] = 1; q.push([nx, ny]); } }
   for (let y = room.y; y < room.y + room.h; y++) for (let x = room.x; x < room.x + room.w; x++) { const t = tget(x, y); if ((t === T_FLOOR || t === T_CRATE) && !seen[idx(x, y)]) { if (t === T_CRATE) { G.crateHp.delete(y * MW + x); G.crateKind.delete(y * MW + x); } tset(x, y, T_WALL); } }
 }
+/* the side rooms of the Krystal Fonts are dug after the layouts: open a clean way from each Font corridor into its host room */
+{ const _gf = genFonts; genFonts = function (start) {
+  _gf(start);
+  for (const fr of G.fontRooms || []) {
+    const R0 = fr.host; if (!R0 || !fr.cor || !fr.cor.length) continue;
+    // the corridor tile that sits in the host's wall line, and the way into the room from there
+    const ent = fr.cor.filter(([x, y]) => x === R0.x - 1 || x === R0.x + R0.w || y === R0.y - 1 || y === R0.y + R0.h); if (!ent.length) continue;
+    const [ex, ey] = ent[1] || ent[0], dir = ex === R0.x - 1 ? [1, 0] : ex === R0.x + R0.w ? [-1, 0] : ey === R0.y - 1 ? [0, 1] : [0, -1];
+    for (let k = 0; k < 9; k++) {
+      let allFloor = true;
+      for (let d = -1; d <= 1; d++) {
+        const x = ex + dir[0] * k + (dir[0] ? 0 : d), y = ey + dir[1] * k + (dir[1] ? 0 : d), i = y * MW + x, t = tget(x, y);
+        if (k > 0 && (x < R0.x || x >= R0.x + R0.w || y < R0.y || y >= R0.y + R0.h)) continue;
+        if (t === T_FLOOR) continue; allFloor = false;
+        if (t === T_PROP && LIQUID[G.prop.get(i)]) { G.prop.delete(i); tset(x, y, T_FLOOR); G.bridge.set(i, !!dir[0]); continue; }
+        if (t === T_CRATE) { G.crateHp.delete(i); G.crateKind.delete(i); }
+        if (t === T_PROP) G.prop.delete(i);
+        if (k === 0 || t === T_WALL || t === T_PROP || t === T_CRATE) { tset(x, y, T_FLOOR); if (k > 0) G.theme[i] = G.theme[R0.cy * MW + R0.cx]; }
+      }
+      if (allFloor && k > 2) break;
+    }
+  }
+}; }
 // ===== Effects =====
 function fx(o) { G.fx.push(Object.assign({ t: 0, life: 0.4 }, o)); }
 function floatText(x, y, text, color = '#fff', life = 0.8, size = 1) { G.fx.push({ k: 'text', x, y, text, color, t: 0, life, size }); }
@@ -3138,12 +3183,13 @@ function varSprite(key, v) {
 }
 function sprOf(e) { if (e.variant) { const T = varSprite(e.sprite || e.type, e.variant); if (T) return T; } return SPR[e.sprite + (e.tint ? '_d2' : '')] || SPR[e.sprite] || SPR[e.type]; }
 function hurtBox(e) {
-  if (e.hbTop != null) return;
+  if (e.hbTop0 != null) { e.hbTop = tiltOn() ? e.hbTop0 / TILT_K : e.hbTop0; return; } /* tilted camera: bodies stand taller on the squashed ground */
   const S = sprOf(e), f = S && S.idle, sc = e.scale || 1;
-  if (!f) { e.hbTop = e.r * 2; e.hbR = e.r; return; }
-  e.hbR = Math.max(e.r, Math.min(f.w * sc * 0.34, f.oy * sc * 0.42));
-  e.hbTop = Math.max(e.hbR * 1.6, f.oy * sc * 0.88);
-  e.hbX = clamp(f.w * sc * 0.4 / e.hbR, 1, 2.2); // wide beasts get a wider (elliptical) box
+  if (!f) { e.hbTop = e.r * 2; e.hbR = e.r; e.hbTop0 = e.hbTop; return; }
+  const fw = f.w - 2 * (f.pad || 0), foy = f.oy - (f.pad || 0); /* the paper rim does not count */
+  e.hbR = Math.max(e.r, Math.min(fw * sc * 0.34, foy * sc * 0.42));
+  e.hbTop = Math.max(e.hbR * 1.6, foy * sc * 0.88);
+  e.hbX = clamp(fw * sc * 0.4 / e.hbR, 1, 2.2); e.hbTop0 = e.hbTop; if (tiltOn()) e.hbTop = e.hbTop0 / TILT_K; // wide beasts get a wider (elliptical) box
 }
 // squared distance from a point to the capsule's spine (compare against (e.hbR + r)^2)
 function hurtD2(e, x, y) {
@@ -5999,7 +6045,7 @@ function castleLeash(e, dt) {
   const anyIn = G.players.some(p => p.state === 'up' && inRoom(e.home, p.x, p.y, 8));
   if (anyIn) { e.reset = 0; return false; }
   e.reset = (e.reset || 0) + dt;
-  if (e.reset > 4) { e.aggro = false; e.busy = 0; e.mover = null; e.hp = e.maxHp; e.x = e.hx; e.y = e.hy; e.tgt = null; clearStatus(e); e.poison = null; e.shielded = false; e.invT = 0; e.sky = 0; e.burrow = 0; e.hidden = false; e.roar = 0; e.raged = false; e.phase2 = false; e.pyl1 = e.pyl2 = false; e.mirrors = []; e.white = 0; for (const o of G.enemies) if ((o.type === 'pylon' || o.decoy) && inRoom(e.home, o.x, o.y)) o.dead = true; if (G.beams) G.beams = G.beams.filter(b => b.owner !== e); if (G.walls) G.walls = G.walls.filter(w => w.owner !== e); floatText(e.x, e.y - 40, 'Resets', '#ffe6a0', 1); return true; }
+  if (e.reset > 4) { e.aggro = false; e.busy = 0; e.mover = null; e.hp = e.maxHp; e.x = e.hx; e.y = e.hy; e.tgt = null; clearStatus(e); e.poison = null; e.shielded = false; e.invT = 0; e.sky = 0; e.burrow = 0; e.hidden = false; e.dig = null; e.van = null; e.roar = 0; e.raged = false; e.phase2 = false; e.pyl1 = e.pyl2 = false; e.mirrors = []; e.white = 0; for (const o of G.enemies) if ((o.type === 'pylon' || o.decoy) && inRoom(e.home, o.x, o.y)) o.dead = true; if (G.beams) G.beams = G.beams.filter(b => b.owner !== e); if (G.walls) G.walls = G.walls.filter(w => w.owner !== e); floatText(e.x, e.y - 40, 'Resets', '#ffe6a0', 1); return true; }
   return false;
 }
 function castleBossDead(e) {
@@ -6517,9 +6563,105 @@ const BOSS_HAZ = {
   vesper: [e => P.tentacles(e, 2, { kind: 'shadow', st: ST('gloom', 1.5) }), e => P.meteors(e, 2, { r: 24, color: '#b48cff', tele: 'spore', dmg: 20, st: ST('hush', 1.2) })],
   sovereign: [e => P.tentacles(e, 2, { kind: 'crystal', tele: 'crystal' })],
 };
+// ===== close quarters (bigger arenas): every boss now has gap-closers and melee combos of its own =====
+// lunge: one fast, short charge straight at you
+P.lunge = function (e, tg, o = {}) { return P.charge(e, tg, o.n || 1, o.spd || 380, o.dmg || 24, o.wind || 0.42, o.dur || 0.32); };
+// combo: a string of telegraphed swipes, stepping in between each one
+P.combo = function (e, tg, o = {}) {
+  const n = o.n || 3, gap = o.gap || 0.5, len = o.len || e.r + 36, arc = o.arc || 1.4;
+  for (let i = 0; i < n; i++) schedule(i * gap, () => {
+    if (e.dead || e.van || e.dig) return;
+    const T = e.tgt && e.tgt.state === 'up' ? e.tgt : tg, a = Math.atan2(T.y - e.y, T.x - e.x);
+    const step = clamp(Math.hypot(T.x - e.x, T.y - e.y) - len * 0.55, 0, o.step || 26), nx = e.x + Math.cos(a) * step, ny = e.y + Math.sin(a) * step, A = homeRoom(e);
+    if (!hitsWall(nx, ny, e.r * 0.6) && (!A || inRoom(A, nx, ny, -e.r))) { e.x = nx; e.y = ny; }
+    P.cone(e, T, len * (i === n - 1 ? 1.25 : 1), i === n - 1 ? arc * 1.3 : arc, 0.32, (o.dmg || 20) * (i === n - 1 ? 1.4 : 1), { st: o.st });
+  });
+  return n * gap + 0.45;
+};
+// dig: the boss sinks, a mound races after one of you, then it erupts under that spot
+P.dig = function (e, tg, o = {}) {
+  e.dig = { t: o.dur || 1.7, phase: 'go', o, tg, sky: false };
+  burst(e.x, e.y, o.color || '#a08a68', 26, 110, 0.6, { g: 240, vy: -80 }); smoke(e.x, e.y, 10, o.smoke || '#8a7a5a', 50, 0.8); decal(e.x, e.y, 'crack', 26, 5);
+  floatText(e.x, e.y - 50, o.text || 'Burrows!', o.color || '#e8d8c0', 0.9);
+  return 0.1;
+};
+// sky: the boss leaps out of sight, its shadow hunts you, then it crashes down
+P.sky = function (e, tg, o = {}) {
+  e.dig = { t: o.dur || 1.5, phase: 'go', o, tg, sky: true };
+  burst(e.x, e.y - 20, o.color || '#ffffff', 22, 120, 0.6, { glow: !!o.glow, g: -60 }); shock(e.x, e.y, 40, o.color || '#ffffff', 0.4); shake(3);
+  floatText(e.x, e.y - 50, o.text || 'Leaps away!', o.color || '#e8d8c0', 0.9);
+  return 0.1;
+};
+function updateDig(e, dt) {
+  const D = e.dig; if (!D) return false;
+  e.invT = 0.3; e.busy = 0.3; e.mover = null; e.hidden = true; e.moving = true;
+  const o = D.o, r = o.r || 52, A = homeRoom(e);
+  if (D.phase === 'go') {
+    D.t -= dt;
+    let T = D.tg && D.tg.state === 'up' ? D.tg : null; if (!T) T = D.tg = pick(targets(e)) || null;
+    if (T) {
+      const d = Math.hypot(T.x - e.x, T.y - e.y), sp = Math.min(d, (D.sky ? 420 : 250) * dt), a = Math.atan2(T.y - e.y, T.x - e.x);
+      if (D.sky) { const nx = e.x + Math.cos(a) * sp, ny = e.y + Math.sin(a) * sp; if (!A || inRoom(A, nx, ny, -e.r * 0.6)) { e.x = nx; e.y = ny; } }
+      else moveEnt(e, Math.cos(a) * sp, Math.sin(a) * sp);
+      if (!D.sky && R() < 0.7) burst(e.x + rr(-6, 6), e.y, o.color || '#a08a68', 1, 40, 0.5, { g: 200, vy: -50, size: 1.6 });
+      if (!D.sky && R() < 0.08) decal(e.x, e.y, 'crack', 12, 3);
+    }
+    if (D.t <= 0) { D.phase = 'up'; D.t = o.warn || 0.75; tele({ x: e.x, y: e.y, r, life: D.t, color: o.tele || 'red' }); if (D.sky) (G.fallers || (G.fallers = [])).push({ x: e.x, y: e.y, t: -D.t + 0.4, dur: 0.4, col: o.color || '#ffffff' }); }
+  } else {
+    D.t -= dt;
+    if (D.t <= 0) {
+      e.dig = null; e.hidden = false; e.invT = 0; e.moving = false;
+      hitPlayersCircle(e.x, e.y, r, (o.dmg || 30) * e.dmgM, e, 30, { st: o.st });
+      shock(e.x, e.y, r + 10, o.color || '#e8d8c0', 0.6); burst(e.x, e.y, o.color || '#c8b898', 34, 160, 0.7, { g: 240, vy: -100 }); decal(e.x, e.y, 'crack', r * 0.6, 6); shake(7);
+      if (o.ring) for (let i = 0; i < o.ring; i++) eShoot(e, i * Math.PI * 2 / o.ring, 90, 10, { color: o.color || '#ffb35a' });
+      e.busy = 0.7;
+    }
+  }
+  return true;
+}
+// which close-quarters moves each boss uses: near = when you stand in its face, far = to close the gap
+const BOSS_CLOSE = (() => {
+  const L = (o) => (e, t) => P.lunge(e, t, o), C = (o) => (e, t) => P.combo(e, t, o), D = (o) => (e, t) => P.dig(e, t, o), S = (o) => (e, t) => P.sky(e, t, o);
+  const SL = (r, d, col, ring = 12) => (e) => P.slam(e, r, 0.7, d, ring, col), LP = (r, d, col) => (e, t) => P.leap(e, t, r, 0.8, d, 12, col);
+  return {
+    gorehorn: { near: [C({ n: 3, dmg: 20, st: bleedSt }), SL(64, 24, '#c8a070')], far: [L({ n: 2, spd: 400 }), L({ spd: 420, dmg: 28 })] },
+    chieftain: { near: [C({ n: 3, dmg: 22, len: 52, st: sunderSt }), SL(70, 26, '#ff8a3c')], far: [LP(58, 26, '#ff8a3c'), S({ text: 'Jumps!', color: '#ff8a3c', r: 60, dmg: 30, ring: 14 })] },
+    bramble: { near: [C({ n: 2, dmg: 22, arc: 1.8, st: bleedSt }), SL(66, 22, '#9ad86a')], far: [D({ text: 'Roots under the ground!', color: '#7a9a4a', r: 56, ring: 12, st: ST('mire', 1.5) }), L({ spd: 300, dmg: 26 })] },
+    hivequeen: { near: [C({ n: 4, gap: 0.35, dmg: 14, len: 44, st: ST('mire', 1) })], far: [S({ text: 'Takes to the air!', color: '#ffd23a', glow: true, r: 48, dmg: 26, ring: 16 }), L({ n: 2, spd: 460, dmg: 20 })] },
+    mudslug: { near: [SL(70, 24, '#9aaa4a', 14), C({ n: 2, dmg: 22, arc: 1.7, st: ST('mire', 1.5) })], far: [D({ text: 'Sinks into the mud!', color: '#9aaa4a', r: 60, ring: 14, st: ST('mire', 2) })] },
+    sporemother: { near: [SL(76, 24, '#ff8ad8', 16), C({ n: 2, dmg: 22, arc: 2.0, len: 56, st: ST('wither', 2.5) })], far: [D({ text: 'Melts into the soil!', color: '#ff8ad8', r: 62, ring: 16, tele: 'spore', st: ST('gloom', 2) })] },
+    frostfang: { near: [C({ n: 4, gap: 0.38, dmg: 18, st: ST('chill', 0) })], far: [L({ n: 3, spd: 440, dmg: 22, wind: 0.32 }), S({ text: 'Bounds away!', color: '#bff4ff', r: 50, dmg: 28, ring: 12, tele: 'crystal', st: ST('chill', 0, { n: 2 }) })] },
+    emberdrake: { near: [C({ n: 2, dmg: 24, arc: 2.2, len: 58, st: ST('scorch', 2.5, { dps: 4 }) }), SL(70, 24, '#ff8a2a', 16)], far: [S({ text: 'Soars up!', color: '#ff8a2a', glow: true, r: 60, dmg: 32, ring: 18, tele: 'fire' }), L({ spd: 420, dmg: 26 })] },
+    bonecolossus: { near: [C({ n: 3, dmg: 24, len: 56, st: bleedSt }), SL(76, 28, '#e8e0cc', 16)], far: [LP(62, 28, '#e8e0cc'), D({ text: 'Crumbles into the earth!', color: '#e8e0cc', r: 60, ring: 14, st: bleedSt })] },
+    thundertoad: { near: [C({ n: 2, dmg: 22, arc: 1.6, st: ST('mire', 1.2) }), SL(70, 24, '#ffe24a', 16)], far: [S({ text: 'Leaps sky-high!', color: '#ffe24a', r: 62, dmg: 30, ring: 18, tele: 'crystal', st: ST('hush', 1.5) }), (e, t) => P.lines(e, t, 1, 180, 18, 0.5, 24, 0, { st: ST('mire', 1.5), color: '#ff8ab0' })] },
+    warden: { near: [C({ n: 3, dmg: 24, len: 54, st: sunderSt }), SL(74, 26, '#7ff0ff', 14)], far: [L({ n: 2, spd: 380, dmg: 26 }), S({ text: 'Shatters and reforms!', color: '#7ff0ff', glow: true, r: 56, dmg: 30, ring: 14, tele: 'crystal' })] },
+    shellback: { near: [SL(80, 28, '#c8b890', 16), C({ n: 2, dmg: 26, arc: 1.6, len: 60, st: sunderSt })], far: [D({ text: 'Digs under the sand!', color: '#c8b890', r: 66, ring: 16 })] },
+    moth: { near: [C({ n: 3, gap: 0.4, dmg: 18, arc: 1.8, st: ST('gloom', 1.5) })], far: [S({ text: 'Flutters up!', color: '#d8c8f0', glow: true, r: 52, dmg: 26, ring: 14, tele: 'spore', st: ST('gloom', 2) }), L({ n: 2, spd: 440, dmg: 22 })] },
+    phoenix: { near: [C({ n: 3, dmg: 22, arc: 1.8, st: ST('scorch', 2.5, { dps: 5 }) })], far: [S({ text: 'Rises in flame!', color: '#ff8a2a', glow: true, r: 62, dmg: 32, ring: 18, tele: 'fire' }), L({ n: 2, spd: 460, dmg: 24 })] },
+    rimehorn: { near: [C({ n: 3, dmg: 24, len: 54, st: ST('chill', 0) }), SL(74, 26, '#bff4ff', 16)], far: [L({ n: 2, spd: 420, dmg: 26 }), S({ text: 'Bounds over the ice!', color: '#bff4ff', r: 58, dmg: 30, ring: 16, tele: 'crystal', st: ST('chill', 0, { n: 2 }) })] },
+    stormcoil: { near: [C({ n: 3, gap: 0.4, dmg: 20, arc: 1.7, st: ST('hush', 1) })], far: [D({ text: 'Coils under the floor!', color: '#ffe24a', r: 56, ring: 14, tele: 'crystal', st: ST('hush', 1.5) }), L({ n: 2, spd: 460, dmg: 22 })] },
+    vesper: { near: [C({ n: 3, dmg: 22, arc: 1.6, st: ST('gloom', 1.5) })], far: [D({ text: 'Sinks into shadow!', color: '#b48cff', r: 56, ring: 14, tele: 'spore', st: ST('gloom', 2) }), L({ n: 2, spd: 440, dmg: 24 })] },
+    sovereign: { near: [C({ n: 3, dmg: 26, len: 56 })], far: [L({ n: 2, spd: 420, dmg: 28 })] },
+    nullmaw: { near: [C({ n: 3, gap: 0.4, dmg: 22, len: 50, st: ST('gloom', 1.5) })], far: [L({ n: 2, spd: 460, dmg: 24 }), D({ text: 'Swallows the floor!', color: '#c86aff', r: 56, ring: 14, tele: 'spore', st: ST('gloom', 2) })] },
+    blightfather: { near: [SL(74, 24, '#a8e05a', 16), C({ n: 2, dmg: 24, arc: 1.8, len: 56, st: ST('wither', 2.5) })], far: [LP(60, 26, '#a8e05a')] },
+    riftweaver: { near: [C({ n: 4, gap: 0.35, dmg: 16, len: 46, st: ST('mire', 1) })], far: [S({ text: 'Drops on a thread!', color: '#8a6aff', r: 52, dmg: 28, ring: 14, tele: 'spore' }), L({ n: 2, spd: 460, dmg: 22 })] },
+    shardveil: { near: [C({ n: 3, gap: 0.38, dmg: 20, arc: 1.5, st: bleedSt })], far: [L({ n: 3, spd: 480, dmg: 22, wind: 0.32 }), S({ text: 'Shatters into the air!', color: '#e0b0ff', glow: true, r: 50, dmg: 26, ring: 16, tele: 'crystal' })] },
+  };
+})();
+function bossClose(e, tg, dt, rage) {
+  const M = BOSS_CLOSE[e.type]; if (!M || !tg || e.mover || e.jumpT > 0 || e.state === 'wind' || e.busy > 0.2) return false;
+  e.closeT = (e.closeT ?? rr(2.5, 4)) - dt; if (e.closeT > 0) return false;
+  const dd = Math.hypot(tg.x - e.x, tg.y - e.y), near = dd < e.r + 58, list = (near ? M.near : M.far) || M.near || M.far;
+  if (!list || !list.length || (!near && dd < 40)) return false;
+  const k = near ? 'cn' : 'cf', f = list[e[k] = ((e[k] ?? -1) + 1) % list.length];
+  e.busy = f(e, tg, rage) || 0.5; e.closeT = (rage ? rr(2.5, 3.5) : rr(3.5, 5)) * (e.castle ? 1.1 : 1);
+  return true;
+}
 // runs inside bossCycle: hazards on their own clock, a reposition every few seconds, and drifting while it attacks
 function bossTactics(e, tg, spd, dt, rage) {
   if (updateVanish(e, dt)) return true;
+  if (updateDig(e, dt)) return true;
+  if (bossClose(e, tg, dt, rage)) return true;
   const H = BOSS_HAZ[e.type];
   if (H && tg) {
     e.hazT = (e.hazT ?? 5) - dt;
@@ -6792,7 +6934,7 @@ function updateBiomeHz(dt) {
   }
 }
 function drawBiomeHz() {
-  const vx0 = G.cam.x - W / 2 / ZOOM - 60, vy0 = G.cam.y - H / 2 / ZOOM - 60, vx1 = vx0 + W / ZOOM + 120, vy1 = vy0 + H / ZOOM + 120;
+  const vx0 = G.cam.x - VW2 - 60, vy0 = G.cam.y - VH2 - 60, vx1 = vx0 + (2 * VW2) + 120, vy1 = vy0 + (2 * VH2) + 120;
   for (const z of G.bhz || []) {
     if (z.x < vx0 || z.x > vx1 || z.y < vy0 || z.y > vy1 || !spotSeen(z.x, z.y)) continue;
     ctx.save();
@@ -7321,6 +7463,7 @@ function decideMode(p, A, vis) {
     if (vis.length && vis[0].d < 210) return 'fight';
     const lc0 = levelCost(p), sh0 = lc0 != null && p.gold >= lc0 ? nearestShrineNow(p) : null;
     if (sh0) { A.goal = { x: sh0.x, y: sh0.y, near: 18, use: true, it: sh0 }; return 'goto'; }
+    { const fm = !vis.some(v => v.d < 160) ? fontPlan(p, A, vis, 450) : null; if (fm) return fm; }
     const m = chalHunt(p, A, myB); if (m) return m;
   }
   if (G.botPlan && G.botPlan.B.lab && !(myB && myB.chal)) {
@@ -7328,6 +7471,7 @@ function decideMode(p, A, vis) {
     const lc1 = levelCost(p), sh1 = lc1 != null && p.gold >= lc1 ? nearestShrineNow(p) : null;
     if (sh1 && d2(sh1.x, sh1.y, p.x, p.y) < 700 * 700) { A.goal = { x: sh1.x, y: sh1.y, near: 18, use: true, it: sh1 }; return 'goto'; }
     if (!G.labGo) { const lt = lootFor(p, vis, 0.45); if (lt) { A.goal = { x: lt.x, y: lt.y + 6, near: 10, use: true, it: lt }; return 'goto'; } } /* chests on the way to the palace gate */
+    if (!G.labGo) { const m = fontPlan(p, A, vis, 550); if (m) return m; }
     const m = altarPlan(p, A); if (m) return m;
   }
   const rushing = G.botPlan && G.botPlan.B.lab && myB !== G.botPlan.B;
@@ -7338,6 +7482,8 @@ function decideMode(p, A, vis) {
       if (sh && !(G.botPlan && G.botPlan.B.lab && d2(sh.x, sh.y, p.x, p.y) > 900 * 900) && safeAt(sh.x, sh.y, 30, Math.min(30, Math.hypot(sh.x - p.x, sh.y - p.y) / 80 + 4))) { botAnnounce(p, 'Levelling up at the shrine', 'lvl' + p.level); A.goal = { x: sh.x, y: sh.y, near: 18, use: true, it: sh }; return 'goto'; }
     } }
   if ((G.phase === 'day' || G.phase === 'embers')) { const lt = lootFor(p, vis); if (lt) { botAnnounce(p, lt.free ? 'Grabbing the reward chest' : 'Opening a chest', 'loot' + Math.round(lt.x) + ',' + Math.round(lt.y)); A.goal = { x: lt.x, y: lt.y + 6, near: 10, use: true, it: lt }; return 'goto'; } }
+  /* a Krystal Font (a flask upgrade) close by: go and channel it now, before the next fight */
+  { const m = fontPlan(p, A, vis, rushing ? 500 : 750); if (m) return m; }
   if (vis.length && vis[0].d < (rushing ? 120 : 200) && (vis[0].e.aggro || vis[0].d < 150) && (!(vis[0].e.champ || vis[0].e.castle) || botCanFight(p, vis[0].e.room || vis[0].e.home))) return 'fight';
   /* a shrine close by restores health and flasks at once: worth a detour whenever we are scratched or have drunk */
   { const sh = restShrine(p, vis); if (sh) { botAnnounce(p, 'Topping up at the shrine', 'rest' + Math.round(sh.x)); A.goal = { x: sh.x + rr(-10, 10), y: sh.y + 20, near: 14 }; return 'goto'; } }
@@ -7427,8 +7573,8 @@ function restShrine(p, vis) {
   if (G.phase !== 'day' && G.phase !== 'embers') return null;
   if (vis.length && vis[0].d < 100 && vis[0].e.aggro) return null;
   const need = (1 - p.hp / p.maxHp) + Math.max(0, flaskMax(p) - p.flasks) * 0.22;
-  if (need < 0.15) return null;
-  const reach = clamp(need * 1500, 220, 1100), here = bmAt(p.x, p.y), sealed = here >= 0 && sealHolds(G.biomes[here]);
+  if (need < 0.06) return null;
+  const reach = need < 0.15 ? 380 : clamp(need * 1500, 300, 1100), /* even a scratch is worth a shrine that is right there */ here = bmAt(p.x, p.y), sealed = here >= 0 && sealHolds(G.biomes[here]);
   let best = null, bd = reach * reach;
   for (const it of G.inter) {
     if (it.kind !== 'shrine') continue;
@@ -7950,7 +8096,7 @@ function canReach(p, A, x, y) {
   pathRules(p, x, y); const path = findPath(Math.floor(p.x / TILE), Math.floor(p.y / TILE), Math.floor(x / TILE), Math.floor(y / TILE)); PF.stay = -1; PF.avoid = null;
   A.reachKey = key; A.reachT = G.time + 3; A.reachOk = !!(path && path.length) || d2(p.x, p.y, x, y) < 60 * 60; return A.reachOk;
 }
-function labGate() { const C = G.castle; return C ? clearSpot((C.x0 + 44.5) * TILE, (C.y0 + 50) * TILE, 10) : null; }
+function labGate() { const C = G.castle; return C ? clearSpot((C.x0 + CASTLE_GX + 0.5) * TILE, (C.y0 + CASTLE_H + 2) * TILE, 10) : null; }
 function altarOf(B) { return G.inter.find(i => i.kind === 'altar' && i.B === B); }
 function altarPlan(p, A) {
   updateBotPlan();
@@ -7991,18 +8137,26 @@ function altarPlan(p, A) {
 
 // every bot channels each Krystal Font itself (the upgrade is personal); it goes to the nearest one it has not taken
 function fontPlan(p, A, vis, reach = 1300) {
-  if (G.phase !== 'day' || (vis.length && vis[0].d < 160) || flaskCapped(p)) return null;
+  if (G.phase !== 'day' || vis.some(v => v.d < 130 && v.e.aggro) || flaskCapped(p)) return null;
   // share them out: a bot already 2 upgrades ahead of a teammate leaves the Fonts to the others
   const lowest = Math.min(...G.players.filter(q => q !== p && q.state !== 'dead' && q.isBot).map(q => q.flaskUp || 0)); const spare = G.inter.filter(i => i.kind === 'font' && !i.used).length >= G.players.filter(q => q.isBot && q.state !== 'dead').length; if (!spare && (p.flaskUp || 0) >= lowest + 2) return null; /* share them among bots only while they are scarce; a human takes the Fonts they walk to */
-  if (A.fontTgt && (fontTaken(A.fontTgt, p) || G.time > A.fontUntil)) { if (G.time > A.fontUntil && !fontTaken(A.fontTgt, p)) A.fontSkip = A.fontTgt; A.fontTgt = null; }
+  if (A.fontTgt && G.players.some(q => q !== p && q.ai && q.ai.fontTgt === A.fontTgt && d2(q.x, q.y, A.fontTgt.x, A.fontTgt.y) + 150 * 150 < d2(p.x, p.y, A.fontTgt.x, A.fontTgt.y))) A.fontTgt = null; /* a teammate much closer took it */
+  if (A.fontTgt && (fontTaken(A.fontTgt, p) || G.time > A.fontUntil)) { if (G.time > A.fontUntil && !fontTaken(A.fontTgt, p)) { A.fontSkip = A.fontTgt; A.fontSkipT = G.time + 25; } A.fontTgt = null; }
+  if (A.fontSkip && G.time > (A.fontSkipT || 0)) A.fontSkip = null; /* give a skipped Font another try later */
   if (!A.fontTgt) {
     const here = bmAt(p.x, p.y), sealed = here >= 0 && sealHolds(G.biomes[here]);
     let best = null, bd = reach * reach;
-    for (const it of G.inter) { if (it.kind !== 'font' || fontTaken(it, p) || it === A.fontSkip || fontBusy(it, p) || G.players.some(q => q !== p && q.ai && q.ai.fontTgt === it) || G.players.some(q => !q.isBot && q.state === 'up' && !flaskCapped(q) && d2(q.x, q.y, it.x, it.y) < 300 * 300 && d2(q.x, q.y, it.x, it.y) < d2(p.x, p.y, it.x, it.y))) continue; const ib = bmAt(it.x, it.y); if (sealed && ib !== here) continue; if (!sealed && ib >= 0 && sealHolds(G.biomes[ib])) continue; if (!campSafe(p, it.x, it.y, 40, 20)) continue; const dd = d2(it.x, it.y, p.x, p.y); if (dd < bd) { bd = dd; best = it; } }
+    for (const it of G.inter) { if (it.kind !== 'font' || fontTaken(it, p) || it === A.fontSkip || fontBusy(it, p) || G.players.some(q => q !== p && q.ai && q.ai.fontTgt === it && d2(q.x, q.y, it.x, it.y) < d2(p.x, p.y, it.x, it.y) + 150 * 150) || /* claimed by a teammate who is about as close (a closer bot takes it over) */ G.players.some(q => !q.isBot && q.state === 'up' && !flaskCapped(q) && d2(q.x, q.y, it.x, it.y) < 300 * 300 && d2(q.x, q.y, it.x, it.y) < d2(p.x, p.y, it.x, it.y))) continue; const ib = bmAt(it.x, it.y); if (sealed && ib !== here) continue; if (!sealed && ib >= 0 && sealHolds(G.biomes[ib])) continue; if (!campSafe(p, it.x, it.y, 40, 20)) continue; const dd = d2(it.x, it.y, p.x, p.y); if (dd < bd) { bd = dd; best = it; } }
     if (!best) return null;
-    A.fontTgt = best; A.fontUntil = G.time + 50;
+    A.fontTgt = best; A.fontUntil = G.time + 25 + Math.hypot(best.x - p.x, best.y - p.y) / 55;
   }
   const it = A.fontTgt;
+  { const dd = Math.hypot(it.x - p.x, it.y - p.y); if (A.fontBestFor !== it) { A.fontBestFor = it; A.fontBest = dd; } if (dd < A.fontBest - 24) { A.fontBest = dd; A.fontUntil = Math.max(A.fontUntil, G.time + 22); } } /* keep going while we are getting closer */
+  /* the channel breaks on any hit: clear the monsters around the Font first, then channel */
+  if (d2(it.x, it.y, p.x, p.y) < 110 * 110) {
+    let th = null, bd = 170 * 170; for (const e of G.enemies) { if (e.dead || e.hidden || e.def.objective || e.type === 'dummy' || e.boss) continue; const dd = d2(e.x, e.y, it.x, it.y); if (dd < bd && (e.aggro || losClear(it.x, it.y - 6, e.x, e.y - 4))) { bd = dd; th = e; } }
+    if (th) { A.target = th; A.fontUntil = Math.max(A.fontUntil, G.time + 6); botAnnounce(p, 'Clearing the Font before channelling', 'fontclear' + Math.round(it.x)); return 'fight'; }
+  }
   botAnnounce(p, 'Going for a Krystal Font', 'font' + it.x);
   A.goal = { x: it.x, y: it.y, near: 18, use: true, it }; return 'goto';
 }
@@ -8102,7 +8256,7 @@ function circleFor(room, centre, isLab) {
   const far = Math.max(...[[0, 0], [mapW, 0], [0, mapH], [mapW, mapH]].map(([x, y]) => Math.hypot(x - cx, y - cy)));
   const half = Math.hypot(room.w, room.h) * TILE / 2, r0 = far + 40, rf = Math.max(196, half + 56); // the final ring always holds the whole Gatekeeper arena
   const c = { x: cx, y: cy, r: r0, r0, rf, rmid: Math.max(rf * 3, r0 * 0.45) };
-  if (centre) { c.fx = cx; c.fy = cy; c.tx = room.px; c.ty = room.py; c.rmid = Math.min(r0 - 40, Math.max(c.rmid, Math.hypot(cx - room.px, cy - room.py) + rf + 80, isLab ? Math.hypot(90, 48) * TILE / 2 + 48 : 0)); c.moveIn = isLab ? 'shrink2' : 'shrink1'; } /* the whole Dream Palace stays inside until the last closing */ // the ring drifts onto the Gatekeeper only in the last closing
+  if (centre) { c.fx = cx; c.fy = cy; c.tx = room.px; c.ty = room.py; c.rmid = Math.min(r0 - 40, Math.max(c.rmid, Math.hypot(cx - room.px, cy - room.py) + rf + 80, isLab ? Math.hypot(CASTLE_W, CASTLE_H) * TILE / 2 + 48 : 0)); c.moveIn = isLab ? 'shrink2' : 'shrink1'; } /* the whole Dream Palace stays inside until the last closing */ // the ring drifts onto the Gatekeeper only in the last closing
   return c;
 }
 // Act II: the Wildfire closes around the Dream Palace first, so it is the last place the fire swallows
@@ -8440,7 +8594,7 @@ function endMatch(won) {
 }
 const NO_CTL = { mx: 0, my: 0, ax: 0, ay: 0, atk: false, skP: false, skD: false, skR: false, ultP: false, ultD: false, ultR: false, supP: false, supD: false, supR: false, altD: false, altP: false, itemP: false, intD: false, intP: false, relP: false };
 function humanControl(p) {
-  const w = screenToWorld(Input.mx, Input.my);
+  const w = aimPoint();
   const block = G.stickerOpen || G.talkBlock || G.bigMap;
   return {
     mx: (bindDown('right') ? 1 : 0) - (bindDown('left') ? 1 : 0), my: (bindDown('down') ? 1 : 0) - (bindDown('up') ? 1 : 0),
@@ -9000,7 +9154,7 @@ function planSpread(n) {
   for (let i = 0; i < N; i++) raw[i] = dI[i] >= 0 ? dI[i] : 0;
   const late = Math.max(...raw) + 1;
   // Act II: while its guardian lives, the Dream Palace burns just before the arena
-  if (n === 2 && G.castle && G.lab && !G.lab.bossKilled) for (const i of cellsOverlapping(G.castle.x0, G.castle.y0, 90, 48)) if (dA[i] > 0) raw[i] = Math.max(raw[i], late);
+  if (n === 2 && G.castle && G.lab && !G.lab.bossKilled) for (const i of cellsOverlapping(G.castle.x0, G.castle.y0, CASTLE_W, CASTLE_H)) if (dA[i] > 0) raw[i] = Math.max(raw[i], late);
   // the way to the arena burns after everything beyond it, so the team is never cut off
   const order = reach.slice().sort((a, b) => dA[b] - dA[a]);
   for (const i of order) { let par = -1; for (const j of adj[i]) if (dA[j] === dA[i] - 1 && (par < 0 || raw[j] > raw[par])) par = j; if (par >= 0 && dA[par] > 0) raw[par] = Math.max(raw[par], raw[i] + 1); }
@@ -9036,7 +9190,7 @@ function spreadSafePoint(p) {
 // ---------- drawing ----------
 function drawSpread() {
   if (!G.fireT) return;
-  const t = fireClock(), vx0 = G.cam.x - W / 2 / ZOOM - 50, vy0 = G.cam.y - H / 2 / ZOOM - 50, vw = W / ZOOM + 100, vh = H / ZOOM + 100, cw = CW * TILE, ch = CH * TILE;
+  const t = fireClock(), vx0 = G.cam.x - VW2 - 50, vy0 = G.cam.y - VH2 - 50, vw = (2 * VW2) + 100, vh = (2 * VH2) + 100, cw = CW * TILE, ch = CH * TILE;
   ctx.save();
   for (let i = 0; i < G.fireT.length; i++) {
     const T = G.fireT[i], x = Math.floor(i / GH) * cw, y = (i % GH) * ch;
@@ -9346,7 +9500,7 @@ function applyCross() {
     if (altar && G.lab && !G.lab.bossKilled) {
       placeTeam(altar.x, altar.y + 34); startChallenge(G.lab, G.players[0]);
       for (const p of G.players) { p.siegeOn = true; p.siegeIn = true; recalcStats(p); p.hp = p.maxHp; floatText(p.x, p.y - 34, 'Siege fury!', '#ffb070', 1.4, 1.1); glow(p.x, p.y - 8, 40, '#ffb070', 0.6); }
-    } else { const q = clearSpot((G.castle.x0 + 44.5) * TILE, (G.castle.y0 + 50) * TILE, 10); placeTeam(q.x, q.y); }
+    } else { const q = clearSpot((G.castle.x0 + CASTLE_GX + 0.5) * TILE, (G.castle.y0 + CASTLE_H + 2) * TILE, 10); placeTeam(q.x, q.y); }
   }
   setBanner(`Act II · ${X.name}`, X.desc, 4, X.col);
 }
@@ -9642,8 +9796,8 @@ function drawCorrTint() {
   if (!G.biomes) return;
   for (const B of G.biomes) {
     if (!B.corrLive) continue;
-    const vx0 = Math.max(0, Math.floor((G.cam.x - W / 2 / ZOOM) / TILE) - 1), vy0 = Math.max(0, Math.floor((G.cam.y - H / 2 / ZOOM) / TILE) - 1);
-    const vw = Math.min(MW - vx0, Math.ceil(W / ZOOM / TILE) + 3), vh = Math.min(MH - vy0, Math.ceil(H / ZOOM / TILE) + 3);
+    const vx0 = Math.max(0, Math.floor((G.cam.x - VW2) / TILE) - 1), vy0 = Math.max(0, Math.floor((G.cam.y - VH2) / TILE) - 1);
+    const vw = Math.min(MW - vx0, Math.ceil((2 * VW2) / TILE) + 3), vh = Math.min(MH - vy0, Math.ceil((2 * VH2) / TILE) + 3);
     if (vw <= 0 || vh <= 0) continue;
     ctx.save(); ctx.imageSmoothingEnabled = false; ctx.globalAlpha = 0.2 + 0.05 * Math.sin(G.time * 1.6); ctx.globalCompositeOperation = 'multiply';
     ctx.drawImage(corrCanvas(B), vx0, vy0, vw, vh, vx0 * TILE, vy0 * TILE, vw * TILE, vh * TILE);
@@ -9766,22 +9920,89 @@ function keepShrines(dt) {
 }
 { const _f = updateShrineRest; updateShrineRest = function (dt) { _f(dt); keepShrines(dt); }; }
 // ===== Rendering =====
-const cv = document.getElementById('game'), ctx = cv.getContext('2d');
+const cv = document.getElementById('game'); let ctx = cv.getContext('2d');
 let W = 0, H = 0, ZOOM = 3, U = 1, DPR = 1, VIGNETTE = null;
+// ---- tilted camera (test branch): the ground is drawn squashed and in perspective, everything that stands is drawn upright ----
+// The world is rendered into a wider offscreen canvas (WW), then warped onto the screen row by row: far rows shrink, near rows grow.
+const TILT_K = 0.7, TILT_P = 0.17, WALL_H = 20;
+let ZY = 3, SW = 0, WW = 0, HC = 0, VW2 = 100, VH2 = 100, TILTED = false, WORLDC = null, WCTX = null;
+function tiltOn() { return settings.tilt2 === true; } /* the Gungeon-style straight view is the default; the tilted camera is opt-in */
+const TILT_UC = (-(1 - TILT_P) + Math.sqrt((1 - TILT_P) ** 2 + 2 * TILT_P)) / (2 * TILT_P); // source row that lands mid-screen
+const tiltG = u => u * (1 - TILT_P) + TILT_P * u * u, tiltS = u => 1 - TILT_P + 2 * TILT_P * u;
+function up(y, fn, ent, still) {
+  if (!TILTED) return fn();
+  let k = ZOOM / ZY; if (paperOn()) k *= (still || (ent && ent.team) ? 1 : foldK(y)) * popK(ent); /* units and text never fold: only scenery does */
+  if (k <= 0.01) return;
+  ctx.save(); ctx.translate(0, y); ctx.scale(1, k); ctx.translate(0, -y); try { fn(); } finally { ctx.restore(); }
+}
+// pop-up book: near the far edge of the page things fold down flat; anything that appears pops up out of the page
+function foldK(y) { if (!paperOn()) return 1; const u = (HC + (y - G.cam.y) * ZY) / H, t = clamp((u - 0.0) / 0.22, 0, 1); return 0.06 + 0.94 * t * t * (3 - 2 * t); }
+function popK(ent) {
+  if (!ent || typeof ent !== 'object') return 1;
+  if (ent._pop == null) ent._pop = G.time;
+  const t = (G.time - ent._pop) / 0.42; if (t >= 1) return 1; if (t <= 0) return 0.02;
+  const c = 1.9, q = t - 1; return Math.max(0.02, 1 + (c + 1) * q * q * q + c * q * q); // ease-out-back: overshoots a little, like a flap springing up
+}
+let PAPER_GRAIN = null;
+function paperGrain() {
+  if (PAPER_GRAIN) return PAPER_GRAIN;
+  const c = mkCanvas(256, 256), x = c.getContext('2d'); x.fillStyle = '#ffffff'; x.fillRect(0, 0, 256, 256);
+  for (let i = 0; i < 9000; i++) { const v = 200 + Math.random() * 55 | 0; x.fillStyle = `rgb(${v},${v - 6},${v - 16})`; x.fillRect(Math.random() * 256, Math.random() * 256, 1 + Math.random() * 1.5, 1); }
+  x.strokeStyle = 'rgba(150,120,90,0.18)'; x.lineWidth = 0.6; for (let i = 0; i < 140; i++) { const sx = Math.random() * 256, sy = Math.random() * 256, a = Math.random() * 6.28, l = 4 + Math.random() * 10; x.beginPath(); x.moveTo(sx, sy); x.quadraticCurveTo(sx + Math.cos(a + 0.6) * l * 0.5, sy + Math.sin(a + 0.6) * l * 0.5, sx + Math.cos(a) * l, sy + Math.sin(a) * l); x.stroke(); }
+  PAPER_GRAIN = ctx.createPattern(c, 'repeat'); return PAPER_GRAIN;
+}
 const FONT = '"Cinzel", Georgia, serif';
 const FONT2 = '"Alegreya Sans", "Trebuchet MS", sans-serif';
 function resize() {
   DPR = Math.min(2, window.devicePixelRatio || 1);
   W = cv.width = Math.floor(innerWidth * DPR); H = cv.height = Math.floor(innerHeight * DPR);
-  ZOOM = clamp(Math.min(W / 400, H / 228), 2, 8);
+  ZOOM = clamp(Math.min(W / 400, H / 228), 2, 8); SW = W;
+  WW = Math.ceil(W / (1 - TILT_P)) + 4; WORLDC = mkCanvas(WW, H); WCTX = WORLDC.getContext('2d');
   U = DPR * clamp(innerHeight / 820, 0.8, 1.35);
   VIGNETTE = mkCanvas(W, H); const v = VIGNETTE.getContext('2d');
   const g = v.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.35, W / 2, H / 2, Math.max(W, H) * 0.75);
   g.addColorStop(0, 'rgba(6,4,10,0)'); g.addColorStop(1, 'rgba(6,4,10,0.7)');
   v.fillStyle = g; v.fillRect(0, 0, W, H);
 }
-function screenToWorld(mx, my) { return { x: G.cam.x + (mx * DPR - W / 2) / ZOOM, y: G.cam.y + (my * DPR - H / 2) / ZOOM }; }
-function worldToScreen(x, y) { return { x: (x - G.cam.x) * ZOOM + W / 2, y: (y - G.cam.y) * ZOOM + H / 2 }; }
+function screenToWorld(mx, my) {
+  const X = mx * DPR, Y = my * DPR;
+  if (!tiltOn() || !G) return { x: G.cam.x + (X - SW / 2) / ZOOM, y: G.cam.y + (Y - H / 2) / ZOOM };
+  const P = TILT_P, ud = clamp(Y / H, -0.2, 1.2), u = (-(1 - P) + Math.sqrt(Math.max(0, (1 - P) ** 2 + 4 * P * ud))) / (2 * P), s = tiltS(u);
+  return { x: G.cam.x + (X - SW / 2) / s / ZOOM, y: G.cam.y + (u * H - TILT_UC * H) / (ZOOM * TILT_K) };
+}
+function worldToScreen(x, y) {
+  if (!tiltOn()) return { x: (x - G.cam.x) * ZOOM + SW / 2, y: (y - G.cam.y) * ZOOM + H / 2 };
+  const u = (TILT_UC * H + (y - G.cam.y) * ZOOM * TILT_K) / H, s = tiltS(u);
+  return { x: SW / 2 + (x - G.cam.x) * ZOOM * s, y: tiltG(u) * H };
+}
+// tilted camera aim assist: with the cursor on an enemy's drawn body, aim at where it stands (frontmost wins)
+function aimPoint() {
+  const w = screenToWorld(Input.mx, Input.my); G.aimLock = null;
+  if (!tiltOn()) return w;
+  const X = Input.mx * DPR, Y = Input.my * DPR; let best = null, by = -1e9;
+  for (const e of G.enemies) {
+    if (e.dead || e.hidden || e.type === 'dummy' && false || !enemySeen(e)) continue;
+    const S = sprOf(e), f = S && S.idle; if (!f) continue;
+    const sc = e.scale || 1, sp = worldToScreen(e.x, e.y), s = tiltS((TILT_UC * H + (e.y - G.cam.y) * ZOOM * TILT_K) / H), pad = f.pad || 0;
+    const hw = Math.max(8, (f.w - 2 * pad) * sc * 0.4 * ZOOM * s), top = (f.oy - pad) * sc * ZOOM * s;
+    if (X > sp.x - hw && X < sp.x + hw && Y < sp.y + 5 * ZOOM * s && Y > sp.y - top && e.y > by) { by = e.y; best = e; }
+  }
+  if (!best) return w;
+  hurtBox(best); G.aimLock = best; return { x: best.x, y: best.y - best.hbR * 0.6 };
+}
+// warp the flat world image onto the screen in perspective
+function warpWorld() {
+  const bs = Math.max(2, Math.round(2.5 * DPR));
+  ctx.imageSmoothingEnabled = true;
+  for (let ys = 0; ys < H; ys += bs) {
+    const u0 = ys / H, u1 = Math.min(1, (ys + bs) / H), s = tiltS((u0 + u1) / 2), sw = SW / s;
+    const yd0 = tiltG(u0) * H, yd1 = tiltG(u1) * H;
+    ctx.drawImage(WORLDC, WW / 2 - sw / 2, ys, sw, u1 * H - ys, 0, yd0, SW, yd1 - yd0 + 0.6);
+  }
+  if (paperOn()) { ctx.save(); ctx.globalCompositeOperation = 'multiply'; ctx.globalAlpha = 0.55; ctx.fillStyle = paperGrain(); ctx.fillRect(0, 0, SW, H); ctx.globalCompositeOperation = 'soft-light'; ctx.globalAlpha = 0.35; ctx.fillStyle = '#ffd9a0'; ctx.fillRect(0, 0, SW, H); ctx.restore(); }
+  // a soft haze toward the horizon sells the depth
+  const g = ctx.createLinearGradient(0, 0, 0, H * 0.35); g.addColorStop(0, 'rgba(10,9,13,0.55)'); g.addColorStop(1, 'rgba(10,9,13,0)'); ctx.fillStyle = g; ctx.fillRect(0, 0, SW, H * 0.35);
+}
 function camTarget() {
   const H0 = human();
   if (H0 && H0.state !== 'dead') return H0;
@@ -9802,8 +10023,8 @@ function updateCamera(dt) {
 }
 function tileVar(tx, ty) { const h = ((tx * 73856093) ^ (ty * 19349663)) >>> 0; const v = h % 100; return v < 70 ? 0 : v < 85 ? 1 : v < 93 ? 2 : 3; }
 function drawTiles() {
-  const x0 = Math.floor((G.cam.x - W / 2 / ZOOM) / TILE) - 1, x1 = Math.ceil((G.cam.x + W / 2 / ZOOM) / TILE) + 1;
-  const y0 = Math.floor((G.cam.y - H / 2 / ZOOM) / TILE) - 1, y1 = Math.ceil((G.cam.y + H / 2 / ZOOM) / TILE) + 2;
+  const x0 = Math.floor((G.cam.x - VW2) / TILE) - 1, x1 = Math.ceil((G.cam.x + VW2) / TILE) + 1;
+  const y0 = Math.floor((G.cam.y - VH2) / TILE) - 1, y1 = Math.ceil((G.cam.y + VH2) / TILE) + 2;
   const T = TILE + 0.35;
   for (let by = Math.floor(y0 / 4) * 4; by <= y1; by += 4) for (let bx = Math.floor(x0 / 4) * 4; bx <= x1; bx += 4) {
     const h = ((bx * 73856093) ^ (by * 19349663)) >>> 0; if (G.inVoid) { ctx.fillStyle = (bx + by) % 8 ? '#0a0418' : '#120828'; ctx.fillRect(bx * TILE, by * TILE, TILE * 4 + 0.4, TILE * 4 + 0.4); if (h % 3 === 0) { ctx.fillStyle = 'rgba(255,255,255,0.7)'; ctx.fillRect(bx * TILE + h % 50, by * TILE + (h >> 8) % 50, 1.2, 1.2); } } else ctx.drawImage(TEX.forest[h % 3], bx * TILE, by * TILE, TILE * 4 + 0.4, TILE * 4 + 0.4);
@@ -9814,18 +10035,65 @@ function drawTiles() {
     if (t === T_VOID) continue;
     const i = ty * MW + tx;
     if (t === T_FLOOR || t === T_CRATE || t === T_DOOR || t === T_PROP) { const pk = t === T_PROP ? G.prop.get(i) : null; if (pk === 'water') ctx.drawImage(TEX.water, px, py, T, T); else if (pk === 'lava') ctx.drawImage(TEX.lava, px, py, T, T); else if (pk === 'pit') drawPitTile(tx, ty); else { ctx.drawImage(TEX.floor[G.theme[i]][tileVar(tx, ty)], px, py, T, T); if (G.bridge && G.bridge.has(i)) drawBridgeTile(tx, ty, G.bridge.get(i)); } }
+    else if (t === T_WALL && TILTED) continue;
     else if (t === T_WALL) { ctx.fillStyle = '#0b0a0f'; ctx.fillRect(px, py, T, T); } /* the block itself is drawn raised, in the depth-sorted pass (drawWallBlock) */
   }
   for (let ty = y0; ty <= y1; ty++) for (let tx = x0; tx <= x1; tx++) {
     const t = tget(tx, ty); if (t === T_VOID || t === T_WALL) continue;
     const i = ty * MW + tx, px = tx * TILE, py = ty * TILE, h = ((tx * 73856093) ^ (ty * 19349663)) >>> 0;
-    if (G.theme[i] === TH.grass) {
+    if (TILTED && (t === T_CRATE || (t === T_PROP && G.prop.get(i) !== 'water' && G.prop.get(i) !== 'lava'))) { if (t === T_PROP) { const k = G.prop.get(i); if (k === 'lava' || k === 'water') {} } continue; }
+    if (G.theme[i] === TH.grass && !TILTED) {
       const bi = i + MW; if (tget(tx, ty + 1) !== T_WALL && G.theme[bi] !== TH.grass) ctx.drawImage(TEX.grassSide, px, py + TILE, TILE + 0.35, 5);
     } else if (t === T_FLOOR && (G.theme[i] === TH.stone || G.theme[i] === TH.corridor || G.theme[i] === TH.field) && h % 29 === 0) ctx.drawImage(TEX.torch, px, py - 2, TILE, TILE);
     if (t === T_PROP) { const k = G.prop.get(i); if (k === 'lava' && h % 7 === 0) { ctx.fillStyle = `rgba(255,220,120,${0.3 + 0.3 * Math.sin(G.time * 3 + h)})`; ctx.beginPath(); ctx.arc(px + 8, py + 8, 2, 0, Math.PI * 2); ctx.fill(); } }
     if (t !== T_WALL && tget(tx, ty - 1) === T_WALL) { const g = ctx.createLinearGradient(0, py, 0, py + 7); g.addColorStop(0, 'rgba(0,0,0,0.42)'); g.addColorStop(1, 'rgba(0,0,0,0)'); ctx.fillStyle = g; ctx.fillRect(px, py, TILE + 0.35, 7); } /* contact shadow at the foot of a wall */
     if (t === T_DOOR) ctx.drawImage(TEX.door, px, py, TILE + 0.35, TILE + 0.35);
   }
+}
+// ---- tilted camera: walls become blocks with height, props and crates stand up; all of them are depth-sorted with the units ----
+function tiltObjs(objs) {
+  const x0 = Math.floor((G.cam.x - VW2) / TILE) - 1, x1 = Math.ceil((G.cam.x + VW2) / TILE) + 1;
+  const y0 = Math.floor((G.cam.y - VH2) / TILE) - 1, y1 = Math.ceil((G.cam.y + VH2) / TILE) + 3;
+  const WHw = WALL_H * ZOOM / ZY, see = G.players.filter(p => p.state !== 'dead');
+  const floorish = t => t === T_FLOOR || t === T_CRATE || t === T_DOOR || t === T_PROP;
+  for (let ty = y0; ty <= y1; ty++) for (let tx = x0; tx <= x1; tx++) {
+    if (tx < 0 || ty < 0 || tx >= MW || ty >= MH) continue;
+    const i = ty * MW + tx, t = G.map[i], px = tx * TILE, py = ty * TILE;
+    if (t === T_WALL) {
+      const face = floorish(tget(tx, ty + 1)), by = (ty + 1) * TILE;
+      let hide = false; if (face || floorish(tget(tx, ty - 1)) || floorish(tget(tx, ty - 2))) for (const p of see) if (Math.abs(p.x - px - 8) < 14 && p.y < by && p.y > by - WHw - 12) { hide = true; break; }
+      objs.push({ y: by - 0.01, flat: true, d: () => drawWallT(tx, ty, i, face, WHw, hide) });
+    } else if (t === T_PROP) {
+      const k = G.prop.get(i); if (k === 'water' || k === 'lava' || k === 'block') continue;
+      const f = SPR.props[k]; if (f) objs.push({ y: py + 15, d: () => ctx.drawImage(f.c, px + 8 - f.ox, py + 15 - f.oy, f.w, f.h) });
+    } else if (t === T_CRATE) objs.push({ y: py + 14, d: () => ctx.drawImage(TEX.crate, px - 1, py - 4, TILE + 2, TILE + 2) });
+  }
+}
+function drawWallT(tx, ty, i, face, WHw, hide) {
+  if (paperOn()) WHw *= foldK((ty + 1) * TILE);
+  const px = tx * TILE, py = ty * TILE, T = TILE + 0.35, h = ((tx * 73856093) ^ (ty * 19349663)) >>> 0, st = G.wstyle ? G.wstyle[i] : 0;
+  if (hide) ctx.globalAlpha = 0.42;
+  if (face) {
+    const fy = py + TILE - WHw;
+    if (st === 2) { ctx.fillStyle = '#07030f'; ctx.fillRect(px, fy, T, WHw); }
+    else { ctx.fillStyle = st === 3 ? '#6a5a9a' : st ? '#3a3a48' : '#24321e'; ctx.fillRect(px, fy, T, WHw + 0.3); ctx.drawImage(st === 3 ? TEX.dreamFace[h % 3] : st ? TEX.castleFace[h % 3] : TEX.hedge[h % 3], px, fy, T, WHw + 0.3); }
+    const g = ctx.createLinearGradient(0, fy, 0, py + TILE); g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(0,0,0,0.32)'); ctx.fillStyle = g; ctx.fillRect(px, fy, T, WHw + 0.3);
+  }
+  const ty0 = py - WHw;
+  if (st === 2) { ctx.fillStyle = '#0c0618'; ctx.fillRect(px, ty0, T, T); ctx.fillStyle = `rgba(200,110,255,${0.35 + 0.2 * Math.sin(G.time * 3 + tx * 0.7 + ty)})`; ctx.fillRect(px + 6, ty0 + 6, 4, 4); }
+  else ctx.drawImage(st === 3 ? TEX.dreamTop[h % 3] : st ? TEX.castleTop[h % 3] : TEX.canopy[h % 3], px, ty0, T, T);
+  if (face) { ctx.fillStyle = 'rgba(255,240,210,0.10)'; ctx.fillRect(px, ty0 + TILE - 1.2, T, 1.2); }
+  if (paperOn()) { // cardboard: a cream die-cut rim wherever the wall mass ends
+    const n = tget(tx, ty - 1) !== T_WALL, w = tget(tx - 1, ty) !== T_WALL, e = tget(tx + 1, ty) !== T_WALL, bot = face ? py + TILE : ty0 + TILE;
+    ctx.strokeStyle = PAPER_COL; ctx.lineWidth = 1.3; ctx.beginPath();
+    if (n) { ctx.moveTo(px, ty0 + 0.6); ctx.lineTo(px + TILE, ty0 + 0.6); }
+    if (face) { ctx.moveTo(px, ty0 + TILE); ctx.lineTo(px + TILE, ty0 + TILE); }
+    if (w) { ctx.moveTo(px + 0.6, ty0); ctx.lineTo(px + 0.6, bot); }
+    if (e) { ctx.moveTo(px + TILE - 0.6, ty0); ctx.lineTo(px + TILE - 0.6, bot); }
+    ctx.stroke();
+    if (face) { ctx.fillStyle = 'rgba(40,24,14,0.35)'; ctx.fillRect(px, py + TILE - 1.4, T, 1.4); }
+  }
+  ctx.globalAlpha = 1;
 }
 function drawDecals() {
   for (const d of G.decals || []) {
@@ -10072,9 +10340,9 @@ function drawPile(P) {
 function drawCircle() {
   const c = G.circle; if (!c) return;
   if (c.spread) { drawSpread(); return; }
-  if (G.hazard && G.hazard !== 'fire' && !c.calm) { const HZ = hz(), vx0 = G.cam.x - W / 2 / ZOOM - 50, vy0 = G.cam.y - H / 2 / ZOOM - 50, vw = W / ZOOM + 100, vh = H / ZOOM + 100; ctx.save(); ctx.beginPath(); ctx.rect(vx0, vy0, vw, vh); ctx.arc(c.x, c.y, c.r, 0, Math.PI * 2, true); ctx.fillStyle = HZ.fill; ctx.fill('evenodd'); ctx.strokeStyle = HZ.col; ctx.lineWidth = 2.2; ctx.beginPath(); ctx.arc(c.x, c.y, c.r, 0, Math.PI * 2); ctx.stroke(); ctx.restore(); return; }
+  if (G.hazard && G.hazard !== 'fire' && !c.calm) { const HZ = hz(), vx0 = G.cam.x - VW2 - 50, vy0 = G.cam.y - VH2 - 50, vw = (2 * VW2) + 100, vh = (2 * VH2) + 100; ctx.save(); ctx.beginPath(); ctx.rect(vx0, vy0, vw, vh); ctx.arc(c.x, c.y, c.r, 0, Math.PI * 2, true); ctx.fillStyle = HZ.fill; ctx.fill('evenodd'); ctx.strokeStyle = HZ.col; ctx.lineWidth = 2.2; ctx.beginPath(); ctx.arc(c.x, c.y, c.r, 0, Math.PI * 2); ctx.stroke(); ctx.restore(); return; }
   if (c.calm) { ctx.save(); ctx.strokeStyle = 'rgba(255,170,90,0.35)'; ctx.lineWidth = 2; ctx.setLineDash([6, 8]); ctx.beginPath(); ctx.arc(c.x, c.y, c.r, 0, Math.PI * 2); ctx.stroke(); ctx.restore(); return; }
-  const vx0 = G.cam.x - W / 2 / ZOOM - 50, vy0 = G.cam.y - H / 2 / ZOOM - 50, vw = W / ZOOM + 100, vh = H / ZOOM + 100;
+  const vx0 = G.cam.x - VW2 - 50, vy0 = G.cam.y - VH2 - 50, vw = (2 * VW2) + 100, vh = (2 * VH2) + 100;
   ctx.save();
   // scorched land outside
   ctx.beginPath(); ctx.rect(vx0, vy0, vw, vh); ctx.arc(c.x, c.y, c.r, 0, Math.PI * 2, true);
@@ -10246,9 +10514,10 @@ function drawFxText() {
   for (const f of G.fx) {
     if (f.k !== 'text') continue; const k = f.t / f.life;
     ctx.globalAlpha = 1 - Math.max(0, k - 0.6) / 0.4;
+    up(f.y, () => {
     ctx.font = `${Math.round(7.5 * (f.size || 1))}px ${FONT}`; ctx.textAlign = 'center';
     ctx.lineWidth = 2.2; ctx.strokeStyle = OUTL; ctx.strokeText(f.text, f.x, f.y);
-    ctx.fillStyle = f.color; ctx.fillText(f.text, f.x, f.y);
+    ctx.fillStyle = f.color; ctx.fillText(f.text, f.x, f.y); }, null, true);
   }
   ctx.globalAlpha = 1;
 }
@@ -10366,7 +10635,15 @@ function render(dt) {
   if (!G) return;
   updateCamera(dt);
   const sx = G.shake ? rr(-G.shake, G.shake) : 0, sy = G.shake ? rr(-G.shake, G.shake) : 0;
-  ctx.setTransform(ZOOM, 0, 0, ZOOM, W / 2 - G.cam.x * ZOOM + sx, H / 2 - G.cam.y * ZOOM + sy);
+  TILTED = tiltOn();
+  const mainCtx = ctx;
+  if (TILTED) { ctx = WCTX; W = WW; ZY = ZOOM * TILT_K; HC = TILT_UC * H; ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.fillStyle = paperOn() ? '#17110d' : '#0a090d'; ctx.fillRect(0, 0, W, H); VW2 = W / 2 / ZOOM; VH2 = Math.max(HC, H - HC) / ZY + 2 * TILE; }
+  else { ZY = ZOOM; HC = H / 2; VW2 = W / 2 / ZOOM; VH2 = H / 2 / ZOOM; }
+  try { renderWorld(dt, sx, sy); } finally { if (TILTED) { ctx = mainCtx; W = SW; ctx.setTransform(1, 0, 0, 1, 0, 0); warpWorld(); } TILTED = false; }
+  renderScreen(dt);
+}
+function renderWorld(dt, sx, sy) {
+  ctx.setTransform(ZOOM, 0, 0, ZY, W / 2 - G.cam.x * ZOOM + sx, HC - G.cam.y * ZY + sy);
   ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
   ctx.lineJoin = 'round'; ctx.lineCap = 'round';
   drawTiles(); drawDecals();
@@ -10376,26 +10653,28 @@ function render(dt) {
   for (const t of G.traps) { ctx.fillStyle = '#7a8090'; ctx.strokeStyle = OUTL; ctx.lineWidth = 0.7; ctx.beginPath(); ctx.ellipse(t.x, t.y, 5, 2.2, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); ctx.fillStyle = '#e8eaf0'; for (let i = 0; i < 5; i++) { ctx.beginPath(); ctx.moveTo(t.x - 4 + i * 2, t.y - 1); ctx.lineTo(t.x - 3 + i * 2, t.y - 3.5); ctx.lineTo(t.x - 2 + i * 2, t.y - 1); ctx.fill(); } }
   for (const s of G.spawns) { const k = 1 - s.t / s.life; ctx.strokeStyle = `rgba(200,106,255,${0.4 + 0.5 * k})`; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.arc(s.x, s.y, 10 * (1 - k) + 2, 0, Math.PI * 2); ctx.stroke(); }
   for (const c of G.coins) { const f = SPR.coin; ctx.drawImage(f.c, c.x - 2.5, c.y - 4 - Math.abs(Math.sin(c.t * 6)) * 1.5, 5, 5); }
+  if (TILTED && G.aimLock && !G.aimLock.dead) { const e = G.aimLock, r = (e.hbR || e.r || 6) + 4; ctx.strokeStyle = `rgba(255,120,90,${0.6 + 0.3 * Math.sin(G.time * 10)})`; ctx.lineWidth = 1.4; ctx.setLineDash([3, 2]); ctx.beginPath(); ctx.ellipse(e.x, e.y, r, r * 0.8, 0, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]); }
   const objs = [];
-  for (const it of G.inter) if (it.kind !== 'npc' && it.kind !== 'table' && it.kind !== 'archive' && it.kind !== 'gate' && it.kind !== 'board' && it.kind !== 'nocd') objs.push({ y: it.y, d: () => drawInter(it) });
-  if (G.decor) for (const d of G.decor) if (!d.flat) objs.push({ y: d.y, d: () => drawDecor(d) });
-  if (G.npcs) for (const n of G.npcs) objs.push({ y: n.y, d: () => drawNPC(n) });
+  for (const it of G.inter) if (it.kind !== 'npc' && it.kind !== 'table' && it.kind !== 'archive' && it.kind !== 'gate' && it.kind !== 'board' && it.kind !== 'nocd') objs.push({ y: it.y, d: () => drawInter(it), e: it });
+  if (G.decor) for (const d of G.decor) if (!d.flat) objs.push({ y: d.y, d: () => drawDecor(d), e: d });
+  if (G.npcs) for (const n of G.npcs) objs.push({ y: n.y, d: () => drawNPC(n), e: n });
   for (const P of G.piles) objs.push({ y: P.y, d: () => drawPile(P) });
   for (const t of G.taunts || []) objs.push({ y: t.y, d: () => drawTaunt(t) });
   for (const t of G.totems) objs.push({ y: t.y, d: () => { ctx.fillStyle = `rgba(160,230,255,${0.07 + 0.05 * Math.sin(G.time * 6)})`; ctx.beginPath(); ctx.arc(t.x, t.y, 85, 0, Math.PI * 2); ctx.fill(); shadow(t.x, t.y, 6); const w = SPR.w_reindeer; ctx.drawImage(w.c, t.x - 8, t.y - 22, w.w * 0.9, w.h * 0.9); if (R() < 0.2) burst(t.x + rr(-4, 4), t.y - 16, '#bff4ff', 1, 20, 0.2, { shape: 'spark', glow: true }); } });
-  pushWorldBlocks(objs);
-  for (const e of G.enemies) objs.push({ y: e.y, d: () => drawEnemy(e) });
+  if (!TILTED) pushWorldBlocks(objs);
+  for (const e of G.enemies) objs.push({ y: e.y, d: () => drawEnemy(e), e });
   for (const g of G.glaciers || []) objs.push({ y: g.y - 2, d: () => drawGlacier(g) });
   for (const z of G.ezones) if (z.kind === 'tentacle') objs.push({ y: z.y, d: () => drawTentacle(z) });
   for (const f of G.fallers || []) objs.push({ y: f.y + 999, d: () => drawFaller(f) });
   for (const d of G.drops) objs.push({ y: d.y, d: () => { shadow(d.x, d.y, 5); ctx.fillStyle = 'rgba(90,208,122,0.3)'; ctx.beginPath(); ctx.arc(d.x, d.y - 9, 9, 0, Math.PI * 2); ctx.fill(); ctx.drawImage(itemIcon(d.item, 40), d.x - 6, d.y - 15 + Math.sin(G.time * 3) * 1.2, 12, 12); } });
   for (const o of G.orbs) objs.push({ y: o.y, d: () => { const col = CHARS[o.owner.char].color; const g = ctx.createRadialGradient(o.x, o.y - 10, 1, o.x, o.y - 10, 14); g.addColorStop(0, '#ffffff'); g.addColorStop(0.4, col); g.addColorStop(1, 'rgba(255,255,255,0)'); ctx.fillStyle = g; ctx.beginPath(); ctx.arc(o.x, o.y - 10 + Math.sin(G.time * 4 + o.x) * 1.5, 14, 0, Math.PI * 2); ctx.fill(); ctx.font = `6px ${FONT}`; ctx.textAlign = 'center'; ctx.lineWidth = 2; ctx.strokeStyle = OUTL; ctx.strokeText(o.owner.name, o.x, o.y - 26); ctx.fillStyle = col; ctx.fillText(o.owner.name, o.x, o.y - 26); } });
   for (const t of G.healTotems) objs.push({ y: t.y, d: () => { ctx.fillStyle = `rgba(122,224,122,${0.1 + 0.05 * Math.sin(G.time * 5)})`; ctx.beginPath(); ctx.arc(t.x, t.y, t.r || 70, 0, Math.PI * 2); ctx.fill(); ctx.drawImage(itemIcon(ALL_ITEMS.totem, 40), t.x - 7, t.y - 18, 14, 14); } });
-  for (const p of G.players) if (p.state !== 'dead' && p.spawnIn == null) objs.push({ y: p.y, d: () => { shadow(p.x, p.y, 6.5); drawPlayer(p); } });
-  if (G.minions) for (const m of G.minions) objs.push({ y: m.y, d: () => drawMinion(m) });
+  for (const p of G.players) if (p.state !== 'dead' && p.spawnIn == null) objs.push({ y: p.y, d: () => { shadow(p.x, p.y, 6.5); drawPlayer(p); }, e: p });
+  if (G.minions) for (const m of G.minions) objs.push({ y: m.y, d: () => drawMinion(m), e: m });
   if (G.intro) objs.push({ y: G.intro.y, d: () => drawIntro() });
   if (G.deathFx && G.deathFx.t < G.deathFx.dur * 0.62) { const D = G.deathFx; objs.push({ y: D.y, d: () => { const S = SPR[D.spr] || SPR[D.spr.replace('_d2', '')]; if (!S) return; if (Math.floor(G.time * 18) % 2) return; ctx.save(); ctx.translate(D.x + rr(-1.5, 1.5), D.y); ctx.scale(D.sc, D.sc); drawFrame(D.t % 0.2 < 0.1 ? (D.tint || (D.tint = tintFrame(S.idle, '#ffffff', 0.8))) : S.idle, 0, 0); ctx.restore(); } }); }
-  objs.sort((a, b) => a.y - b.y); for (const o of objs) o.d();
+  if (TILTED) tiltObjs(objs);
+  objs.sort((a, b) => a.y - b.y); for (const o of objs) { if (o.flat) o.d(); else up(o.y, o.d, o.e); }
   for (const l of G.lobs) {
     if (l.t < 0) continue; const k = l.t / l.dur, x = lerp(l.sx, l.tx, k), y = lerp(l.sy, l.ty, k) - Math.sin(k * Math.PI) * 24;
     shadow(lerp(l.sx, l.tx, k), lerp(l.sy + 8, l.ty, k), 2.5);
@@ -10403,17 +10682,18 @@ function render(dt) {
     ctx.fillStyle = 'rgba(255,255,255,0.7)'; ctx.beginPath(); ctx.arc(x - 0.6, y - 0.6, l.size * 0.3, 0, Math.PI * 2); ctx.fill();
   }
   if (G.vbul) for (const b of G.vbul) { ctx.save(); ctx.translate(b.x, b.y); ctx.rotate(Math.atan2(b.vy, b.vx)); ctx.drawImage(SPR.quill.c, -4, -2, 8, 4); ctx.restore(); }
-  for (const b of G.bullets) if (b.team === 'player' || spotSeen(b.x, b.y)) drawBullet(b);
+  if (TILTED) { const lift = 7 * ZOOM / ZY; for (const b of G.bullets) if (b.team === 'player' || spotSeen(b.x, b.y)) { if (b.kind !== 'wave') { ctx.fillStyle = 'rgba(30,18,10,0.28)'; ctx.beginPath(); ctx.ellipse(b.x, b.y, Math.max(1.4, b.r * 0.9), Math.max(0.9, b.r * 0.5), 0, 0, Math.PI * 2); ctx.fill(); } ctx.save(); ctx.translate(0, b.kind === 'wave' ? 0 : -lift); drawBullet(b); ctx.restore(); } } /* shots fly at chest height, their shadow marks the real spot */
+  else for (const b of G.bullets) if (b.team === 'player' || spotSeen(b.x, b.y)) drawBullet(b);
   drawKitFx();
   drawHazards();
   drawFx();
   drawPings();
   if (!G.hub) { drawCorrTint(); drawChalVeils(); }
-  if (!G.hub && !(G.watch && G.noFog)) { const x0 = Math.max(0, Math.floor((G.cam.x - W / 2 / ZOOM) / TILE) - 2), y0 = Math.max(0, Math.floor((G.cam.y - H / 2 / ZOOM) / TILE) - 2); const w = Math.min(MW - x0, Math.ceil(W / ZOOM / TILE) + 5), h = Math.min(MH - y0, Math.ceil(H / ZOOM / TILE) + 5); if (w > 0 && h > 0) ctx.drawImage(G.fogC, x0, y0, w, h, x0 * TILE, y0 * TILE, w * TILE, h * TILE); }
+  if (!G.hub && !(G.watch && G.noFog)) { const x0 = Math.max(0, Math.floor((G.cam.x - VW2) / TILE) - 2), y0 = Math.max(0, Math.floor((G.cam.y - VH2) / TILE) - 2); const w = Math.min(MW - x0, Math.ceil((2 * VW2) / TILE) + 5), h = Math.min(MH - y0, Math.ceil((2 * VH2) / TILE) + 5); if (w > 0 && h > 0) ctx.drawImage(G.fogC, x0, y0, w, h, x0 * TILE, y0 * TILE, w * TILE, h * TILE); }
   drawCircle();
   drawAimHelpers(human());
-  for (const p of G.players) {
-    if (p.state === 'dead') continue;
+  for (const p of G.players) up(p.y, () => {
+    if (p.state === 'dead') return;
     drawWolfReload(p); drawHeatBar(p); drawBearBar(p); drawStamina(p); drawFootHp(p);
     if (p.state === 'up') drawStatusIcons(p, p.y - (p.isBot ? 41 : 36) - ((p.char === 'wolf' && (p.reload || !p.loaded)) || (p.char === 'hedgehog' && (p.heat > 0.02 || p.over)) ? 8 : 0));
     if (p.isBot) { ctx.font = `6.5px ${FONT}`; ctx.textAlign = 'center'; ctx.lineWidth = 2; ctx.strokeStyle = OUTL; const ty = p.y - 34; ctx.strokeText(p.name, p.x, ty); ctx.fillStyle = CHARS[p.char].color; ctx.fillText(p.name, p.x, ty); }
@@ -10424,8 +10704,10 @@ function render(dt) {
       ctx.beginPath(); ctx.moveTo(p.x - 2, by + 12); ctx.lineTo(p.x, by + 15); ctx.lineTo(p.x + 2, by + 12); ctx.fill();
       ctx.fillStyle = '#2a1b2e'; ctx.fillText(p.sticker.text, p.x, by + 9);
     }
-  }
+  }, p, true);
   drawFxText();
+}
+function renderScreen(dt) {
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.drawImage(VIGNETTE, 0, 0);
   // the darkness (Long Night, Vesper's blackout, Gloom) is shown for whoever the camera follows: you, a teammate you spectate after dying, or a watched bot
@@ -10500,7 +10782,7 @@ function enemySeen(e) {
   return e.boss || G.players.some(p => p.state !== 'dead' && d2(p.x, p.y, e.x, e.y) < 220 * 220);
 }
 function drawRoomVeils() {
-  const vx0 = G.cam.x - W / 2 / ZOOM, vy0 = G.cam.y - H / 2 / ZOOM, vx1 = vx0 + W / ZOOM, vy1 = vy0 + H / ZOOM;
+  const vx0 = G.cam.x - VW2, vy0 = G.cam.y - VH2, vx1 = vx0 + (2 * VW2), vy1 = vy0 + (2 * VH2);
   for (const r of G.rooms) {
     if (!veiled(r)) continue;
     const x = r.x * TILE, y = r.y * TILE, w = r.w * TILE, h = r.h * TILE;
@@ -10516,19 +10798,19 @@ let LIGHT = null;
 function drawLighting() {
   const lw = Math.ceil(W / 4), lh = Math.ceil(H / 4);
   if (!LIGHT || LIGHT.width !== lw || LIGHT.height !== lh) { LIGHT = mkCanvas(lw, lh); }
-  const L = LIGHT.getContext('2d'), sc = ZOOM / 4;
-  const vx0 = G.cam.x - W / 2 / ZOOM, vy0 = G.cam.y - H / 2 / ZOOM; LIGHT_V = { vx0, vy0, sc };
+  const L = LIGHT.getContext('2d'), sc = ZOOM / 4, scY = ZY / 4;
+  const vx0 = G.cam.x - VW2, vy0 = G.cam.y - HC / ZY; LIGHT_V = { vx0, vy0, sc };
   const dark = G.inVoid ? 0.18 : G.hub ? 0.36 : G.phase === 'final' || G.phase === 'prep' ? 0.32 : 0.42;
   L.globalCompositeOperation = 'source-over'; L.clearRect(0, 0, lw, lh); L.fillStyle = `rgba(6,4,12,${dark})`; L.fillRect(0, 0, lw, lh);
   L.globalCompositeOperation = 'destination-out';
   const warm = [];
-  const hole = (x, y, r, k = 1) => { const sx = (x - vx0) * sc, sy = (y - vy0) * sc, sr = r * sc; if (sx < -sr || sy < -sr || sx > lw + sr || sy > lh + sr) return; const g = L.createRadialGradient(sx, sy, 0, sx, sy, sr); g.addColorStop(0, `rgba(0,0,0,${k})`); g.addColorStop(0.55, `rgba(0,0,0,${k * 0.7})`); g.addColorStop(1, 'rgba(0,0,0,0)'); L.fillStyle = g; L.fillRect(sx - sr, sy - sr, sr * 2, sr * 2); };
+  const hole = (x, y, r, k = 1) => { const sx = (x - vx0) * sc, sy = (y - vy0) * scY, sr = r * sc; if (sx < -sr || sy < -sr || sx > lw + sr || sy > lh + sr) return; const g = L.createRadialGradient(sx, sy, 0, sx, sy, sr); g.addColorStop(0, `rgba(0,0,0,${k})`); g.addColorStop(0.55, `rgba(0,0,0,${k * 0.7})`); g.addColorStop(1, 'rgba(0,0,0,0)'); L.fillStyle = g; L.fillRect(sx - sr, sy - sr, sr * 2, sr * 2); };
   for (const p of G.players) if (p.state !== 'dead') { hole(p.x, p.y - 8, p.blind > 0 ? 50 : 125, 1); warm.push([p.x, p.y - 8, 70, 0.07]); }
   if (G.npcs) for (const n of G.npcs) hole(n.x, n.y - 8, 70, 0.8);
   for (const it of G.inter) { if (it.kind === 'shrine' || it.kind === 'portal' || it.kind === 'tpad') { hole(it.x, it.y - 16, 110, 1); } else if (it.kind === 'chest' && !it.used) hole(it.x, it.y, 30, 0.5); else if (it.kind === 'altar' || it.kind === 'bosschest') hole(it.x, it.y - 10, 70, 0.8); else if (it.kind === 'stand' || it.kind === 'keeper') hole(it.x, it.y, 60, 0.8); }
   if (G.decor) for (const d of G.decor) if (['lamp', 'fireplace', 'forge', 'lectern', 'candles', 'altar', 'crystalball', 'gate', 'cauldron'].includes(d.k)) { hole(d.x, d.y - 16, d.k === 'fireplace' || d.k === 'forge' || d.k === 'gate' ? 120 : 80, 1); warm.push([d.x, d.y - 16, 50, 0.1]); }
   // braziers, torches and lava in view
-  const x0 = Math.floor(vx0 / TILE) - 2, y0 = Math.floor(vy0 / TILE) - 2, x1 = x0 + Math.ceil(W / ZOOM / TILE) + 4, y1 = y0 + Math.ceil(H / ZOOM / TILE) + 4;
+  const x0 = Math.floor(vx0 / TILE) - 2, y0 = Math.floor(vy0 / TILE) - 2, x1 = x0 + Math.ceil((2 * VW2) / TILE) + 4, y1 = y0 + Math.ceil((2 * VH2) / TILE) + 4;
   for (let ty = y0; ty <= y1; ty++) for (let tx = x0; tx <= x1; tx++) {
     if (tx < 0 || ty < 0 || tx >= MW || ty >= MH) continue; const i = ty * MW + tx, t = G.map[i];
     if (t === T_PROP) { const k = G.prop.get(i); if (k === 'brazier' || k === 'crystal') { hole((tx + 0.5) * TILE, ty * TILE, 90, 1); if (k === 'brazier') warm.push([(tx + 0.5) * TILE, ty * TILE, 46, 0.12]); } else if (k === 'lava' && (tx + ty) % 2 === 0) hole((tx + 0.5) * TILE, (ty + 0.5) * TILE, 40, 0.7); }
@@ -11095,7 +11377,7 @@ function drawMinimap(big) {
     else for (const r of G.nightRooms || []) txt('?', X(r.cx), Y(r.cy) + 5 * s, big ? 18 : 13, '#ff9ad8', 'center'); // two possible lairs
   }
   if (G.pings) for (const P0 of G.pings) { const k = (G.time * 3) % 1, px = X(P0.x / TILE), py = Y(P0.y / TILE), col = P0.enemy ? '#ff5a5a' : '#ffd44a', kk = big ? 1.4 : 1; ctx.strokeStyle = col; ctx.lineWidth = 2 * s; ctx.beginPath(); ctx.arc(px, py, (4 + k * 8) * s * kk, 0, Math.PI * 2); ctx.stroke(); ctx.fillStyle = col; ctx.strokeStyle = UI.edge; ctx.lineWidth = s; ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(px - 3.5 * s * kk, py - 7 * s * kk); ctx.arc(px, py - 8 * s * kk, 3.6 * s * kk, Math.PI * 0.85, Math.PI * 0.15); ctx.closePath(); ctx.fill(); ctx.stroke(); }
-  if (G.castle && (big || true) && isSeen((G.castle.x0 + 45) * TILE, (G.castle.y0 + 41) * TILE)) txt('DREAM PALACE', X(G.castle.x0 + 45), Y(G.castle.y0 + 47) + 12 * s, big ? 12 : 9, '#c8c8ff', 'center');
+  if (G.castle && (big || true) && isSeen((G.castle.x0 + CASTLE_W / 2) * TILE, (G.castle.y0 + CASTLE_H - 7) * TILE)) txt('DREAM PALACE', X(G.castle.x0 + CASTLE_W / 2), Y(G.castle.y0 + CASTLE_H - 1) + 12 * s, big ? 12 : 9, '#c8c8ff', 'center');
   for (const P of G.piles) { // lost gold is always marked, even through the fog
     const px = X(P.x / TILE), py = Y(P.y / TILE), kk = big ? 1.4 : 1, pr = (6 + 3 * Math.sin(G.time * 5)) * s * kk, mine = P.owner === human();
     ctx.strokeStyle = mine ? 'rgba(255,212,74,0.85)' : 'rgba(255,212,74,0.45)'; ctx.lineWidth = 2 * s; ctx.beginPath(); ctx.arc(px, py, pr, 0, Math.PI * 2); ctx.stroke();
@@ -11497,6 +11779,8 @@ function wireMenus() {
   $('b-reset').onclick = () => { settings.binds = { ...DEFAULT_BINDS }; saveSettings(); buildSettings(); };
   $('t-quick').onclick = () => { settings.quickCast = !settings.quickCast; saveSettings(); buildSettings(); };
   $('t-shake').onclick = () => { settings.shake = !settings.shake; saveSettings(); buildSettings(); };
+  $('t-tilt').onclick = () => { settings.tilt2 = !tiltOn(); saveSettings(); buildSettings(); };
+  $('t-paper').onclick = () => { settings.paper2 = !paperOn(); saveSettings(); location.reload(); };
   $('t-dmg').onclick = () => { settings.dmgNumbers = !settings.dmgNumbers; saveSettings(); buildSettings(); };
   $('v-sfx').oninput = e => { settings.sfxVol = e.target.value / 100; $('v-sfx-n').textContent = e.target.value; audioVolumes(); saveSettings(); sfx('click'); };
   $('v-mus').oninput = e => { settings.musicVol = e.target.value / 100; $('v-mus-n').textContent = e.target.value; audioVolumes(); saveSettings(); };
@@ -11531,7 +11815,7 @@ function buildSettings() {
     };
     row.appendChild(b); wrap.appendChild(row);
   }
-  setToggle('t-quick', settings.quickCast); setToggle('t-shake', settings.shake); setToggle('t-dmg', settings.dmgNumbers);
+  setToggle('t-quick', settings.quickCast); setToggle('t-shake', settings.shake); setToggle('t-tilt', tiltOn()); setToggle('t-paper', paperOn()); setToggle('t-dmg', settings.dmgNumbers);
   const sv = Math.round((settings.sfxVol ?? 0.7) * 100), mv = Math.round((settings.musicVol ?? 0.45) * 100); $('v-sfx').value = sv; $('v-sfx-n').textContent = sv; $('v-mus').value = mv; $('v-mus-n').textContent = mv;
 }
 function setToggle(id, v) { $(id).setAttribute('aria-pressed', v ? 'true' : 'false'); }
