@@ -288,7 +288,7 @@ th { font-family: var(--display); letter-spacing: 0.08em; }
   <section id="scr-lord" class="screen" hidden>
     <div class="row"><div><p class="eyebrow" id="gate-eyebrow">Expedition Gate</p><h2 id="gate-title">Which Dungeon Master will you hunt?</h2></div>
       </div>
-    <div class="fireopt" id="watch-rand" hidden><span class="fo-l">Bots</span><button class="btn fo" id="rand-off">Pick the team<small>Choose the Krystalkers and the Dungeon Master below</small></button><button class="btn fo" id="rand-on">Random team &amp; boss<small>A new team and Dungeon Master every run</small></button></div>
+    <div class="fireopt" id="watch-rand" hidden><span class="fo-l">Bots</span><button class="btn fo" id="rand-off">Pick the team<small>Choose the Krystalkers and the Dungeon Master below</small></button><button class="btn fo" id="rand-on">Random team &amp; boss<small>A new team and Dungeon Master every run</small></button><button class="btn fo" id="rand-team">Random team<small>A new team every run, against the Dungeon Master you pick below</small></button></div>
     <div class="wteam" id="watch-team" hidden></div>
     <div class="lords" id="lords"></div>
     <p class="hint" id="lord-team" style="text-align:center"></p>
@@ -1926,7 +1926,7 @@ const ROOM_TH = { start: TH.start, shop: TH.shop, shrine: TH.shrine, field: TH.f
 function newMap() {
   G.map = new Uint8Array(MW * MH);
   G.theme = new Uint8Array(MW * MH).fill(TH.corridor);
-  G.crateHp = new Map(); G.prop = new Map(); G.glaciers = []; G.rooms = []; G.wstyle = new Uint8Array(MW * MH); G.castle = null;
+  G.crateHp = new Map(); G.crateKind = new Map(); G.crateHit = new Map(); G.bridge = new Map(); G.prop = new Map(); G.glaciers = []; G.rooms = []; G.wstyle = new Uint8Array(MW * MH); G.castle = null;
   G.grid = [...Array(GW)].map(() => Array(GH).fill(null));
   G.seen = new Uint8Array(MW * MH);
   G.fogC = mkCanvas(MW, MH); G.fogX = G.fogC.getContext('2d'); G.fogImg = G.fogX.createImageData(MW, MH);
@@ -2227,7 +2227,7 @@ function roomAt(px, py) {
 function inRoom(room, px, py, margin = 0) {
   return px >= room.x * TILE - margin && px < (room.x + room.w) * TILE + margin && py >= room.y * TILE - margin && py < (room.y + room.h) * TILE + margin;
 }
-const LIQUID = { water: 1, lava: 1 };
+const LIQUID = { water: 1, lava: 1, pit: 1 }; /* bullets fly over these; nobody walks on them */
 function setRoomLocked(room, locked) {
   room.locked = locked;
   if (locked) for (const p of G.players) {
@@ -2259,7 +2259,7 @@ function tileMapColor(i) {
   const t = G.map[i];
   if (t === T_FLOOR || t === T_DOOR || t === T_CRATE) return THEMES[G.theme[i]].base;
   if (t === T_WALL) return G.wstyle[i] === 3 ? '#9a88cc' : G.wstyle[i] ? '#6a6a7e' : '#2f5a32';
-  if (t === T_PROP) return G.prop.get(i) === 'water' ? '#4a9ab8' : G.prop.get(i) === 'lava' ? '#e8602a' : '#6a5a48';
+  if (t === T_PROP) return G.prop.get(i) === 'water' ? '#4a9ab8' : G.prop.get(i) === 'lava' ? '#e8602a' : G.prop.get(i) === 'pit' ? '#0a080e' : '#6a5a48';
   return '#10241a';
 }
 function revealTile(i) {
@@ -2297,7 +2297,14 @@ function moveEnt(e, dx, dy) {
   }
   return hit;
 }
+/* sight: rivers, lava and chasms do not block it (bullets fly over them) */
 function losClear(ax, ay, bx, by) {
+  const dx = bx - ax, dy = by - ay, L = Math.hypot(dx, dy), n = Math.ceil(L / 6);
+  for (let i = 1; i < n; i++) { const tx = Math.floor((ax + dx * i / n) / TILE), ty = Math.floor((ay + dy * i / n) / TILE), t = tget(tx, ty); if (t !== T_FLOOR && !(t === T_PROP && LIQUID[G.prop.get(ty * MW + tx)])) return false; }
+  return true;
+}
+/* walking in a straight line: only floor */
+function walkClear(ax, ay, bx, by) {
   const dx = bx - ax, dy = by - ay, L = Math.hypot(dx, dy), n = Math.ceil(L / 6);
   for (let i = 1; i < n; i++) if (tget(Math.floor((ax + dx * i / n) / TILE), Math.floor((ay + dy * i / n) / TILE)) !== T_FLOOR) return false;
   return true;
@@ -2326,7 +2333,7 @@ function findPath(sx, sy, tx, ty, maxNodes = 26000) {
     for (const [dx, dy] of nb) {
       const nx = cx + dx, ny = cy + dy; if (nx < 0 || ny < 0 || nx >= MW || ny >= MH) continue;
       const ni = ny * MW + nx; if (PF.seen[ni] === st) continue;
-      if (G.map[ni] !== T_FLOOR && ni !== t) continue;
+      if (G.map[ni] !== T_FLOOR && G.map[ni] !== T_CRATE && ni !== t) continue; /* bots smash through pots and crates on the way */
       if (PF.fire && ni !== t && PF.fire(nx, ny)) continue;
       if (G.bmask && ni !== t && ((PF.stay >= 0 && G.bmask[ni] !== PF.stay && G.bmask[c] === PF.stay && !(PF.open && PF.open.has(c))) || (PF.avoid && PF.avoid.has(G.bmask[ni])))) continue;
       PF.seen[ni] = st; PF.prev[ni] = c; PF.q[tl++] = ni;
@@ -2849,6 +2856,182 @@ function addCastleExits(cg) {
 }
 { const _bc = buildCastle; buildCastle = function (cg) { _bc(cg); addCastleExits(cg); }; }
 { const _bm = buildBiomeMask; buildBiomeMask = function () { _bm(); const C = G.castle; if (C && G.lab && C.exits) for (const X of C.exits) G.lab.seals.push({ room: X.room, key: X.key, tiles: X.tiles }); }; }
+// ===== Room layouts: every biome room gets a shape of its own =====
+// Orderly biomes (tombs, bone fields, shadow naves, storm spires) get rows of 3D columns; wild ones (caves, bogs, groves)
+// get crumbling rock edges and boulders; many rooms are crossed by a river / lava flow / chasm with bridges, or have a pit.
+// The middle of the room and every door lane stay open, and every door must still reach the middle (else the layout is undone).
+const BIOME_LAYOUT = {
+  burrow: { style: 'cave', liquid: 'pit', col: 'col_rock', brk: ['pot', 'crate'] },
+  grove: { style: 'cave', liquid: 'water', col: 'col_rock', brk: ['pot', 'jar'] },
+  den: { style: 'cave', liquid: 'pit', col: 'col_wood', brk: ['barrel', 'crate'] },
+  camp: { style: 'yard', liquid: null, col: 'col_wood', brk: ['barrel', 'crate'] },
+  hollow: { style: 'cave', liquid: 'pit', col: 'col_crystal', brk: ['geode', 'pot'] },
+  bones: { style: 'hall', liquid: 'pit', col: 'col_bone', brk: ['urn', 'pot'] },
+  meadow: { style: 'garden', liquid: 'water', col: 'col_rock', brk: ['pot', 'jar'] },
+  bog: { style: 'cave', liquid: 'water', col: 'col_rock', brk: ['jar', 'barrel'] },
+  frost: { style: 'cave', liquid: 'pit', col: 'col_ice', brk: ['icepot', 'geode'] },
+  ember: { style: 'cave', liquid: 'lava', col: 'col_ember', brk: ['urn', 'pot'] },
+  shadow: { style: 'hall', liquid: 'pit', col: 'col_obsidian', brk: ['urn', 'vase'] },
+  warren: { style: 'cave', liquid: 'water', col: 'col', brk: ['barrel', 'crate'] },
+  thorn: { style: 'cave', liquid: 'pit', col: 'col_rock', brk: ['pot', 'barrel'] },
+  tomb: { style: 'hall', liquid: 'pit', col: 'col_sand', brk: ['urn', 'vase'] },
+  storm: { style: 'hall', liquid: 'pit', col: 'col_crystal', brk: ['geode', 'vase'] },
+  rift: { style: 'cave', liquid: 'pit', col: 'col_obsidian', brk: ['geode', 'urn'] },
+};
+function roomLanes(room) {
+  return (x, y) => { for (const d0 in room.doorPos) { const p = room.doorPos[d0], d = d0[0]; if ((d === 'e' || d === 'w') && Math.abs(y - p) <= CORR + 1) return true; if ((d === 'n' || d === 's') && Math.abs(x - p) <= CORR + 1) return true; } return false; };
+}
+// the open heart of the room (altar, shrine, reward chest, boss) never gets anything in it
+function inHeart(room, x, y) { return Math.abs(x - room.cx) <= 5 && Math.abs(y - room.cy) <= 3; }
+function setLiquid(x, y, kind) { if (tget(x, y) !== T_FLOOR) return false; tset(x, y, T_PROP); G.prop.set(y * MW + x, kind); return true; }
+// can every door still reach the middle? (and how much of the floor is cut off)
+function roomConnected(room) {
+  const W0 = room.w + 2, H0 = room.h + 2, idx = (x, y) => (y - room.y + 1) * W0 + (x - room.x + 1), seen = new Uint8Array(W0 * H0);
+  const ok = (x, y) => x >= room.x - 1 && y >= room.y - 1 && x <= room.x + room.w && y <= room.y + room.h && tget(x, y) === T_FLOOR;
+  const q = [[room.cx, room.cy]]; if (!ok(room.cx, room.cy)) return false; seen[idx(room.cx, room.cy)] = 1;
+  while (q.length) { const [x, y] = q.pop(); for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const nx = x + dx, ny = y + dy; if (!ok(nx, ny) || seen[idx(nx, ny)]) continue; seen[idx(nx, ny)] = 1; q.push([nx, ny]); } }
+  for (const k in room.doorTiles) for (const [x, y] of room.doorTiles[k]) { const t = tget(x, y); if ((t === T_FLOOR) && !seen[idx(x, y)]) return false; }
+  // little pockets that got cut off become rock instead of unreachable floor
+  for (let y = room.y; y < room.y + room.h; y++) for (let x = room.x; x < room.x + room.w; x++) if (tget(x, y) === T_FLOOR && !seen[idx(x, y)]) tset(x, y, T_WALL);
+  return true;
+}
+function snapshotRoom(room) { const s = []; for (let y = room.y - 1; y <= room.y + room.h; y++) for (let x = room.x - 1; x <= room.x + room.w; x++) { const i = y * MW + x; s.push([i, G.map[i], G.prop.get(i)]); } return s; }
+function restoreRoom(snap) { for (const [i, t, p] of snap) { G.map[i] = t; if (p == null) G.prop.delete(i); else G.prop.set(i, p); if (G.bridge) G.bridge.delete(i); } }
+
+// ---- layout pieces ----
+// rows of columns, symmetric around the middle (tombs, naves, halls)
+function layColumns(room, L, lanes) {
+  const kind = L.col || 'col', step = 3, rows = room.h >= 12 ? [room.y + 2, room.y + room.h - 3] : [room.y + 2];
+  if (room.w >= 19) for (const x of [room.cx - 8, room.cx + 8]) for (const y of [room.cy - 1, room.cy + 1]) if (!lanes(x, y) && tget(x, y) === T_FLOOR) placeProp(x, y, kind); /* flanking the heart */
+  if (room.h >= 17) rows.push(room.cy - 5, room.cy + 5);
+  for (const y of rows) for (let dx = step; room.cx - dx > room.x + 1; dx += step) for (const x of [room.cx - dx, room.cx + dx]) if (!lanes(x, y) && !inHeart(room, x, y) && tget(x, y) === T_FLOOR) placeProp(x, y, kind);
+}
+// a colonnade down both long sides (a "nave")
+function layNave(room, L, lanes) {
+  const kind = L.col || 'col';
+  for (let x = room.x + 2; x < room.x + room.w - 2; x += 3) for (const y of [room.y + 3, room.y + room.h - 4]) if (!lanes(x, y) && !inHeart(room, x, y)) placeProp(x, y, kind);
+}
+// a wild cave: the edges crumble in, boulders and rock spurs
+function layCave(room, L, lanes) {
+  const n0 = ri(5, 9);
+  for (let i = 0; i < n0; i++) { // bulges from the walls
+    const side = ri(0, 3), along = side < 2 ? ri(room.x, room.x + room.w - 1) : ri(room.y, room.y + room.h - 1), depth = ri(1, 3), len = ri(2, 5);
+    for (let a = 0; a < len; a++) for (let d = 0; d < depth - (a === 0 || a === len - 1 ? 1 : 0); d++) {
+      const x = side === 0 ? along + a : side === 1 ? along + a : side === 2 ? room.x + d : room.x + room.w - 1 - d;
+      const y = side === 0 ? room.y + d : side === 1 ? room.y + room.h - 1 - d : along + a;
+      if (x < room.x || x >= room.x + room.w || y < room.y || y >= room.y + room.h || lanes(x, y) || inHeart(room, x, y)) continue;
+      if (tget(x, y) === T_FLOOR) tset(x, y, T_WALL);
+    }
+  }
+  for (let i = 0, n = ri(1, 3); i < n; i++) { // boulders standing free
+    const x0 = ri(room.x + 2, room.x + room.w - 4), y0 = ri(room.y + 2, room.y + room.h - 4), w = ri(1, 3), h = ri(1, 2);
+    let bad = false; for (let y = y0 - 1; y <= y0 + h; y++) for (let x = x0 - 1; x <= x0 + w; x++) if (lanes(x, y) || inHeart(room, x, y)) bad = true;
+    if (bad) continue;
+    for (let y = y0; y < y0 + h; y++) for (let x = x0; x < x0 + w; x++) if (tget(x, y) === T_FLOOR && R() < 0.85) tset(x, y, T_WALL);
+  }
+  if (R() < 0.5) for (let i = 0, n = ri(2, 4); i < n; i++) { const x = ri(room.x + 2, room.x + room.w - 3), y = ri(room.y + 2, room.y + room.h - 3); if (!lanes(x, y) && !inHeart(room, x, y)) placeProp(x, y, L.col || 'col_rock'); }
+}
+// a river (or lava flow, or chasm) across the room, with a bridge on every door lane that crosses it
+function layRiver(room, L, lanes) {
+  const kind = L.liquid; if (!kind) return false;
+  const horiz = room.w >= room.h ? R() < 0.7 : R() < 0.3, width = ri(2, 3);
+  const span0 = horiz ? room.y : room.x, span = horiz ? room.h : room.w, heart = horiz ? [room.cy - 4, room.cy + 4] : [room.cx - 6, room.cx + 6];
+  // where can the band go: not in the heart, not over a lane that runs along it
+  const cand = [];
+  for (let p = span0 + 2; p + width <= span0 + span - 2; p++) {
+    if (p + width > heart[0] && p < heart[1] + 1) continue;
+    let bad = false; for (let q = p; q < p + width; q++) { for (const d0 in room.doorPos) { const dp = room.doorPos[d0], d = d0[0]; if (horiz && (d === 'e' || d === 'w') && Math.abs(q - dp) <= CORR + 1) bad = true; if (!horiz && (d === 'n' || d === 's') && Math.abs(q - dp) <= CORR + 1) bad = true; } }
+    if (!bad) cand.push(p);
+  }
+  if (!cand.length) return false;
+  const p0 = pick(cand), bridges = new Set();
+  // bridges on the crossing lanes, plus one more of our own
+  const mid0 = horiz ? room.cy : room.cx, beforeMid = p0 < mid0; /* the band lies between the middle and this side's doors */
+  let crossed = 0;
+  for (const d0 in room.doorPos) { const dp = room.doorPos[d0], d = d0[0];
+    const crosses = horiz ? ((d === 'n' && beforeMid) || (d === 's' && !beforeMid)) : ((d === 'w' && beforeMid) || (d === 'e' && !beforeMid));
+    if (crosses) { crossed++; for (let k = -1; k <= 1; k++) bridges.add(dp + k); } }
+  const along0 = horiz ? room.x : room.y, alongN = horiz ? room.w : room.h, mid = horiz ? room.cx : room.cy;
+  if (!crossed || R() < 0.5) { const b = clamp(mid + pick([-1, 1]) * ri(3, Math.max(3, (alongN >> 1) - 3)), along0 + 1, along0 + alongN - 3); for (let k = 0; k < 2; k++) bridges.add(b + k); }
+  if (!G.bridge) G.bridge = new Map();
+  for (let q = p0; q < p0 + width; q++) for (let a = along0; a < along0 + alongN; a++) {
+    const x = horiz ? a : q, y = horiz ? q : a;
+    if (tget(x, y) !== T_FLOOR) continue;
+    if (bridges.has(a)) { G.bridge.set(y * MW + x, !horiz); continue; }
+    setLiquid(x, y, kind);
+  }
+  // the river runs out under the walls: carve its ends a tile into the wall line so it reads as passing through
+  return true;
+}
+// a chasm (or pool) somewhere off the middle
+function layPit(room, L, lanes) {
+  const kind = L.liquid === 'water' || L.liquid === 'lava' ? L.liquid : 'pit';
+  for (let tries = 0; tries < 12; tries++) {
+    const w = ri(3, 6), h = ri(2, 4), x0 = ri(room.x + 2, room.x + room.w - w - 2), y0 = ri(room.y + 2, room.y + room.h - h - 2);
+    let bad = false; for (let y = y0 - 1; y <= y0 + h; y++) for (let x = x0 - 1; x <= x0 + w; x++) if (lanes(x, y) || inHeart(room, x, y) || tget(x, y) !== T_FLOOR) bad = true;
+    if (bad) continue;
+    for (let y = y0; y < y0 + h; y++) for (let x = x0; x < x0 + w; x++) { const corner = (x === x0 || x === x0 + w - 1) && (y === y0 || y === y0 + h - 1); if (!corner || R() < 0.3) setLiquid(x, y, kind); }
+    return true;
+  }
+  return false;
+}
+// tidy rows of crates/barrels (the Ogre Camp)
+function layYard(room, L, lanes) {
+  for (let i = 0, n = ri(2, 4); i < n; i++) {
+    const horiz = R() < 0.5, len = ri(2, 4), x0 = ri(room.x + 2, room.x + room.w - 3 - (horiz ? len : 0)), y0 = ri(room.y + 2, room.y + room.h - 3 - (horiz ? 0 : len));
+    for (let k = 0; k < len; k++) { const x = x0 + (horiz ? k : 0), y = y0 + (horiz ? 0 : k); if (!lanes(x, y) && !inHeart(room, x, y)) placeBreakable(x, y, pick(L.brk)); }
+  }
+}
+// ---- breakables: pots and vases along the walls, in little clusters ----
+function placeBreakable(x, y, kind) {
+  if (tget(x, y) !== T_FLOOR) return false;
+  tset(x, y, T_CRATE); G.crateHp.set(y * MW + x, (BRK[kind] || BRK.crate).hp); (G.crateKind || (G.crateKind = new Map())).set(y * MW + x, kind); return true;
+}
+function layBreakables(room, L, lanes) {
+  const kinds = L.brk || ['pot', 'vase'], want = Math.round(room.w * room.h / 45) + ri(0, 2);
+  for (let i = 0, tries = 0; i < want && tries < 80; tries++) {
+    // a floor tile touching a wall
+    const x = ri(room.x, room.x + room.w - 1), y = ri(room.y, room.y + room.h - 1);
+    if (tget(x, y) !== T_FLOOR || lanes(x, y) || inHeart(room, x, y)) continue;
+    if (![[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => tget(x + dx, y + dy) === T_WALL)) continue;
+    const k = pick(kinds); placeBreakable(x, y, k); i++;
+    for (let j = 0, m = ri(0, 2); j < m; j++) { const nx = x + ri(-1, 1), ny = y + ri(-1, 1); if (!lanes(nx, ny) && !inHeart(room, nx, ny) && [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => tget(nx + dx, ny + dy) === T_WALL)) placeBreakable(nx, ny, R() < 0.7 ? k : pick(kinds)); }
+  }
+}
+function layoutRoom(room) {
+  if (room.type !== 'themed' || !room.tpl) return;
+  const L = BIOME_LAYOUT[room.tpl.id] || { style: 'cave', liquid: 'pit', brk: ['pot', 'vase'] }, lanes = roomLanes(room);
+  const snap = snapshotRoom(room);
+  const big = room.w >= 15 && room.h >= 11;
+  if (L.style === 'hall') { if (room.w >= 17 && room.h >= 12 && R() < 0.45) layNave(room, L, lanes); else layColumns(room, L, lanes); }
+  else if (L.style === 'cave') layCave(room, L, lanes);
+  else if (L.style === 'yard') layYard(room, L, lanes);
+  else if (L.style === 'garden') { if (R() < 0.5) layColumns(room, L, lanes); }
+  if (big && L.liquid && R() < (L.liquid === 'water' || L.liquid === 'lava' ? 0.55 : 0.4) && layRiver(room, L, lanes)) { /* river */ }
+  else if (big && R() < 0.4) layPit(room, L, lanes);
+  if (!roomConnected(room)) { restoreRoom(snap); room.layout = 'plain'; } else room.layout = L.style;
+  room.brkKinds = L.brk;
+}
+{ const _dr = decorateRoom; decorateRoom = function (room) {
+  layoutRoom(room);
+  _dr(room);
+  if (room.type === 'themed' && room.tpl) {
+    const L = BIOME_LAYOUT[room.tpl.id] || { brk: ['pot', 'vase'] }, lanes = roomLanes(room);
+    // the old wooden crates of this room become the biome's own breakables, and more line the walls
+    for (let y = room.y; y < room.y + room.h; y++) for (let x = room.x; x < room.x + room.w; x++) if (tget(x, y) === T_CRATE && !(G.crateKind && G.crateKind.has(y * MW + x))) { const k = pick(L.brk); G.crateHp.set(y * MW + x, BRK[k].hp); (G.crateKind || (G.crateKind = new Map())).set(y * MW + x, k); }
+    layBreakables(room, L, lanes);
+    sealPockets(room);
+  }
+}; }
+/* after props and pots are in: any floor nobody can reach from the middle (walking, or smashing pots) becomes rock */
+function sealPockets(room) {
+  const W0 = room.w + 2, idx = (x, y) => (y - room.y + 1) * W0 + (x - room.x + 1), seen = new Uint8Array(W0 * (room.h + 2));
+  const ok = (x, y) => x >= room.x - 1 && y >= room.y - 1 && x <= room.x + room.w && y <= room.y + room.h && (tget(x, y) === T_FLOOR || tget(x, y) === T_CRATE);
+  if (!ok(room.cx, room.cy)) return;
+  const q = [[room.cx, room.cy]]; seen[idx(room.cx, room.cy)] = 1;
+  while (q.length) { const [x, y] = q.pop(); for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const nx = x + dx, ny = y + dy; if (!ok(nx, ny) || seen[idx(nx, ny)]) continue; seen[idx(nx, ny)] = 1; q.push([nx, ny]); } }
+  for (let y = room.y; y < room.y + room.h; y++) for (let x = room.x; x < room.x + room.w; x++) { const t = tget(x, y); if ((t === T_FLOOR || t === T_CRATE) && !seen[idx(x, y)]) { if (t === T_CRATE) { G.crateHp.delete(y * MW + x); G.crateKind.delete(y * MW + x); } tset(x, y, T_WALL); } }
+}
 // ===== Effects =====
 function fx(o) { G.fx.push(Object.assign({ t: 0, life: 0.4 }, o)); }
 function floatText(x, y, text, color = '#fff', life = 0.8, size = 1) { G.fx.push({ k: 'text', x, y, text, color, t: 0, life, size }); }
@@ -2927,12 +3110,14 @@ function addPoison(e, n, owner) {
 function slowE(e, amt, t) { applyStatus(e, 'mire', t, { amt }); }
 function hitCrate(tx, ty, dmg) {
   const i = ty * MW + tx; const hp = (G.crateHp.get(i) ?? 24) - dmg;
+  const kind = (G.crateKind && G.crateKind.get(i)) || 'crate', K = (typeof BRK !== 'undefined' && BRK[kind]) || { shard: '#a89c88' };
   if (hp <= 0) {
-    G.crateHp.delete(i); tset(tx, ty, T_FLOOR); refreshMapTile(tx, ty);
+    G.crateHp.delete(i); if (G.crateKind) G.crateKind.delete(i); tset(tx, ty, T_FLOOR); refreshMapTile(tx, ty);
     const cx = (tx + 0.5) * TILE, cy = (ty + 0.5) * TILE;
-    burst(cx, cy, '#a89c88', 10, 80, 0.5, { g: 160, size: 1.4 }); smoke(cx, cy, 4);
-    if (R() < 0.3) dropGold(cx, cy, ri(1, 3));
-  } else G.crateHp.set(i, hp);
+    burst(cx, cy - 4, K.shard, kind === 'crate' || kind === 'barrel' ? 10 : 14, 90, 0.55, { g: 180, size: 1.5 }); smoke(cx, cy, kind === 'crate' || kind === 'barrel' ? 4 : 2);
+    if (kind !== 'crate' && kind !== 'barrel') { decal(cx, cy + 2, 'splat', 5, 3, dark(K.shard, 0.35)); sfx('swing', cx, cy, 0.5); }
+    if (R() < (kind === 'crate' || kind === 'barrel' ? 0.3 : 0.4)) dropGold(cx, cy, ri(1, 3));
+  } else { G.crateHp.set(i, hp); (G.crateHit || (G.crateHit = new Map())).set(i, G.time); }
 }
 function explode(x, y, r, dmg, src, o = {}) {
   for (const e of G.enemies) if (!e.dead && (d2(e.x, e.y, x, y) < (r + e.r) ** 2 || hurtHits(e, x, y, r))) { damage(e, dmg, src, Object.assign({ kb: 80 }, o)); if (o.st) inflict(e, o.st, src); }
@@ -5449,7 +5634,7 @@ function updateSpawns(dt) {
   }
 }
 function schedule(t, fn) { G.delayed.push({ t, fn }); }
-function updateDelayed(dt) { for (let i = G.delayed.length - 1; i >= 0; i--) { const d = G.delayed[i]; d.t -= dt; if (d.t <= 0) { G.delayed.splice(i, 1); d.fn(); } } }
+function updateDelayed(dt) { for (let i = G.delayed.length - 1; i >= 0; i--) { const d = G.delayed[i]; if (!d) continue; d.t -= dt; if (d.t <= 0) { G.delayed.splice(i, 1); d.fn(); } } }
 // the room a monster belongs to (its "lair"); room monsters only notice players inside it
 function lairOf(e) { if (e.boss && !e.castle) return null; if (e.labMob) return labArea(); const r = e.home || e.room; return r && (r.type === 'themed' || r.type === 'castle') ? r : null; }
 const LAIR_REACH = 140; // room monsters notice and fight anyone near their room, not only inside it (you can shoot in from the doorway, they shoot back)
@@ -5463,7 +5648,7 @@ function nearestUp(e, maxD = 1e9) {
   return best;
 }
 function enemyMoveToward(e, tgt, spd, dt, los) {
-  let a = (los || e.def.fly) ? Math.atan2(tgt.y - e.y, tgt.x - e.x) : flowDir(e);
+  let a = ((los && walkClear(e.x, e.y, tgt.x, tgt.y)) || e.def.fly) ? Math.atan2(tgt.y - e.y, tgt.x - e.x) : flowDir(e);
   if (a == null) a = Math.atan2(tgt.y - e.y, tgt.x - e.x);
   moveEnt(e, Math.cos(a) * spd * dt, Math.sin(a) * spd * dt); e.moving = true;
   if (!e.lockFace) e.face = Math.cos(a) >= 0 ? 1 : -1;
@@ -5624,7 +5809,7 @@ const AI = {
     if (e.lunge > 0) { e.lunge -= dt; moveEnt(e, Math.cos(e.la) * spd * 2.7 * dt, Math.sin(e.la) * spd * 2.7 * dt); e.moving = true; return; }
     if (!e.def.objective && e.los && dd < 42 && dd > 14 && e.lungeCd <= 0) { e.windT = e.champ ? 0.3 : 0.2; e.la = e.lock = Math.atan2(tg.y - e.y, tg.x - e.x); e.lungeCd = rr(1.6, 2.8); return; }
     if (dd <= 8) return;
-    if (e.los && dd > 26) { const side = e.flank ?? (e.flank = (R() < 0.5 ? -1 : 1) * rr(0.35, 0.9)); const a = Math.atan2(tg.y - e.y, tg.x - e.x) + side * clamp((dd - 26) / 90, 0, 1); enemyMoveToward(e, { x: e.x + Math.cos(a) * 30, y: e.y + Math.sin(a) * 30 }, spd, dt, true); }
+    if (e.los && dd > 26 && walkClear(e.x, e.y, tg.x, tg.y)) { const side = e.flank ?? (e.flank = (R() < 0.5 ? -1 : 1) * rr(0.35, 0.9)); const a = Math.atan2(tg.y - e.y, tg.x - e.x) + side * clamp((dd - 26) / 90, 0, 1); enemyMoveToward(e, { x: e.x + Math.cos(a) * 30, y: e.y + Math.sin(a) * 30 }, spd, dt, true); }
     else enemyMoveToward(e, tg, spd, dt, e.los);
   },
   ranged(e, tg, dd, spd, dt) {
@@ -6856,7 +7041,7 @@ function fireBlock(p, tx, ty) {
 function goTo(p, A, tx, ty, c, dt) {
   const tp = tpShortcut(p, tx, ty);
   if (tp) { if (d2(p.x, p.y, tp.x, tp.y) < 18 * 18) { teleportVia(tp, p); return true; } tx = tp.x; ty = tp.y + 2; }
-  if (losClear(p.x, p.y, tx, ty) && losClear(p.x + 4, p.y + 4, tx + 4, ty + 4) && losClear(p.x - 4, p.y - 4, tx - 4, ty - 4)) {
+  if (walkClear(p.x, p.y, tx, ty) && walkClear(p.x + 4, p.y + 4, tx + 4, ty + 4) && walkClear(p.x - 4, p.y - 4, tx - 4, ty - 4)) {
     const a = Math.atan2(ty - p.y, tx - p.x); c.mx = Math.cos(a); c.my = Math.sin(a); A.path = null; return true;
   }
   const gtx = Math.floor(tx / TILE), gty = Math.floor(ty / TILE);
@@ -6874,7 +7059,7 @@ function goTo(p, A, tx, ty, c, dt) {
   }
   while (A.path.length > 1) { const [nx, ny] = A.path[0]; if (d2(p.x, p.y, (nx + .5) * TILE, (ny + .5) * TILE) < 10 * 10) A.path.shift(); else break; }
   let k = Math.min(3, A.path.length - 1);
-  while (k > 0 && !losClear(p.x, p.y, (A.path[k][0] + .5) * TILE, (A.path[k][1] + .5) * TILE)) k--;
+  while (k > 0 && !walkClear(p.x, p.y, (A.path[k][0] + .5) * TILE, (A.path[k][1] + .5) * TILE)) k--;
   const [nx, ny] = A.path[k]; const a = Math.atan2((ny + .5) * TILE - p.y, (nx + .5) * TILE - p.x);
   c.mx = Math.cos(a); c.my = Math.sin(a);
   if (tget(nx, ny) === T_CRATE) { c.ax = (nx + .5) * TILE; c.ay = (ny + .5) * TILE; c.atk = true; }
@@ -7165,7 +7350,7 @@ function decideMode(p, A, vis) {
   { const m = fontPlan(p, A, vis, 1100); if (m) return m; }
   // coins
   let coin = null; bd = (G.botPlan && G.botPlan.B.lab ? 50 : 120) ** 2;
-  for (const k of G.coins) { if (k.botSkip > G.time) continue; const dd = d2(k.x, k.y, p.x, p.y); if (dd < bd && losClear(p.x, p.y, k.x, k.y)) { bd = dd; coin = k; } }
+  for (const k of G.coins) { if (k.botSkip > G.time) continue; const dd = d2(k.x, k.y, p.x, p.y); if (dd < bd && walkClear(p.x, p.y, k.x, k.y)) { bd = dd; coin = k; } }
   if (coin) { A.goal = { x: coin.x, y: coin.y, near: 4 }; return 'goto'; }
   const lc = levelCost(p);
   // the team agreed on the Dream Palace: go there now, everything else can wait
@@ -9088,8 +9273,8 @@ function hazardTick(p, dt) {
 // ---------- The two rule sets offered at the Gate ----------
 // Classic: closing ring, night at the end of the Act, Act II like Act I. Krystolen rules: spreading fire + Gatekeeper Bell
 // (with rising danger) + Crossroads. The three parts stay separate switches inside the code.
-let WATCH_RAND = false;
-try { WATCH_RAND = localStorage.getItem('kry_wrand') === '1'; } catch (e) { }
+let WATCH_RAND = 0; /* 0 pick the team, 1 random team & boss, 2 random team only */
+try { const v = localStorage.getItem('kry_wrand'); WATCH_RAND = v === '1' ? 1 : v === '2' ? 2 : 0; } catch (e) { }
 // (the room-by-room spreading fire was tried in v18 and removed in v18.9: both rule sets use the closing ring)
 function setRules(isNew) {
   FIRE_MODE = 'ring'; BELL_MODE = CROSS_MODE = !!isNew;
@@ -9628,15 +9813,8 @@ function drawTiles() {
     const t = (tx < 0 || ty < 0 || tx >= MW || ty >= MH) ? T_VOID : G.map[ty * MW + tx];
     if (t === T_VOID) continue;
     const i = ty * MW + tx;
-    if (t === T_FLOOR || t === T_CRATE || t === T_DOOR || t === T_PROP) { const pk = t === T_PROP ? G.prop.get(i) : null; if (pk === 'water') ctx.drawImage(TEX.water, px, py, T, T); else if (pk === 'lava') ctx.drawImage(TEX.lava, px, py, T, T); else ctx.drawImage(TEX.floor[G.theme[i]][tileVar(tx, ty)], px, py, T, T); }
-    else if (t === T_WALL) {
-      const below = tget(tx, ty + 1); const face = below === T_FLOOR || below === T_CRATE || below === T_DOOR || below === T_PROP;
-      if (G.wstyle && G.wstyle[i] === 2) { ctx.fillStyle = '#0c0618'; ctx.fillRect(px, py, T, T); ctx.fillStyle = `rgba(200,110,255,${0.35 + 0.2 * Math.sin(G.time * 3 + tx * 0.7 + ty)})`; ctx.fillRect(px + 6, py + 6, 4, 4); }
-      else if (G.wstyle && G.wstyle[i] === 3) { ctx.drawImage(face ? TEX.dreamFace[h % 3] : TEX.dreamTop[h % 3], px, py, T, T); }
-      else if (G.wstyle && G.wstyle[i]) { ctx.drawImage(face ? TEX.castleFace[h % 3] : TEX.castleTop[h % 3], px, py, T, T); }
-      else if (face) { ctx.drawImage(TEX.floor[G.theme[(ty + 1) * MW + tx]][0], px, py, T, T); ctx.drawImage(TEX.hedge[h % 3], px, py, T, T); }
-      else ctx.drawImage(TEX.canopy[h % 3], px, py, T, T);
-    }
+    if (t === T_FLOOR || t === T_CRATE || t === T_DOOR || t === T_PROP) { const pk = t === T_PROP ? G.prop.get(i) : null; if (pk === 'water') ctx.drawImage(TEX.water, px, py, T, T); else if (pk === 'lava') ctx.drawImage(TEX.lava, px, py, T, T); else if (pk === 'pit') drawPitTile(tx, ty); else { ctx.drawImage(TEX.floor[G.theme[i]][tileVar(tx, ty)], px, py, T, T); if (G.bridge && G.bridge.has(i)) drawBridgeTile(tx, ty, G.bridge.get(i)); } }
+    else if (t === T_WALL) { ctx.fillStyle = '#0b0a0f'; ctx.fillRect(px, py, T, T); } /* the block itself is drawn raised, in the depth-sorted pass (drawWallBlock) */
   }
   for (let ty = y0; ty <= y1; ty++) for (let tx = x0; tx <= x1; tx++) {
     const t = tget(tx, ty); if (t === T_VOID || t === T_WALL) continue;
@@ -9644,8 +9822,8 @@ function drawTiles() {
     if (G.theme[i] === TH.grass) {
       const bi = i + MW; if (tget(tx, ty + 1) !== T_WALL && G.theme[bi] !== TH.grass) ctx.drawImage(TEX.grassSide, px, py + TILE, TILE + 0.35, 5);
     } else if (t === T_FLOOR && (G.theme[i] === TH.stone || G.theme[i] === TH.corridor || G.theme[i] === TH.field) && h % 29 === 0) ctx.drawImage(TEX.torch, px, py - 2, TILE, TILE);
-    if (t === T_CRATE) ctx.drawImage(TEX.crate, px - 1, py - 4, TILE + 2, TILE + 2);
-    if (t === T_PROP) { const k = G.prop.get(i); if (k === 'lava' && h % 7 === 0) { ctx.fillStyle = `rgba(255,220,120,${0.3 + 0.3 * Math.sin(G.time * 3 + h)})`; ctx.beginPath(); ctx.arc(px + 8, py + 8, 2, 0, Math.PI * 2); ctx.fill(); } if (k !== 'water' && k !== 'lava' && k !== 'block') { const f = SPR.props[k]; if (f) ctx.drawImage(f.c, px + 8 - f.ox, py + 15 - f.oy, f.w, f.h); } }
+    if (t === T_PROP) { const k = G.prop.get(i); if (k === 'lava' && h % 7 === 0) { ctx.fillStyle = `rgba(255,220,120,${0.3 + 0.3 * Math.sin(G.time * 3 + h)})`; ctx.beginPath(); ctx.arc(px + 8, py + 8, 2, 0, Math.PI * 2); ctx.fill(); } }
+    if (t !== T_WALL && tget(tx, ty - 1) === T_WALL) { const g = ctx.createLinearGradient(0, py, 0, py + 7); g.addColorStop(0, 'rgba(0,0,0,0.42)'); g.addColorStop(1, 'rgba(0,0,0,0)'); ctx.fillStyle = g; ctx.fillRect(px, py, TILE + 0.35, 7); } /* contact shadow at the foot of a wall */
     if (t === T_DOOR) ctx.drawImage(TEX.door, px, py, TILE + 0.35, TILE + 0.35);
   }
 }
@@ -10205,6 +10383,7 @@ function render(dt) {
   for (const P of G.piles) objs.push({ y: P.y, d: () => drawPile(P) });
   for (const t of G.taunts || []) objs.push({ y: t.y, d: () => drawTaunt(t) });
   for (const t of G.totems) objs.push({ y: t.y, d: () => { ctx.fillStyle = `rgba(160,230,255,${0.07 + 0.05 * Math.sin(G.time * 6)})`; ctx.beginPath(); ctx.arc(t.x, t.y, 85, 0, Math.PI * 2); ctx.fill(); shadow(t.x, t.y, 6); const w = SPR.w_reindeer; ctx.drawImage(w.c, t.x - 8, t.y - 22, w.w * 0.9, w.h * 0.9); if (R() < 0.2) burst(t.x + rr(-4, 4), t.y - 16, '#bff4ff', 1, 20, 0.2, { shape: 'spark', glow: true }); } });
+  pushWorldBlocks(objs);
   for (const e of G.enemies) objs.push({ y: e.y, d: () => drawEnemy(e) });
   for (const g of G.glaciers || []) objs.push({ y: g.y - 2, d: () => drawGlacier(g) });
   for (const z of G.ezones) if (z.kind === 'tentacle') objs.push({ y: z.y, d: () => drawTentacle(z) });
@@ -10338,8 +10517,8 @@ function drawLighting() {
   const lw = Math.ceil(W / 4), lh = Math.ceil(H / 4);
   if (!LIGHT || LIGHT.width !== lw || LIGHT.height !== lh) { LIGHT = mkCanvas(lw, lh); }
   const L = LIGHT.getContext('2d'), sc = ZOOM / 4;
-  const vx0 = G.cam.x - W / 2 / ZOOM, vy0 = G.cam.y - H / 2 / ZOOM;
-  const dark = G.inVoid ? 0.18 : G.hub ? 0.42 : G.phase === 'final' || G.phase === 'prep' ? 0.38 : 0.55;
+  const vx0 = G.cam.x - W / 2 / ZOOM, vy0 = G.cam.y - H / 2 / ZOOM; LIGHT_V = { vx0, vy0, sc };
+  const dark = G.inVoid ? 0.18 : G.hub ? 0.36 : G.phase === 'final' || G.phase === 'prep' ? 0.32 : 0.42;
   L.globalCompositeOperation = 'source-over'; L.clearRect(0, 0, lw, lh); L.fillStyle = `rgba(6,4,12,${dark})`; L.fillRect(0, 0, lw, lh);
   L.globalCompositeOperation = 'destination-out';
   const warm = [];
@@ -10359,6 +10538,7 @@ function drawLighting() {
   for (const z of G.ezones) if (z.kind === 'fire') hole(z.x, z.y, z.r * 1.8, 0.6);
   for (const e of G.enemies) if (e.boss && !e.dead && enemySeen(e)) hole(e.x, e.y - 14, 90, 0.7);
   for (const b of G.bullets) if (b.team === 'enemy' || b.glow) hole(b.x, b.y, 18, 0.35);
+  try { LIGHT_D = L.getImageData(0, 0, lw, lh); } catch (e) { LIGHT_D = null; }
   ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.imageSmoothingEnabled = true; ctx.drawImage(LIGHT, 0, 0, W, H); ctx.restore();
   // warm torchlight on top
   ctx.save(); ctx.globalCompositeOperation = 'lighter';
@@ -10439,6 +10619,163 @@ function drawKitFx() {
     if (p.hunt) for (const e of p.hunt.list) { ctx.strokeStyle = 'rgba(180,140,255,0.9)'; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.arc(e.x, e.y - 8, e.r + 6, 0, Math.PI * 2); ctx.stroke(); }
   }
   if (G.codaT > G.time) for (const q of G.players) if (q.state === 'up') { ctx.strokeStyle = `rgba(255,241,168,${0.4 + 0.3 * Math.sin(G.time * 8)})`; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.arc(q.x, q.y - 10, 13, 0, Math.PI * 2); ctx.stroke(); }
+}
+// ===== Raised world (Enter the Gungeon-style 3/4 view) =====
+// Walls are blocks: their top is drawn WALL_RISE px above the footprint and a brick face fills the side that faces the camera.
+// Walls, pillars, props and breakables are drawn in the depth-sorted pass with the creatures, so a wall in front of you
+// covers you and you stand in front of the wall behind you. Lighting is copied from the floor under each block.
+const WALL_RISE = 18, COL_H = 24;
+let LIGHT_V = null, LIGHT_D = null, BLK = null;
+function blockTexInit() {
+  if (BLK) return BLK;
+  const brick = (seed, face, base, mortar, rows) => {
+    const S = 64, c = mkCanvas(S, S), x = c.getContext('2d'), rnd = seededRand(seed);
+    x.fillStyle = mortar; x.fillRect(0, 0, S, S);
+    const R0 = rows || (face ? 4 : 3), h = S / R0;
+    for (let r = 0; r < R0; r++) { const off = (r % 2) * 14; for (let bx = -14; bx < S; bx += 28) { const t = (rnd() - 0.5) * 0.2, col = t > 0 ? light(base, t) : dark(base, -t); x.fillStyle = col; x.beginPath(); x.roundRect(bx + off + 1.5, r * h + 1.5, 25, h - 3, 2); x.fill(); x.fillStyle = 'rgba(255,255,255,0.10)'; x.fillRect(bx + off + 3, r * h + 2, 21, 1.6); } }
+    if (face) { const g = x.createLinearGradient(0, 40, 0, 64); g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(0,0,0,0.45)'); x.fillStyle = g; x.fillRect(0, 40, S, 24); }
+    else { x.fillStyle = 'rgba(255,255,255,0.06)'; x.fillRect(0, 0, S, 3); }
+    return c;
+  };
+  const MAT = { stone: ['#8e8a9c', '#3a3644'], sand: ['#c8a870', '#6a5434'], bone: ['#d8d0b8', '#6a6450'], obsidian: ['#54446e', '#18121f'], crystal: ['#7ac8e0', '#24485a'], ice: ['#b8dcec', '#4a6a7a'], rock: ['#867a6e', '#2e2824'], wood: ['#9a7450', '#3a2a1c'], ember: ['#7a5248', '#1e1210'], moss: ['#7e8a74', '#2a3024'], slate: ['#7a88a4', '#262c3a'] };
+  const slab = (seed, base) => { const S = 64, c = mkCanvas(S, S), x = c.getContext('2d'), rnd = seededRand(seed); x.fillStyle = dark(base, 0.42); x.fillRect(0, 0, S, S); for (let i = 0; i < 40; i++) { x.fillStyle = `rgba(${rnd() < 0.5 ? '255,255,255' : '0,0,0'},${0.04 + rnd() * 0.06})`; x.beginPath(); x.arc(rnd() * 64, rnd() * 64, 2 + rnd() * 6, 0, Math.PI * 2); x.fill(); } x.strokeStyle = 'rgba(0,0,0,0.25)'; x.lineWidth = 1.2; x.strokeRect(0.5, 0.5, 63, 63); return c; };
+  BLK = {};
+  for (const k in MAT) { const [b, m] = MAT[k]; BLK[k] = { top: brick(300 + k.length * 7, false, light(b, 0.08), m, 2), slab: [0, 1, 2].map(j => slab(500 + k.length * 13 + j * 7, b)), face: [0, 1, 2].map(j => brick(400 + k.length * 11 + j * 5, true, b, m, 3)) }; }
+  /* moss: green tufts on the stone */
+  for (const c of [...BLK.moss.face, ...BLK.moss.slab]) { const x = c.getContext('2d'); for (let i = 0; i < 6; i++) { x.fillStyle = `rgba(90,140,70,${0.35 + Math.random() * 0.3})`; x.beginPath(); x.ellipse(Math.random() * 64, Math.random() * 20, 4 + Math.random() * 6, 2 + Math.random() * 3, 0, 0, Math.PI * 2); x.fill(); } }
+  // the chasm: a dark drop with a rocky lip
+  { const S = 64, c = mkCanvas(S, S), x = c.getContext('2d'); const g = x.createLinearGradient(0, 0, 0, S); g.addColorStop(0, '#0d0b12'); g.addColorStop(1, '#030205'); x.fillStyle = g; x.fillRect(0, 0, S, S); for (let i = 0; i < 14; i++) { x.fillStyle = `rgba(120,110,150,${0.05 + Math.random() * 0.08})`; x.fillRect(Math.random() * 64, Math.random() * 64, 1.5, 1.5); } BLK.pit = c; }
+  { const S = 64, c = mkCanvas(S, S * 0.5), x = c.getContext('2d'); const g = x.createLinearGradient(0, 0, 0, 32); g.addColorStop(0, '#5a5262'); g.addColorStop(0.35, '#2a2430'); g.addColorStop(1, 'rgba(10,8,14,0)'); x.fillStyle = g; x.fillRect(0, 0, S, 32); x.strokeStyle = 'rgba(0,0,0,0.5)'; x.lineWidth = 1; for (let i = 0; i < 6; i++) { const vx = Math.random() * 64; x.beginPath(); x.moveTo(vx, 2); x.lineTo(vx + (Math.random() - 0.5) * 6, 14); x.stroke(); } BLK.pitLip = c; }
+  // bridge planks (horizontal boards; rotated for vertical bridges)
+  { const S = 64, c = mkCanvas(S, S), x = c.getContext('2d'); x.fillStyle = '#2a1c12'; x.fillRect(0, 0, S, S); for (let i = 0; i < 4; i++) { const t = (Math.random() - 0.5) * 0.2; x.fillStyle = t > 0 ? light('#8a6440', t) : dark('#8a6440', -t); x.fillRect(1, i * 16 + 1.5, 62, 13); x.fillStyle = 'rgba(255,240,200,0.12)'; x.fillRect(2, i * 16 + 2, 60, 1.5); x.fillStyle = '#3a2a1a'; x.fillRect(6, i * 16 + 6, 2, 2); x.fillRect(56, i * 16 + 6, 2, 2); } x.fillStyle = '#4a3420'; x.fillRect(0, 0, 3, S); x.fillRect(S - 3, 0, 3, S); BLK.plank = c; }
+  return BLK;
+}
+// light the block like the floor it stands on (the LIGHT canvas is screen space, a quarter of the size)
+function lightOver(wx, wy, ww, wh, dy) {
+  const L = LIGHT_V; if (!L || !LIGHT) return;
+  const sx = (wx - L.vx0) * L.sc, sy = (wy + dy - L.vy0) * L.sc, sw = ww * L.sc, sh = wh * L.sc;
+  if (sx + sw < 0 || sy + sh < 0 || sx > LIGHT.width || sy > LIGHT.height) return;
+  ctx.drawImage(LIGHT, sx, sy, Math.max(0.5, sw), Math.max(0.5, sh), wx, wy, ww, wh);
+}
+/* sprites with transparent edges: darken only their own pixels (a black silhouette at the floor's darkness) */
+const SIL = new WeakMap();
+function silOf(c) { let m = SIL.get(c); if (!m) { m = mkCanvas(c.width, c.height); const x = m.getContext('2d'); x.drawImage(c, 0, 0); x.globalCompositeOperation = 'source-in'; x.fillStyle = 'rgb(6,4,12)'; x.fillRect(0, 0, m.width, m.height); SIL.set(c, m); } return m; }
+function darkAt(wx, wy) { const L = LIGHT_V, D = LIGHT_D; if (!L || !D) return 0; const sx = Math.floor((wx - L.vx0) * L.sc), sy = Math.floor((wy - L.vy0) * L.sc); if (sx < 0 || sy < 0 || sx >= D.width || sy >= D.height) return 0.5; return D.data[(sy * D.width + sx) * 4 + 3] / 255; }
+function litSprite(img, dx, dy, dw, dh, fx, fy) { ctx.drawImage(img, dx, dy, dw, dh); const a = darkAt(fx, fy); if (a > 0.02) { ctx.globalAlpha = a; ctx.drawImage(silOf(img), dx, dy, dw, dh); ctx.globalAlpha = 1; } }
+function isWallT(tx, ty) { return tget(tx, ty) === T_WALL; }
+const MAT_LIST = ['stone', 'sand', 'bone', 'obsidian', 'crystal', 'ice', 'rock', 'wood', 'ember', 'moss', 'slate'];
+const THEME_MAT = { stone: 'stone', start: 'stone', shop: 'wood', shrine: 'stone', elite: 'rock', corridor: 'stone', field: 'moss', arena: 'rock', grass: 'moss', mushroom: 'moss', crystal: 'crystal', bone: 'bone', meadow: 'moss', swamp: 'moss', camp: 'wood', frost: 'ice', ash: 'ember', shadow: 'obsidian', carpet: 'wood', hubwood: 'wood', lab: 'stone', castle: 'stone', castlehall: 'stone', warren: 'stone', thorn: 'moss', sand: 'sand', storm: 'slate', rift: 'obsidian' };
+/* each wall takes the material of the nearest floor: a crystal cave has crystal walls, the Bone Field ivory brick, the tomb sandstone */
+function buildWallMats() {
+  G.wmat = new Uint8Array(MW * MH); G.wmatGen = G.genId;
+  for (let ty = 0; ty < MH; ty++) for (let tx = 0; tx < MW; tx++) {
+    const i = ty * MW + tx; if (G.map[i] !== T_WALL) continue;
+    let th = -1;
+    for (let r = 1; r <= 3 && th < 0; r++) for (const [dx, dy] of [[0, r], [0, -r], [r, 0], [-r, 0], [r, r], [-r, r], [r, -r], [-r, -r]]) { const t = tget(tx + dx, ty + dy); if (t === T_FLOOR || t === T_PROP || t === T_CRATE || t === T_DOOR) { th = G.theme[(ty + dy) * MW + tx + dx]; break; } }
+    const nm = th >= 0 && THEMES[th] ? THEMES[th].name : 'corridor';
+    G.wmat[i] = MAT_LIST.indexOf(THEME_MAT[nm] || 'stone');
+  }
+}
+function wallTexFor(i, h, face) {
+  const ws = G.wstyle ? G.wstyle[i] : 0;
+  if (ws === 3) return face ? TEX.dreamFace[h % 3] : TEX.dreamTop[h % 3];
+  if (ws) return face ? TEX.castleFace[h % 3] : TEX.castleTop[h % 3];
+  const B = blockTexInit(); if (!G.wmat || G.wmatGen !== G.genId) buildWallMats();
+  const M = B[MAT_LIST[G.wmat[i]]] || B.stone; return face ? M.face[h % 3] : M.slab[h % 3];
+}
+function drawWallBlock(tx, ty) {
+  const px = tx * TILE, py = ty * TILE, i = ty * MW + tx, h = ((tx * 73856093) ^ (ty * 19349663)) >>> 0, T = TILE + 0.35, top = py - WALL_RISE;
+  const below = isWallT(tx, ty + 1), ws = G.wstyle ? G.wstyle[i] : 0;
+  if (ws === 2) { // the Sovereign's void: no stone, just a glowing dark edge
+    ctx.fillStyle = '#0c0618'; ctx.fillRect(px, top, T, below ? T : T + WALL_RISE);
+    ctx.fillStyle = `rgba(200,110,255,${0.35 + 0.2 * Math.sin(G.time * 3 + tx * 0.7 + ty)})`; ctx.fillRect(px + 6, top + 6, 4, 4); return;
+  }
+  ctx.drawImage(wallTexFor(i, h, false), px, top, T, T);
+  if (!below) { ctx.drawImage(wallTexFor(i, h, true), px, top + TILE, T, WALL_RISE + 0.35); ctx.fillStyle = 'rgba(0,0,0,0.55)'; ctx.fillRect(px, top + TILE - 0.6, T, 1.4); }
+  if (!isWallT(tx, ty - 1)) { ctx.fillStyle = 'rgba(255,255,255,0.13)'; ctx.fillRect(px, top, T, 1.2); }
+  const hgt = below ? T : T + WALL_RISE;
+  if (!isWallT(tx - 1, ty)) { ctx.fillStyle = 'rgba(0,0,0,0.4)'; ctx.fillRect(px, top, 1.3, hgt); }
+  if (!isWallT(tx + 1, ty)) { ctx.fillStyle = 'rgba(0,0,0,0.4)'; ctx.fillRect(px + TILE - 1.3, top, 1.3, hgt); }
+  lightOver(px, top, T, hgt, WALL_RISE);
+}
+// a free-standing block (pillar, column, crate stack) of any material
+function drawColumn(px, py, mat, H = COL_H, w = TILE) {
+  const B = blockTexInit()[mat] || BLK.stone, x0 = px + (TILE - w) / 2, top = py + TILE - H - w * 0.75;
+  shadow(px + TILE / 2, py + TILE - 1, w * 0.62);
+  ctx.drawImage(B.face[0], x0, top + w * 0.75, w, H); ctx.drawImage(B.top, x0, top, w, w * 0.75 + 0.3);
+  ctx.fillStyle = 'rgba(0,0,0,0.45)'; ctx.fillRect(x0, top + w * 0.75 - 0.5, w, 1.2);
+  ctx.fillStyle = 'rgba(255,255,255,0.15)'; ctx.fillRect(x0, top, w, 1);
+  ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.fillRect(x0, top, 1.1, H + w * 0.75); ctx.fillRect(x0 + w - 1.1, top, 1.1, H + w * 0.75);
+  lightOver(x0, top, w, H + w * 0.75, py - top);
+}
+const COL_MAT = { col: 'stone', col_sand: 'sand', col_bone: 'bone', col_obsidian: 'obsidian', col_crystal: 'crystal', col_ice: 'ice', col_rock: 'rock', col_wood: 'wood', col_ember: 'ember', pillar: 'stone' };
+function drawPropTile(tx, ty, k) {
+  const px = tx * TILE, py = ty * TILE;
+  if (COL_MAT[k]) { drawColumn(px, py, COL_MAT[k], k === 'pillar' ? COL_H + 4 : COL_H); return; }
+  const f = SPR.props[k]; if (!f) return;
+  litSprite(f.c, px + 8 - f.ox, py + 15 - f.oy, f.w, f.h, px + 8, py + 12);
+}
+// every block in view joins the depth sort with the creatures
+function pushWorldBlocks(objs) {
+  if (G.inVoid && !G.voidRoom) return;
+  const x0 = Math.floor((G.cam.x - W / 2 / ZOOM) / TILE) - 1, x1 = Math.ceil((G.cam.x + W / 2 / ZOOM) / TILE) + 1;
+  const y0 = Math.floor((G.cam.y - H / 2 / ZOOM) / TILE) - 1, y1 = Math.ceil((G.cam.y + H / 2 / ZOOM) / TILE) + 3;
+  const vis = G.players.filter(p => p.state !== 'dead');
+  for (let ty = y0; ty <= y1; ty++) for (let tx = x0; tx <= x1; tx++) {
+    if (tx < 0 || ty < 0 || tx >= MW || ty >= MH) continue;
+    const t = G.map[ty * MW + tx];
+    if (t === T_WALL) {
+      const by = (ty + 1) * TILE; let see = false; /* a Krystalker behind this wall: let it show through */
+      if (!isWallT(tx, ty - 1) || !isWallT(tx, ty - 2)) for (const p of vis) if (Math.abs(p.x - tx * TILE - 8) < 13 && p.y < by && p.y > by - WALL_RISE - 22) { see = true; break; }
+      objs.push({ y: by - 0.01, d: () => { if (see) ctx.globalAlpha = 0.45; drawWallBlock(tx, ty); ctx.globalAlpha = 1; } });
+    }
+    else if (t === T_PROP) { const k = G.prop.get(ty * MW + tx); if (k && !LIQUID[k] && k !== 'block') objs.push({ y: (ty + 1) * TILE - 1, d: () => drawPropTile(tx, ty, k) }); }
+    else if (t === T_CRATE) objs.push({ y: (ty + 1) * TILE - 2, d: () => drawBreakable(tx, ty) });
+  }
+}
+// ---- pits / chasms and bridges (drawn flat in the tile pass) ----
+function drawPitTile(tx, ty) {
+  const px = tx * TILE, py = ty * TILE, T = TILE + 0.35; blockTexInit();
+  ctx.drawImage(BLK.pit, px, py, T, T);
+  const up = tget(tx, ty - 1); if (!(up === T_PROP && G.prop.get((ty - 1) * MW + tx) === 'pit')) ctx.drawImage(BLK.pitLip, px, py, T, 8);
+}
+function drawBridgeTile(tx, ty, vert) {
+  const px = tx * TILE, py = ty * TILE, T = TILE + 0.35; blockTexInit();
+  if (vert) { ctx.save(); ctx.translate(px + T, py); ctx.rotate(Math.PI / 2); ctx.drawImage(BLK.plank, 0, 0, T, T); ctx.restore(); } else ctx.drawImage(BLK.plank, px, py, T, T);
+}
+
+// ---- breakable pots, vases, barrels and crates ----
+const BRK = {
+  crate: { hp: 24, shard: '#a89c88' },
+  barrel: { hp: 16, shard: '#8a6440' },
+  vase: { hp: 6, shard: '#c87a4a' },
+  pot: { hp: 6, shard: '#8a8274' },
+  urn: { hp: 8, shard: '#e0d8c0' },
+  jar: { hp: 5, shard: '#7ac87a' },
+  icepot: { hp: 6, shard: '#bfe6fa' },
+  geode: { hp: 10, shard: '#7ae0ff' },
+};
+let BRK_SPR = null;
+function brkSprites() {
+  if (BRK_SPR) return BRK_SPR;
+  BRK_SPR = {};
+  const mk = (draw) => { const c = mkCanvas(64, 80), x = c.getContext('2d'); x.translate(32, 76); x.lineJoin = 'round'; x.lineWidth = 2.4; x.strokeStyle = '#140f14'; draw(x); return c; };
+  const body = (x, pts, fill, hi) => { x.beginPath(); x.moveTo(pts[0][0], pts[0][1]); for (const [a, b] of pts.slice(1)) x.lineTo(a, b); x.closePath(); x.fillStyle = fill; x.fill(); x.stroke(); if (hi) { x.fillStyle = hi; x.beginPath(); x.ellipse(-8, -30, 4, 12, -0.2, 0, Math.PI * 2); x.fill(); } };
+  BRK_SPR.vase = mk(x => { x.beginPath(); x.moveTo(-10, -52); x.bezierCurveTo(-28, -40, -26, -6, -12, 0); x.lineTo(12, 0); x.bezierCurveTo(26, -6, 28, -40, 10, -52); x.lineTo(12, -60); x.lineTo(-12, -60); x.closePath(); x.fillStyle = '#c0703e'; x.fill(); x.stroke(); x.fillStyle = '#7a3e20'; x.fillRect(-20, -34, 40, 5); x.fillStyle = 'rgba(255,220,180,0.35)'; x.beginPath(); x.ellipse(-10, -32, 4, 12, -0.2, 0, Math.PI * 2); x.fill(); });
+  BRK_SPR.pot = mk(x => { x.beginPath(); x.ellipse(0, -20, 24, 20, 0, 0, Math.PI * 2); x.fillStyle = '#7e786c'; x.fill(); x.stroke(); x.beginPath(); x.ellipse(0, -40, 13, 5, 0, 0, Math.PI * 2); x.fillStyle = '#2a2420'; x.fill(); x.stroke(); x.fillStyle = 'rgba(255,255,255,0.18)'; x.beginPath(); x.ellipse(-10, -26, 5, 8, -0.3, 0, Math.PI * 2); x.fill(); });
+  BRK_SPR.urn = mk(x => { body(x, [[-12, -62], [12, -62], [8, -54], [20, -40], [18, -12], [12, 0], [-12, 0], [-18, -12], [-20, -40], [-8, -54]], '#ddd2b4', 'rgba(255,255,255,0.35)'); x.strokeStyle = '#4a6aa8'; x.lineWidth = 2; x.beginPath(); x.moveTo(-18, -30); x.quadraticCurveTo(0, -22, 18, -30); x.stroke(); x.beginPath(); x.moveTo(-17, -20); x.quadraticCurveTo(0, -12, 17, -20); x.stroke(); });
+  BRK_SPR.jar = mk(x => { body(x, [[-9, -58], [9, -58], [9, -48], [18, -38], [18, -4], [12, 0], [-12, 0], [-18, -4], [-18, -38], [-9, -48]], 'rgba(110,200,120,0.85)', 'rgba(255,255,255,0.45)'); x.fillStyle = '#6a4a2a'; x.fillRect(-10, -64, 20, 7); x.strokeRect(-10, -64, 20, 7); });
+  BRK_SPR.icepot = mk(x => { body(x, [[-11, -56], [11, -56], [22, -36], [18, -6], [10, 0], [-10, 0], [-18, -6], [-22, -36]], '#a8d8ee', 'rgba(255,255,255,0.6)'); x.fillStyle = '#e8f6ff'; x.beginPath(); x.ellipse(0, -56, 12, 4, 0, 0, Math.PI * 2); x.fill(); x.stroke(); });
+  BRK_SPR.geode = mk(x => { for (const [ox, h, w] of [[-12, 34, 9], [6, 48, 11], [16, 26, 8], [-2, 22, 8]]) { x.beginPath(); x.moveTo(ox - w, 0); x.lineTo(ox - w * 0.7, -h * 0.8); x.lineTo(ox, -h); x.lineTo(ox + w * 0.7, -h * 0.8); x.lineTo(ox + w, 0); x.closePath(); x.fillStyle = '#5ac8e8'; x.fill(); x.stroke(); x.fillStyle = 'rgba(255,255,255,0.45)'; x.fillRect(ox - 2, -h * 0.8, 2.5, h * 0.6); } });
+  BRK_SPR.barrel = mk(x => { x.beginPath(); x.roundRect(-20, -54, 40, 54, 8); x.fillStyle = '#8a6440'; x.fill(); x.stroke(); x.fillStyle = '#4a4a52'; x.fillRect(-21, -44, 42, 5); x.fillRect(-21, -14, 42, 5); x.beginPath(); x.ellipse(0, -54, 20, 6, 0, 0, Math.PI * 2); x.fillStyle = '#a07a50'; x.fill(); x.stroke(); x.fillStyle = 'rgba(255,240,200,0.18)'; x.fillRect(-14, -48, 4, 40); });
+  return BRK_SPR;
+}
+function drawBreakable(tx, ty) {
+  const i = ty * MW + tx, k = (G.crateKind && G.crateKind.get(i)) || 'crate', px = tx * TILE, py = ty * TILE;
+  if (k === 'crate') { shadow(px + 8, py + 14, 7); litSprite(TEX.crate, px - 1, py - 4, TILE + 2, TILE + 2, px + 8, py + 10); return; }
+  const S = brkSprites()[k]; if (!S) return;
+  const hit = G.crateHit && G.crateHit.get(i), wob = hit && G.time - hit < 0.2 ? Math.sin((G.time - hit) * 60) * 0.8 : 0;
+  shadow(px + 8, py + 14, 6); litSprite(S, px + wob, py - 4, 16, 20, px + 8, py + 10);
 }
 // ===== HUD (cartoon panels) =====
 const SHORT = {
@@ -10967,7 +11304,7 @@ function goHub() {
   showScreen(null);
 }
 function startRun(watch) { if (NET.role === 'host' && !watch) { netStartRun(chosenLord); return; }
-  if (watch && WATCH_RAND) { watchTeam = shuffle(CHAR_KEYS.slice()).slice(0, 4); chosenLord = pick(NIGHTLORDS.map(L => L.id)); } paused = false; SIM_SPEED = 1; lastRun = { watch, lord: chosenLord, char: LOADOUT.char, team: watch ? watchTeam.slice() : null }; startGame(watch ? watchTeam[0] : LOADOUT.char, watch, chosenLord, watch ? watchTeam.slice() : null); showScreen(null); }
+  if (watch && WATCH_RAND) { watchTeam = shuffle(CHAR_KEYS.slice()).slice(0, 4); if (WATCH_RAND === 1) chosenLord = pick(NIGHTLORDS.map(L => L.id)); } paused = false; SIM_SPEED = 1; lastRun = { watch, lord: chosenLord, char: LOADOUT.char, team: watch ? watchTeam.slice() : null }; startGame(watch ? watchTeam[0] : LOADOUT.char, watch, chosenLord, watch ? watchTeam.slice() : null); showScreen(null); }
 function drawHeroPortrait(c, k, scale) {
   const x = c.getContext('2d'); x.clearRect(0, 0, c.width, c.height);
   const f = SPR[k].idle, w = SPR['w_' + k], s = scale, fx = c.width / 2 - (k === 'bear' ? 4 : 8) * s, fy = c.height - 6 * s;
@@ -11004,14 +11341,14 @@ function buildLords() {
 }
 function refreshLords() {
   
-  $('watch-rand').hidden = gateMode !== 'watch'; { const dim = gateMode === 'watch' && WATCH_RAND ? '0.35' : ''; $('watch-team').style.opacity = dim; $('lords').style.opacity = dim; } $('rand-off').classList.toggle('sel', !WATCH_RAND); $('rand-on').classList.toggle('sel', WATCH_RAND);
+  $('watch-rand').hidden = gateMode !== 'watch'; { const dim = gateMode === 'watch' && WATCH_RAND ? '0.35' : ''; $('watch-team').style.opacity = dim; $('lords').style.opacity = gateMode === 'watch' && WATCH_RAND === 1 ? '0.35' : ''; } $('rand-off').classList.toggle('sel', !WATCH_RAND); $('rand-on').classList.toggle('sel', WATCH_RAND === 1); $('rand-team').classList.toggle('sel', WATCH_RAND === 2);
   for (const L of NIGHTLORDS) $('lord-' + L.id).classList.toggle('sel', L.id === chosenLord);
   buildWatchTeam();
   const W0 = gateMode === 'watch'; $('scr-lord').classList.toggle('watch', W0);
   $('gate-title').textContent = W0 ? 'Set up the bot team and its Dungeon Master' : 'Which Dungeon Master will you hunt?';
   $('gate-eyebrow').textContent = W0 ? 'Watch the bots' : 'Expedition Gate';
   $('b-back0').textContent = W0 ? 'Back' : 'Back to the hub';
-  $('b-lordok').textContent = W0 ? (WATCH_RAND ? 'Start watching (random team & boss)' : `Start watching (${watchTeam.length} bot${watchTeam.length > 1 ? 's' : ''})`) : 'Begin the expedition';
+  $('b-lordok').textContent = W0 ? (WATCH_RAND === 1 ? 'Start watching (random team & boss)' : WATCH_RAND === 2 ? 'Start watching (random team)' : `Start watching (${watchTeam.length} bot${watchTeam.length > 1 ? 's' : ''})`) : 'Begin the expedition';
   $('lord-team').textContent = W0 ? `Pick 1 to 4 Krystalkers. The first one picked gets the camera. Tab cycles the camera in game, 1-3 change speed.` : `You play ${CHARS[LOADOUT.char].name}. Three of the other Krystalkers join you as bots.`;
 }
 function openGate() { paused = true; gateMode = 'run'; buildLords(); showScreen('lord'); }
@@ -11149,8 +11486,9 @@ function wireMenus() {
   $('b-gloss').onclick = () => { archFromTitle = true; buildArchive(); showScreen('archive'); };
   $('b-set').onclick = () => openSettings('title');
   $('b-back0').onclick = () => { if (gateMode === 'watch') { gateMode = 'run'; showScreen('title'); } else { paused = false; showScreen(null); } };
-  $('rand-off').onclick = () => { WATCH_RAND = false; try { localStorage.setItem('kry_wrand', '0'); } catch (e) { } refreshLords(); };
-  $('rand-on').onclick = () => { WATCH_RAND = true; try { localStorage.setItem('kry_wrand', '1'); } catch (e) { } refreshLords(); };
+  $('rand-off').onclick = () => { WATCH_RAND = 0; try { localStorage.setItem('kry_wrand', '0'); } catch (e) { } refreshLords(); };
+  $('rand-on').onclick = () => { WATCH_RAND = 1; try { localStorage.setItem('kry_wrand', '1'); } catch (e) { } refreshLords(); };
+  $('rand-team').onclick = () => { WATCH_RAND = 2; try { localStorage.setItem('kry_wrand', '2'); } catch (e) { } refreshLords(); };
   $('b-lordok').onclick = () => { const w = gateMode === 'watch'; gateMode = 'run'; startRun(w); };
   $('b-back2').onclick = () => showScreen(G && G.hub ? null : 'title');
   $('b-back3').onclick = () => { Input.listening = null; if (settingsReturn === 'pause') showScreen('pause'); else showScreen('title'); };
